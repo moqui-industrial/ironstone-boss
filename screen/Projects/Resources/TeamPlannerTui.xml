@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The terminal twin of TeamPlanner (style-guide §4.8): TeamPlanner.xml's tui text is a dynamic container of this screen. The
     placeholders to staff, then each person with their allocated hours against their capacity in each of the first weeks (an
-    overbooked week marked with !), then the allocations, from the same service as TeamPlanner.qvue (ironstone.ResourceServices
+    overbooked week marked with !), then the allocations, from the same service as TeamPlanner.qvue (ironstone.projects.ResourceServices
     get#Planner). The terminal's changes (impl-projects.md P11), over the services of TeamPlanner.qvue's transitions, for the
     allocations the user may change (an approver, or the requester of a requested one on a project they manage): Move (shift its
     days, or new first and last days: move#Allocation), and for an approver Decide (approve, reject with a reason, or cancel:
@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- Move and Decide (as TeamPlanner.xml's moveAllocation and decideAllocation); the planner again on the same find -->
     <transition name="moveAllocation">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.move#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.move#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
                 shiftDays: shiftDays ? Number(shiftDays) : null, fromDate: shiftDays ? null : (allocFromDate || null), thruDate: shiftDays ? null : (allocThruDate || null)}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -45,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="decideAllocation">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.decide#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.decide#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
                 action: action || '', reason: reason || null}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -57,7 +57,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
-        const out = ec.service.sync().name('ironstone.ResourceServices.get#Planner').parameters({fromDate: fromDate || null, weeks: Math.min(Number(weeks) || 6, 8),
+        const out = ec.service.sync().name('ironstone.projects.ResourceServices.get#Planner').parameters({fromDate: fromDate || null, weeks: Math.min(Number(weeks) || 6, 8),
             rootWorkEffortId: rootWorkEffortId || null, roleTypeId: roleTypeId || null, skillTypeEnumId: skillTypeEnumId || null, teamPartyId: teamPartyId || null}).call() || {}
         ec.message.clearErrors()
         const planner = out.planner || {}

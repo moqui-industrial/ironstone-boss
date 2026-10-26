@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- ChatSettings (design-drawers-commons.md §17 ChatSettings; style-guide §3.9 Settings; impl-drawers-commons.md M10): the
-    user's chat preferences (service/ironstone/ChatServices.xml get#ChatPrefs and store#ChatPrefs): the notification level the
+    user's chat preferences (service/ironstone/comms/ChatServices.xml get#ChatPrefs and store#ChatPrefs): the notification level the
     rooms the user makes or joins start with (CHAT_NOTIFY_DEFAULT, which the framework's ChatServices read: all, mentions or
     nothing; Apply to my rooms sets it on every room but the direct ones), whether a mention's notification shows the message
     (CHAT_NOTIFY_PREVIEW), sounds, whether Enter sends, read receipts (CHAT_READ_RECEIPTS: off, the framework neither pushes
@@ -26,26 +26,26 @@ along with this software (see the LICENSE.md file). If not, see
         default-menu-title="Chat" default-menu-index="6" server-static="qvt" menu-image="sym_o_chat" menu-image-type="icon">
 
     <transition name="savePreferences">
-        <service-call name="ironstone.ChatServices.store#ChatPrefs" in-map="{enterSends:enterSends, sounds:sounds, readReceipts:readReceipts, typing:typing,
+        <service-call name="ironstone.comms.ChatServices.store#ChatPrefs" in-map="{enterSends:enterSends, sounds:sounds, readReceipts:readReceipts, typing:typing,
                 linkPreviews:linkPreviews, notifyPreview:notifyPreview, notifyDefault:(notifyDefault ?? ''), autoAwayMinutes:autoAwayMinutes, saveFlags:true}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Chat preferences saved</message></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="saveDndHours">
-        <service-call name="ironstone.ChatServices.store#ChatPrefs" in-map="{dndFrom:dndFrom, dndTo:dndTo, saveDnd:true}"/>
+        <service-call name="ironstone.comms.ChatServices.store#ChatPrefs" in-map="{dndFrom:dndFrom, dndTo:dndTo, saveDnd:true}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Do not disturb hours saved</message></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="clearDndHours">
-        <service-call name="ironstone.ChatServices.store#ChatPrefs" in-map="{dndFrom:'', dndTo:'', saveDnd:true}"/>
+        <service-call name="ironstone.comms.ChatServices.store#ChatPrefs" in-map="{dndFrom:'', dndTo:'', saveDnd:true}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">No do not disturb hours</message></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="applyNotifyDefault">
-        <service-call name="ironstone.ChatServices.apply#NotifyDefault" out-map="applyOut"/>
+        <service-call name="ironstone.comms.ChatServices.apply#NotifyDefault" out-map="applyOut"/>
         <actions><if condition="!ec.message.hasError()"><script><![CDATA[
             ec.message.addMessage(ec.resource.expand(applyOut.failedCount ? '${updatedCount} rooms set, ${failedCount} could not be' : '${updatedCount} rooms set', '',
                 {updatedCount: applyOut.updatedCount, failedCount: applyOut.failedCount}), applyOut.failedCount ? 'warning' : 'success')
@@ -54,24 +54,24 @@ along with this software (see the LICENSE.md file). If not, see
         <error-response url="."/>
     </transition>
     <transition name="addPreset">
-        <service-call name="ironstone.ChatServices.store#StatusPreset" in-map="{action:'add', emoji:emoji, text:text, clearAfter:clearAfter}"/>
+        <service-call name="ironstone.comms.ChatServices.store#StatusPreset" in-map="{action:'add', emoji:emoji, text:text, clearAfter:clearAfter}"/>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="removePreset">
-        <service-call name="ironstone.ChatServices.store#StatusPreset" in-map="{action:'remove', index:index}"/>
+        <service-call name="ironstone.comms.ChatServices.store#StatusPreset" in-map="{action:'remove', index:index}"/>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="usePreset">
-        <service-call name="ironstone.ChatServices.use#StatusPreset" in-map="{index:index}"/>
+        <service-call name="ironstone.comms.ChatServices.use#StatusPreset" in-map="{index:index}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Status set</message></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
 
     <actions>
-        <service-call name="ironstone.ChatServices.get#ChatPrefs" out-map="prefsOut"/>
+        <service-call name="ironstone.comms.ChatServices.get#ChatPrefs" out-map="prefsOut"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             const prefs = prefsOut.prefs

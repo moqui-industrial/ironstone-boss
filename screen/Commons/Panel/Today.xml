@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- TodayPanel (design-drawers-commons.md §4; style-guide §3.14 Panel): the Today tab of the tray panel, laid out for its
     400 px with no viewport breakpoint columns. The day and the approvals waiting (to the Notifications tab), then Overdue,
     Due today with the quick-add line, Later today and one group per today-source provider of the apps the user may open
-    (ironstone.CommonsServices.get#TodayView over mantle.work.WorkEffortServices.get#UserTodayItems), each item a dense row
+    (ironstone.commons.CommonsServices.get#TodayView over mantle.work.WorkEffortServices.get#UserTodayItems), each item a dense row
     with its icon, title, time, record and the other assignees, and flat quick actions: Mark done, Snooze to tomorrow 9:00
     and Reschedule, and Stop on Projects' running timer. A source that fails is named, the rest shows.
 
@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="markDone">
         <parameter name="workEffortId" required="true"/>
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CommonsServices.complete#TodayItem').parameters({workEffortId: workEffortId}).call()
+            const out = ec.service.sync().name('ironstone.commons.CommonsServices.complete#TodayItem').parameters({workEffortId: workEffortId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success',
                 message: ec.resource.expand('Done: ${name}', '', {name: out.workEffortName})}]})
         ]]></script></actions>
@@ -53,7 +53,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="reschedule">
         <parameter name="workEffortId" required="true"/>
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CommonsServices.reschedule#TodayItem')
+            const out = ec.service.sync().name('ironstone.commons.CommonsServices.reschedule#TodayItem')
                     .parameters({workEffortId: workEffortId, estimatedCompletionDate: estimatedCompletionDate}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success',
                 message: ec.resource.expand('${name} is due ${when}', '', {name: out.workEffortName, when: ec.l10n.format(out.estimatedCompletionDate, 'EEE MMM d')})}]})
@@ -71,7 +71,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="quickAdd">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CommonsServices.add#TodayTask')
+            const out = ec.service.sync().name('ironstone.commons.CommonsServices.add#TodayTask')
                     .parameters({workEffortName: workEffortName, recordEntity: recordEntity, recordId: recordId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
                 messageInfos: [{type: 'success', message: out.message, link: out.url}]})
@@ -90,7 +90,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (source && source.service && !sources.some((known) => known.service === source.service)) sources.push(source)
             sourceServiceNames = sources
         ]]></script>
-        <service-call name="ironstone.CommonsServices.get#TodayView" in-map="{sourceServiceNames:sourceServiceNames}" out-map="context"/>
+        <service-call name="ironstone.commons.CommonsServices.get#TodayView" in-map="{sourceServiceNames:sourceServiceNames}" out-map="context"/>
         <set field="approvalsText" from="approvalCount == 1 ? ec.l10n.localize('1 approval waiting') : ec.resource.expand('${count} approvals waiting', '', {count: approvalCount})"/>
         <set field="hasRecord" from="!!(recordEntity &amp;&amp; recordId)"/>
     </actions>

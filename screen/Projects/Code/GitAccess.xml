@@ -45,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const info = ec.service.sync().name('ironstone.CodeServices.get#GitAccess').call() || {}
+            const info = ec.service.sync().name('ironstone.projects.CodeServices.get#GitAccess').call() || {}
             newAccessToken = ec.web?.sessionAttributes?.remove ? (ec.web.sessionAttributes.remove('newAccessToken') || null) : null
             sshKeyList = Array.from(info.sshKeyList || [])
             tokenList = Array.from(info.tokenList || [])

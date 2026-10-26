@@ -1,4 +1,4 @@
-// NewProject (screen/Projects/Projects/NewProject.xml and NewProject/, service/ironstone/ProjectServices.xml create#NewProject,
+// NewProject (screen/Projects/Projects/NewProject.xml and NewProject/, service/ironstone/projects/ProjectServices.xml create#NewProject,
 // save#ProjectModules, save#ProjectMoney, add#ProjectRate; design-projects.md §4 NewProject; impl-projects.md P2): the wizard's
 // steps render (the later ones ask for Start first without a project); Start makes the project In Planning with the user its
 // project manager, General by default, the key suggested from the name when left empty, from a template with its tree and

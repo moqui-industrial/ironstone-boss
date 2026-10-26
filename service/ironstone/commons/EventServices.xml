@@ -1,0 +1,686 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- One event as Commons/Calendar/EventDetail shows and changes it (design-drawers-commons.md §7 EventDetail; impl-drawers-commons.md
+    M7), on mantle.work.EventServices, CalendarServices and WorkEffortServices. An event is seen by its organizer, its
+    attendees, the people who see a calendar it is in and, under the record visibility rule, its parties and organizations
+    (ironstone.commons.CalendarServices.get#EventAccessInfo: IronStone R5, R28); one the user may not see is "not available". It is
+    changed by its organizer or an editor of its calendar; an attendee answers it and sets their own reminders. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="EventDetail">
+        <description>What EventDetail shows of an event the user may see (found false, or visible false: "not available"): the
+            facts of ironstone.commons.CalendarServices.get#EventFacts (for instanceStart, an instance of a recurring event), the edit
+            values of its When and Overview, the recurrence editor's fields (of its series), the user's reminders, the
+            calendars it may go in, the people's free/busy at its time (get#FreeBusy: busy, tentative or free), the meeting
+            rooms with their availability then, the attendees who have not had the latest invitation (pendingInvites), the
+            records it is on (linkedRecordList: its request, task, page and other records through RequestWorkEffort,
+            WikiPageWorkEffort or WorkEffortRecord, and the work efforts of its WorkEffortAssoc rows other than the instances of a
+            series, each one the user may see: get#RecordLinkInfo checkOnly; when and by whom it was linked, and whether the
+            user may take it off), and what the user may do.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="instanceStart"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="visible" type="Boolean"/>
+            <parameter name="event" type="Map"/>
+            <parameter name="edit" type="Map"/>
+            <parameter name="recurrence" type="Map"/>
+            <parameter name="reminderList" type="List"/>
+            <parameter name="calendarOptions" type="List"/>
+            <parameter name="roomOptions" type="List"/>
+            <parameter name="equipmentOptions" type="List"/>
+            <parameter name="linkedRecordList" type="List"/>
+            <parameter name="pendingInvites" type="Integer"/>
+            <parameter name="canEdit" type="Boolean"/>
+            <parameter name="isOrganizer" type="Boolean"/>
+            <parameter name="isAttendee" type="Boolean"/>
+            <parameter name="canRsvp" type="Boolean"/>
+            <parameter name="canSetReminders" type="Boolean"/>
+            <parameter name="failedSources" type="List"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId}" out-map="access"/>
+            <set field="found" from="!!access.found"/>
+            <set field="visible" from="!!access.visible"/>
+            <if condition="!visible"><return/></if>
+            <service-call name="ironstone.commons.CalendarServices.get#EventFacts" in-map="{workEffortId:workEffortId, instanceStart:instanceStart}" out-map="facts"/>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const cf = ec.entity.conditionFactory
+                failedSources = []
+                const attempt = (name, run) => {
+                    ec.message.pushErrors()
+                    try { run(); if (ec.message.hasError()) throw new Error(ec.message.getErrorsString()) }
+                    catch (err) { failedSources.push(name); ec.logger.error(`Event ${workEffortId} ${name} for ${ec.user.username} not read: ${err && err.message ? err.message : err}`) }
+                    finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+                const toMillis = (value) => {
+                    if (value == null || value === '') return null
+                    if (typeof value === 'number') return value
+                    if (value instanceof Date) return value.getTime()
+                    const text = String(value)
+                    if (/^-?\d+$/.test(text)) return Number(text)
+                    const parsed = Date.parse(text)
+                    return Number.isNaN(parsed) ? null : parsed
+                }
+                const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+                event = facts.event
+                canEdit = !!access.canEdit
+                isOrganizer = !!access.isOrganizer
+                isAttendee = !!access.isAttendee
+                canRsvp = isAttendee && !isOrganizer && !event.cancelled
+                const myPartyId = ec.user.userAccount?.partyId || null
+                canSetReminders = !!myPartyId && (isOrganizer || isAttendee)
+                // the edit values: the When of the instance shown, the overview fields
+                const lastDay = event.allDay && event.endText ? (() => { const [y, m, d] = event.endText.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().substring(0, 10) })() : null
+                edit = {workEffortId: workEffortId, instanceStart: event.isInstance ? null : (event.isRecurring ? event.instanceStart || null : null),
+                    workEffortName: event.name, allDay: event.allDay ? 'Y' : 'N',
+                    startDate: event.startText ? event.startText.substring(0, 10) : '', startTime: !event.allDay && event.startText ? event.startText.substring(11, 16) : '09:00',
+                    endDate: event.allDay ? (lastDay || '') : (event.endText ? event.endText.substring(0, 10) : ''), endTime: !event.allDay && event.endText ? event.endText.substring(11, 16) : '10:00',
+                    location: event.location || '', infoUrl: event.infoUrl || '', description: event.description || '', visibilityEnumId: event.visibilityEnumId || '',
+                    calendarId: event.calendar?.calendarId || '', scope: event.isRecurring && (instanceStart || event.isInstance) ? 'this' : 'all'}
+                // the recurrence editor: the series' rule
+                recurrence = {seriesId: event.seriesId, rrule: event.rrule, text: event.recurrenceText, isInstance: !!event.isInstance}
+                attempt('recurrence', () => {
+                    const fields = ec.service.sync().name('ironstone.commons.CalendarServices.parse#RRule').parameters({rrule: event.rrule}).call()?.fields || {}
+                    Object.assign(recurrence, fields, {workEffortId: event.seriesId})
+                })
+                // the user's reminders
+                reminderList = []
+                if (myPartyId) for (const reminder of ec.entity.find('mantle.work.effort.WorkEffortReminder').condition('workEffortId', event.seriesId)
+                        .condition('partyId', myPartyId).orderBy('offsetMinutes').list()) {
+                    const minutes = Number(String(reminder.offsetMinutes ?? 0))
+                    const text = minutes === 0 ? L('At the start') : minutes % 1440 === 0 ? ec.resource.expand('${count} day(s) before', '', {count: minutes / 1440})
+                            : minutes % 60 === 0 ? ec.resource.expand('${count} hour(s) before', '', {count: minutes / 60}) : ec.resource.expand('${count} minutes before', '', {count: minutes})
+                    reminderList.push({reminderSeqId: reminder.reminderSeqId, offsetMinutes: minutes, methodEnumId: reminder.methodEnumId || 'WermNotification',
+                        offsetText: text, methodText: reminder.methodEnumId === 'WermEmail' ? L('Email') : L('Notification'),
+                        sentText: reminder.sentDate ? ec.l10n.format(reminder.sentDate, 'MMM d, h:mm a') : ''})
+                }
+                // the calendars it may go in: the user's that take events
+                calendarOptions = []
+                attempt('calendars', () => {
+                    const out = ec.service.sync().name('mantle.work.CalendarServices.get#UserCalendars').parameters({ensureDefault: false}).call()
+                    for (const calendar of Array.from(out?.calendarList || [])) if (['CalpEdit', 'CalpManage'].includes(calendar.permissionEnumId)
+                            && calendar.calendarKindEnumId !== 'CalkSubscription') calendarOptions.push({value: calendar.calendarId, label: calendar.calendarName})
+                })
+                // free/busy at the event's time: the attendees, its rooms and the bookable rooms
+                roomOptions = []
+                equipmentOptions = []
+                const startMs = event.startText ? toMillis(ec.l10n.parseTimestamp((event.allDay ? event.startText + ' 00:00' : event.startText) + ':00.000', pattern)) : null
+                const endMs = event.endText ? toMillis(ec.l10n.parseTimestamp((event.allDay ? event.endText + ' 00:00' : event.endText) + ':00.000', pattern)) : (startMs != null ? startMs + 3600000 : null)
+                const rooms = Array.from(ec.entity.find('mantle.facility.Facility').condition('facilityTypeEnumId', 'FcTpRoom').condition('bookable', 'Y')
+                        .condition('closedDate', 'is-null', null).orderBy('facilityName').limit(100).list())
+                const assets = Array.from(ec.entity.find('mantle.product.asset.Asset').condition('assetTypeEnumId', 'AstTpEquipment').condition('bookable', 'Y')
+                        .condition(cf.makeCondition('classEnumId', 'not-in', ['AsClsMfgEquip'], true)).orderBy('assetName').limit(100).list())
+                const busyText = (list) => {
+                    const overlapping = (list || []).filter((busy) => toMillis(busy.fromDate) < endMs && toMillis(busy.thruDate) > startMs)
+                    if (!overlapping.length) return ['free', L('Free')]
+                    if (overlapping.some((busy) => busy.status === 'busy' || busy.status === 'away')) return ['busy', overlapping.some((busy) => busy.status === 'away') ? L('Away') : L('Busy')]
+                    if (overlapping.some((busy) => busy.status === 'requested')) return ['requested', L('Requested')]
+                    return ['tentative', L('Maybe busy')]
+                }
+                if (startMs != null && endMs != null && endMs > startMs && !event.cancelled) attempt('free/busy', () => {
+                    const partyIds = event.attendees.map((party) => party.partyId)
+                    const out = ec.service.sync().name('mantle.work.EventServices.get#FreeBusy').parameters({partyIdList: partyIds,
+                        facilityIdList: rooms.map((room) => room.facilityId), assetIdList: assets.map((asset) => asset.assetId),
+                        fromDate: new Date(startMs), thruDate: new Date(endMs), excludeWorkEffortId: event.seriesId}).call()
+                    if (ec.message.hasError()) return
+                    const byKey = new Map()
+                    for (const entry of Array.from(out?.freeBusyList || [])) byKey.set(entry.resourceType + '|' + (entry.partyId || entry.facilityId || entry.assetId), entry)
+                    for (const party of event.attendees) {
+                        const entry = byKey.get('party|' + party.partyId)
+                        if (!entry) continue
+                        const [state, text] = busyText(entry.busyList)
+                        party.freeBusy = state
+                        party.freeBusyText = text
+                    }
+                    for (const room of rooms) {
+                        const entry = byKey.get('facility|' + room.facilityId)
+                        const [state, text] = entry ? busyText(entry.busyList) : ['', '']
+                        roomOptions.push({value: room.facilityId, label: (room.facilityName || room.facilityId) + (text ? ' · ' + text : ''), state: state})
+                    }
+                    for (const asset of assets) {
+                        const entry = byKey.get('asset|' + asset.assetId)
+                        const [state, text] = entry ? busyText(entry.busyList) : ['', '']
+                        equipmentOptions.push({value: asset.assetId, label: (asset.assetName || asset.assetId) + (text ? ' · ' + text : ''), state: state})
+                    }
+                })
+                if (!roomOptions.length) roomOptions = rooms.map((room) => ({value: room.facilityId, label: room.facilityName || room.facilityId}))
+                if (!equipmentOptions.length) equipmentOptions = assets.map((asset) => ({value: asset.assetId, label: asset.assetName || asset.assetId}))
+                // the attendees who have not had the latest invitation: none sent, or the event changed since
+                // (mantle.work.EventServices.get#InvitationDigest; get#EventAccessInfo let the user see the event, by the record
+                // visibility rule too, so its own view check is not asked again)
+                pendingInvites = 0
+                attempt('invitations', () => {
+                    const digest = ec.service.sync().name('mantle.work.EventServices.get#InvitationDigest').parameters({workEffortId: workEffortId})
+                            .disableAuthz().call()
+                    if (ec.message.hasError()) return
+                    const pending = new Set(Array.from(digest?.pendingPartyIdList || []))
+                    pendingInvites = pending.size
+                    for (const attendee of event.attendees) attendee.pendingInvite = pending.has(attendee.partyId)
+                })
+                // the records it is on, each one the user may see (a record the user may not see is left out, its id too)
+                linkedRecordList = []
+                attempt('linked records', () => {
+                    const seen = new Set()
+                    const userNames = {}
+                    const userName = (userId) => {
+                        if (!userId) return null
+                        if (userNames[userId] === undefined) {
+                            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', userId).useCache(true).disableAuthz().one()
+                            userNames[userId] = account ? (account.userFullName || account.username) : null
+                        }
+                        return userNames[userId]
+                    }
+                    const add = (recordEntityName, recordId, linkEntityName, link) => {
+                        const key = recordEntityName + '|' + recordId
+                        if (seen.has(key) || (recordEntityName === 'mantle.work.effort.WorkEffort' && recordId === workEffortId)) return
+                        seen.add(key)
+                        ec.message.pushErrors()
+                        let shown = false
+                        try {
+                            shown = ec.service.sync().name('mantle.party.CommunicationServices.get#RecordLinkInfo').parameters({recordEntityName: recordEntityName,
+                                recordId: recordId, checkOnly: true}).call()?.recordVisible === true
+                        } catch (err) { shown = false } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                        if (!shown) return
+                        const linkedMillis = toMillis(link?.linkedDate ?? link?.fromDate)
+                        const by = userName(link?.linkedByUserId)
+                        linkedRecordList.push({recordEntityName, recordId, linkEntityName, linkKey: linkEntityName + '|' + recordEntityName + '|' + recordId,
+                            linkedText: linkedMillis != null ? (by ? ec.resource.expand('Linked ${date} by ${name}', '', {date: ec.l10n.format(new Date(linkedMillis), 'yyyy-MM-dd'), name: by})
+                                : ec.resource.expand('Linked ${date}', '', {date: ec.l10n.format(new Date(linkedMillis), 'yyyy-MM-dd')})) : null,
+                            canRemove: canEdit && linkEntityName !== 'mantle.work.effort.WorkEffortAssoc'})
+                    }
+                    for (const link of ec.entity.find('mantle.request.RequestWorkEffort').condition('workEffortId', workEffortId).list())
+                        add('mantle.request.Request', link.requestId, 'mantle.request.RequestWorkEffort', link)
+                    for (const link of ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition('workEffortId', workEffortId).list())
+                        add('moqui.resource.wiki.WikiPage', link.wikiPageId, 'mantle.work.effort.WikiPageWorkEffort', link)
+                    for (const link of ec.entity.find('mantle.work.effort.WorkEffortRecord').condition('workEffortId', workEffortId).orderBy('linkedDate').list())
+                        add(link.recordEntityName, link.recordId, 'mantle.work.effort.WorkEffortRecord', link)
+                    // the work efforts it is associated with, both ways, other than a series' instances
+                    for (const assoc of ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition(cf.makeCondition([
+                            cf.makeCondition('workEffortId', 'equals', workEffortId), cf.makeCondition('toWorkEffortId', 'equals', workEffortId)], 'or'))
+                            .condition(cf.makeCondition('workEffortAssocTypeEnumId', 'not-equals', 'WeatRecurrenceInstance'))
+                            .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).orderBy('fromDate').list())
+                        add('mantle.work.effort.WorkEffort', assoc.workEffortId === workEffortId ? assoc.toWorkEffortId : assoc.workEffortId,
+                            'mantle.work.effort.WorkEffortAssoc', assoc)
+                })
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="link" noun="EventRecord">
+        <description>Puts the event on a record (EventDetail's LinkedRecords, the record picked by an id through
+            mantle.GeneralServices.lookup#ById or the search index, ironstone.comms.InboxServices.search#LinkRecords): for a user who
+            may change the event (get#EventAccessInfo, edit), a record the user may see, through
+            mantle.work.WorkEffortServices.link#WorkEffortRecord (the record's own join, RequestWorkEffort or WikiPageWorkEffort,
+            else a WorkEffortRecord, which checks the record under the user's filters). record is "entity|id" as the picker
+            answers, or recordEntityName and recordId.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="record"/>
+            <parameter name="recordEntityName"/>
+            <parameter name="recordId"/>
+        </in-parameters>
+        <out-parameters><parameter name="created" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            created = false
+            const L = (text) => ec.l10n.localize(text)
+            let entityName = recordEntityName || null
+            let id = recordId || null
+            if (!entityName && record) {
+                const text = String(record)
+                const at = text.lastIndexOf('|')
+                if (at > 0) { entityName = text.substring(0, at); id = text.substring(at + 1) }
+            }
+            if (!entityName || !id) { ec.message.addError(L('Choose the record to link')); return }
+            ec.service.sync().name('ironstone.commons.CalendarServices.get#EventAccessInfo').parameters({workEffortId: workEffortId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            if (entityName === 'mantle.work.effort.WorkEffort' && id === workEffortId) { ec.message.addError(L('An event is not linked to itself')); return }
+            const out = ec.service.sync().name('mantle.work.WorkEffortServices.link#WorkEffortRecord').parameters({workEffortId: workEffortId,
+                recordEntityName: entityName, recordId: id}).call()
+            if (ec.message.hasError()) return
+            created = !!out?.created
+            message = created ? L('Linked') : L('It was linked already')
+        ]]></script></actions>
+    </service>
+
+    <service verb="unlink" noun="EventRecord">
+        <description>Takes the event off a record (mantle.work.WorkEffortServices.unlink#WorkEffortRecord: the own join row or the
+            WorkEffortRecord), for a user who may change the event; the record stays. A work effort association is the plan's
+            (Projects) and stays.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="unlinked" type="Boolean"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            unlinked = false
+            ec.service.sync().name('ironstone.commons.CalendarServices.get#EventAccessInfo').parameters({workEffortId: workEffortId, need: 'edit'}).call()
+            if (ec.message.hasError()) return
+            const out = ec.service.sync().name('mantle.work.WorkEffortServices.unlink#WorkEffortRecord').parameters({workEffortId: workEffortId,
+                recordEntityName: recordEntityName, recordId: recordId}).call()
+            if (ec.message.hasError()) return
+            unlinked = !!out?.unlinked
+            message = ec.l10n.localize(unlinked ? 'Taken off the record' : 'It was not linked')
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="EventOverview">
+        <description>The When and Overview of EventDetail: name, all day, start and end (a date and a time each), location, join
+            link (infoUrl), description and visibility, by scope for a recurring event (mantle.work.EventServices.update#EventOccurrence:
+            this, following or all); a new calendar puts the event (its series) in that calendar in place of the user's other
+            ones (add#CalendarEvent, remove#CalendarEvent). With notify Y the attendees get the update. A new time that clashes
+            with another booking of the event's room or equipment is refused unless allowConflicts (the booking stays, and
+            conflictList names the clashes).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="instanceStart"/>
+            <parameter name="scope" default-value="this"/>
+            <parameter name="workEffortName"/>
+            <parameter name="allDay"/>
+            <parameter name="startDate"/>
+            <parameter name="startTime"/>
+            <parameter name="endDate"/>
+            <parameter name="endTime"/>
+            <parameter name="location"/>
+            <parameter name="infoUrl"/>
+            <parameter name="description"/>
+            <parameter name="visibilityEnumId"/>
+            <parameter name="calendarId"/>
+            <parameter name="notify"/>
+            <parameter name="allowConflicts"><description>Y keeps a booking that clashes at the new time</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="targetWorkEffortId"/>
+            <parameter name="message"/>
+            <parameter name="conflictList" type="List"/>
+        </out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const isAllDay = allDay === 'Y' || allDay === 'true'
+                const day = (text) => /^\d{4}-\d{2}-\d{2}/.test(String(text || '')) ? String(text).substring(0, 10) : null
+                const time = (text) => { const match = /^(\d{1,2}):(\d{2})/.exec(String(text || '').trim()); return match ? match[1].padStart(2, '0') + ':' + match[2] : null }
+                let start = null, end = null
+                if (day(startDate)) {
+                    start = isAllDay ? day(startDate) : day(startDate) + ' ' + (time(startTime) || '09:00')
+                    const endDay = day(endDate) || day(startDate)
+                    end = isAllDay ? endDay : endDay + ' ' + (time(endTime) || time(startTime) || '10:00')
+                }
+                if (infoUrl && !/^https?:\/\//i.test(String(infoUrl).trim())) { ec.message.addError(L('The join link is a web address (https://...)')); return }
+                const changed = ec.service.sync().name('mantle.work.EventServices.update#EventOccurrence').parameters({workEffortId: workEffortId,
+                    instanceStart: instanceStart || null, scope: scope || 'this', start: start, end: end, allDay: isAllDay ? 'Y' : 'N',
+                    workEffortName: workEffortName, location: location == null ? null : location, description: description == null ? null : description,
+                    notify: 'N', allowConflicts: allowConflicts === 'Y' || allowConflicts === 'true'}).call()
+                if (ec.message.hasError()) return
+                targetWorkEffortId = changed.targetWorkEffortId
+                conflictList = Array.from(changed.conflictList || [])
+                const fields = {workEffortId: targetWorkEffortId}
+                if (infoUrl != null) fields.infoUrl = String(infoUrl).trim() || null
+                if (visibilityEnumId != null) fields.visibilityEnumId = visibilityEnumId || null
+                if (Object.keys(fields).length > 1) ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters(fields).call()
+                if (ec.message.hasError()) return
+                // the calendar of the series
+                if (calendarId) {
+                    const link = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', targetWorkEffortId)
+                            .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+                    const seriesId = link ? link.workEffortId : targetWorkEffortId
+                    const current = Array.from(ec.entity.find('mantle.work.calendar.CalendarWorkEffort').condition('workEffortId', seriesId).list()).map((row) => row.calendarId)
+                    if (!current.includes(calendarId)) {
+                        ec.service.sync().name('mantle.work.CalendarServices.add#CalendarEvent').parameters({calendarId: calendarId, workEffortId: seriesId}).call()
+                        if (ec.message.hasError()) return
+                        // out of the user's other calendars it was in (the ones the user may change)
+                        const access = current.length ? ec.service.sync().name('mantle.work.CalendarServices.check#CalendarAccess').parameters({calendarIdList: current}).call() : null
+                        for (const id of current) if (['CalpEdit', 'CalpManage'].includes(access?.permissionMap?.[id]))
+                            ec.service.sync().name('mantle.work.CalendarServices.remove#CalendarEvent').parameters({calendarId: id, workEffortId: seriesId}).call()
+                        if (ec.message.hasError()) return
+                    }
+                }
+                message = ec.resource.expand('Saved: ${name}', '', {name: workEffortName || targetWorkEffortId})
+                if (notify === 'Y') {
+                    ec.message.pushErrors()
+                    try {
+                        const sent = ec.service.sync().name('mantle.work.EventServices.send#EventInvitations').parameters({workEffortId: targetWorkEffortId,
+                            eventUrl: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(targetWorkEffortId)}).call()
+                        if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                        const count = (sent?.sentPartyIdList || []).length
+                        if (count) message += ' · ' + ec.resource.expand('${count} attendees told', '', {count: count})
+                    } catch (err) {
+                        ec.logger.warn(`Event ${targetWorkEffortId}: the update was not sent: ${err && err.message ? err.message : err}`)
+                    } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                }
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="save" noun="Recurrence">
+        <description>The repeat of an event (its series) from the recurrence editor's fields (ironstone.commons.CalendarServices.make#RRule),
+            stored by mantle.work.EventServices.store#EventRecurrence; NONE makes it a single event again.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="freq"/>
+            <parameter name="interval"/>
+            <parameter name="byDay" type="Object"/>
+            <parameter name="monthlyBy"/>
+            <parameter name="ends"/>
+            <parameter name="untilDate"/>
+            <parameter name="count"/>
+        </in-parameters>
+        <out-parameters><parameter name="rrule"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const link = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', workEffortId)
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+                const seriesId = link ? link.workEffortId : workEffortId
+                const series = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', seriesId).one()
+                const startValue = series.actualStartDate || series.estimatedStartDate
+                const allDay = startValue == null && series.allDayStart != null
+                const startText = allDay ? String(series.allDayStart).substring(0, 10) : (startValue != null ? ec.l10n.format(startValue, 'yyyy-MM-dd HH:mm') : null)
+                if (!startText) { ec.message.addError(L('Set the event\'s time before it repeats')); return }
+                rrule = ec.service.sync().name('ironstone.commons.CalendarServices.make#RRule').parameters({freq: freq, interval: interval, byDay: byDay,
+                    monthlyBy: monthlyBy, ends: ends, untilDate: untilDate, count: count, startText: startText, allDay: allDay}).call()?.rrule || ''
+                if (ec.message.hasError()) return
+                ec.service.sync().name('mantle.work.EventServices.store#EventRecurrence').parameters({workEffortId: seriesId, rrule: rrule || null}).call()
+                if (ec.message.hasError()) return
+                message = rrule ? ec.resource.expand('Repeats: ${text}', '', {text: ec.service.sync().name('ironstone.commons.CalendarServices.describe#RRule')
+                        .parameters({rrule: rrule, startText: startText}).call()?.text || rrule}) : L('Does not repeat')
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="add" noun="Attendees">
+        <description>Invites people to an event (edit access): parties (partyIds) and email addresses (emails, comma or space
+            separated: a person with that address the user may see, else a new personal contact of the user's), each a current
+            WorkEffortParty (Assignee, WeptOffered, mustRsvp Y) with expectationEnumId WepeInvRequired, or WepeInvRequested when
+            optional. Invitations go out with send#EventInvitations (the screen's Send invitations, or sendNow Y).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="partyIds" type="Object"/>
+            <parameter name="emails"/>
+            <parameter name="optional"/>
+            <parameter name="sendNow"/>
+        </in-parameters>
+        <out-parameters><parameter name="addedPartyIds" type="List"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const cf = ec.entity.conditionFactory
+                addedPartyIds = []
+                const ids = (partyIds == null ? [] : (Array.isArray(partyIds) ? partyIds : String(partyIds).split(','))).map((id) => String(id).trim()).filter((id) => id)
+                const addresses = String(emails || '').split(/[\s,;]+/).map((text) => text.trim()).filter((text) => text)
+                for (const address of addresses) {
+                    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)) { ec.message.addError(ec.resource.expand('${address} is not an email address', '', {address: address})); return }
+                    // a person with the address, the user's own contacts and the directory as the user sees them
+                    let found = null
+                    for (const mech of ec.entity.find('mantle.party.contact.ContactMech').condition('contactMechTypeEnumId', 'CmtEmailAddress')
+                            .condition(cf.makeCondition('infoString', 'equals', address).ignoreCase()).limit(20).list()) {
+                        for (const pcm of ec.entity.find('mantle.party.contact.PartyContactMech').condition('contactMechId', mech.contactMechId)
+                                .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) {
+                            const party = ec.entity.find('mantle.party.Party').condition('partyId', pcm.partyId).one()
+                            if (party == null || party.disabled === 'Y') continue
+                            if (party.privateOwnerUserId && party.privateOwnerUserId !== ec.user.userId) continue
+                            found = party.partyId
+                            break
+                        }
+                        if (found) break
+                    }
+                    if (!found) {
+                        const made = ec.service.sync().name('ironstone.commons.QuickCreateServices.create#Contact').parameters({contactName: address.split('@')[0],
+                            emailAddress: address}).call()
+                        if (ec.message.hasError()) return
+                        found = made.partyId
+                    }
+                    if (!ids.includes(found)) ids.push(found)
+                }
+                if (!ids.length) { ec.message.addError(L('Pick a person or type an email address')); return }
+                const row = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+                const expectation = optional === 'Y' || optional === 'true' ? 'WepeInvRequested' : 'WepeInvRequired'
+                for (const partyId of ids) {
+                    const party = ec.entity.find('mantle.party.Party').condition('partyId', partyId).one()
+                    if (party == null || (party.privateOwnerUserId && party.privateOwnerUserId !== ec.user.userId)) {
+                        ec.message.addError(ec.resource.expand('Party ${partyId} not found', '', {partyId: partyId})); return }
+                    const current = Array.from(ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId).condition('partyId', partyId)
+                            .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list())
+                    if (current.length) {
+                        for (const wep of current) if (wep.statusId === 'WeptUnassigned' || wep.expectationEnumId !== expectation) {
+                            if (wep.statusId === 'WeptUnassigned') wep.set('statusId', 'WeptOffered')
+                            wep.set('expectationEnumId', expectation)
+                            wep.update()
+                        }
+                        continue
+                    }
+                    ec.service.sync().name('mantle.work.WorkEffortServices.add#WorkEffortParty').parameters({workEffortId: workEffortId, partyId: partyId,
+                        roleTypeId: 'Assignee', statusId: partyId === row.ownerPartyId ? 'WeptAssigned' : 'WeptOffered', expectationEnumId: expectation,
+                        mustRsvp: 'Y'}).call()
+                    if (ec.message.hasError()) return
+                    addedPartyIds.push(partyId)
+                }
+                message = addedPartyIds.length ? ec.resource.expand('${count} invited; send the invitations when ready', '', {count: addedPartyIds.length}) : L('Already invited')
+                if (sendNow === 'Y' && addedPartyIds.length) {
+                    const sent = ec.service.sync().name('ironstone.commons.EventServices.send#Invitations').parameters({workEffortId: workEffortId, partyIds: addedPartyIds}).call()
+                    if (ec.message.hasError()) return
+                    message = sent.message
+                }
+            ]]></script>
+        </actions>
+    </service>
+    <service verb="set" noun="AttendeeOptional">
+        <description>Marks an attendee required (WepeInvRequired) or optional (WepeInvRequested), edit access.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="partyId" required="true"/>
+            <parameter name="optional"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const cf = ec.entity.conditionFactory
+                const value = optional === 'Y' || optional === 'true' ? 'WepeInvRequested' : 'WepeInvRequired'
+                for (const wep of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId).condition('partyId', partyId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) { wep.set('expectationEnumId', value); wep.update() }
+                message = ec.l10n.localize(value === 'WepeInvRequested' ? 'Optional' : 'Required')
+            ]]></script>
+        </actions>
+    </service>
+    <service verb="send" noun="Invitations">
+        <description>Sends the invitations of an event to its new or changed attendees (mantle.work.EventServices.send#EventInvitations,
+            edit access; partyIds limits it, resendAll sends to everyone), with an optional note; message says how many went and
+            which were skipped (no user and no email address).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="partyIds" type="Object"/>
+            <parameter name="resendAll"/>
+            <parameter name="note"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="sentPartyIdList" type="List"/>
+            <parameter name="emailedAddressList" type="List"/>
+            <parameter name="skippedList" type="List"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ids = partyIds == null ? null : (Array.isArray(partyIds) ? partyIds : String(partyIds).split(',')).map((id) => String(id).trim()).filter((id) => id)
+            const out = ec.service.sync().name('mantle.work.EventServices.send#EventInvitations').parameters({workEffortId: workEffortId,
+                partyIdList: ids && ids.length ? ids : null, resendAll: resendAll === 'Y' || resendAll === 'true', message: note || null,
+                eventUrl: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(workEffortId)}).call()
+            if (ec.message.hasError()) return
+            sentPartyIdList = Array.from(out?.sentPartyIdList || [])
+            emailedAddressList = Array.from(out?.emailedAddressList || [])
+            skippedList = Array.from(out?.skippedList || [])
+            message = sentPartyIdList.length ? ec.resource.expand('Invitations sent to ${count}', '', {count: sentPartyIdList.length}) : L('Everyone has the latest invitation')
+            if (emailedAddressList.length) message += ' (' + ec.resource.expand('${count} by email', '', {count: emailedAddressList.length}) + ')'
+            if (skippedList.length) message += ' · ' + ec.resource.expand('${count} not sent: no user and no email address', '', {count: skippedList.length})
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="MyReminders">
+        <description>The user's reminders of an event (its series), as the Reminders box changes them: add (offsetMinutes and
+            methodEnumId) or remove (reminderSeqId) one, the others kept (mantle.work.EventServices.store#WorkEffortReminders,
+            which needs the user on the event).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="offsetMinutes"/>
+            <parameter name="methodEnumId"/>
+            <parameter name="removeSeqId"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const partyId = ec.user.userAccount?.partyId
+                if (!partyId) { ec.message.addError(L('Reminders need a user with a party')); return }
+                const link = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', workEffortId)
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+                const seriesId = link ? link.workEffortId : workEffortId
+                const list = Array.from(ec.entity.find('mantle.work.effort.WorkEffortReminder').condition('workEffortId', seriesId).condition('partyId', partyId).list())
+                        .filter((row) => row.reminderSeqId !== removeSeqId)
+                        .map((row) => ({offsetMinutes: Number(String(row.offsetMinutes ?? 0)), methodEnumId: row.methodEnumId || 'WermNotification'}))
+                if (offsetMinutes != null && String(offsetMinutes).trim() !== '') list.push({offsetMinutes: Number(offsetMinutes), methodEnumId: methodEnumId || 'WermNotification'})
+                ec.service.sync().name('mantle.work.EventServices.store#WorkEffortReminders').parameters({workEffortId: seriesId, reminderList: list}).call()
+                if (ec.message.hasError()) return
+                message = removeSeqId ? L('Reminder removed') : L('Reminder saved')
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="book" noun="EventResource">
+        <description>Books a meeting room (facilityId) or equipment (assetId) for an event at its time (mantle.work.EventServices.book#Resource,
+            edit access): booked at once, or requested when the resource has a booking policy (approvers). A clash with another
+            booking is refused with the events it clashes with.</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="facilityId"/>
+            <parameter name="assetId"/>
+            <parameter name="comments"/>
+        </in-parameters>
+        <out-parameters><parameter name="statusId"/><parameter name="message"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const out = ec.service.sync().name('mantle.work.EventServices.book#Resource').parameters({workEffortId: workEffortId, facilityId: facilityId || null,
+                assetId: assetId || null, comments: comments || null}).call()
+            if (ec.message.hasError()) return
+            statusId = out.statusId
+            message = out.requiresApproval ? L('Requested: it waits for the approver') : L('Booked')
+        ]]></script></actions>
+    </service>
+    <service verb="cancel" noun="EventResource">
+        <description>Cancels the booking of a meeting room or equipment of an event (mantle.work.EventServices.cancel#ResourceBooking,
+            edit access).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="facilityId"/>
+            <parameter name="assetId"/>
+        </in-parameters>
+        <out-parameters><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="mantle.work.EventServices.cancel#ResourceBooking" in-map="{workEffortId:workEffortId, facilityId:(facilityId || null), assetId:(assetId || null)}"/>
+            <set field="message" from="ec.l10n.localize('Booking cancelled')"/>
+        </actions>
+    </service>
+
+    <service verb="duplicate" noun="Event">
+        <description>A copy of an event the user may see (mantle.work.WorkEffortServices.clone#WorkEffort): the same time, place,
+            description, repeat and calendars (those the user may add to, else the user's default), the attendees invited again
+            (not answered, no invitation yet), the user its organizer; the copy is planned, and nobody is told until Send
+            invitations.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="newWorkEffortId"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const cf = ec.entity.conditionFactory
+                const partyId = ec.user.userAccount?.partyId
+                if (!partyId) { ec.message.addError(L('A copy needs a user with a party')); return }
+                const source = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
+                newWorkEffortId = ec.service.sync().name('mantle.work.WorkEffortServices.clone#WorkEffort').parameters({baseWorkEffortId: workEffortId,
+                    statusId: 'WeInPlanning', ownerPartyId: partyId, copyParty: false, copyNote: false, copyContent: false, copyCommEvent: false,
+                    copyAssetAssign: false}).call()?.workEffortId
+                if (ec.message.hasError()) return
+                ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters({workEffortId: newWorkEffortId, universalId: null,
+                    workEffortName: source.workEffortName, ownerPartyId: partyId}).call()
+                const recurrence = ec.entity.find('mantle.work.effort.WorkEffortRecurrence').condition('workEffortId', workEffortId).one()
+                if (recurrence?.rrule) ec.service.sync().name('create#mantle.work.effort.WorkEffortRecurrence').parameters({workEffortId: newWorkEffortId,
+                    rrule: recurrence.rrule, exdates: recurrence.exdates, rdates: recurrence.rdates, timeZone: recurrence.timeZone}).call()
+                const now = ec.user.nowTimestamp
+                ec.service.sync().name('create#mantle.work.effort.WorkEffortParty').parameters({workEffortId: newWorkEffortId, partyId: partyId,
+                    roleTypeId: 'Assignee', fromDate: now, statusId: 'WeptAssigned'}).call()
+                for (const wep of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', workEffortId)
+                        .condition(cf.makeConditionDate('fromDate', 'thruDate', null)).list()) {
+                    if (wep.partyId === partyId) continue
+                    if (ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', newWorkEffortId).condition('partyId', wep.partyId).count() > 0) continue
+                    ec.service.sync().name('create#mantle.work.effort.WorkEffortParty').parameters({workEffortId: newWorkEffortId, partyId: wep.partyId,
+                        roleTypeId: wep.roleTypeId || 'Assignee', fromDate: now, statusId: 'WeptOffered', expectationEnumId: wep.expectationEnumId, mustRsvp: 'Y'}).call()
+                }
+                const calendarIds = Array.from(ec.entity.find('mantle.work.calendar.CalendarWorkEffort').condition('workEffortId', workEffortId).list()).map((row) => row.calendarId)
+                const calendarAccess = calendarIds.length ? ec.service.sync().name('mantle.work.CalendarServices.check#CalendarAccess').parameters({calendarIdList: calendarIds}).call() : null
+                let added = 0
+                for (const id of calendarIds) if (['CalpEdit', 'CalpManage'].includes(calendarAccess?.permissionMap?.[id])) {
+                    ec.service.sync().name('mantle.work.CalendarServices.add#CalendarEvent').parameters({calendarId: id, workEffortId: newWorkEffortId}).call()
+                    if (!ec.message.hasError()) added++
+                    else ec.message.clearErrors()
+                }
+                if (!added) {
+                    const defaultId = ec.service.sync().name('mantle.work.CalendarServices.ensure#UserDefaultCalendar').call()?.calendarId
+                    if (defaultId) ec.service.sync().name('mantle.work.CalendarServices.add#CalendarEvent').parameters({calendarId: defaultId, workEffortId: newWorkEffortId}).call()
+                }
+                if (ec.message.hasError()) return
+                message = ec.resource.expand('Copy made: ${name}', '', {name: source.workEffortName || workEffortId})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="export" noun="EventFile">
+        <description>An event the user may see as an .ics file (the ICalendar tool's write, PUBLISH, over
+            mantle.work.EventServices.get#EventIcsMaps: the series with its changed instances), written to the user's export folder
+            for the screen to send as a download.</description>
+        <in-parameters><parameter name="workEffortId" required="true"/></in-parameters>
+        <out-parameters><parameter name="location"/><parameter name="fileName"/></out-parameters>
+        <actions>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'view'}" out-map="access"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                if (ec.factory.getToolFactory('ICalendar') == null) { ec.message.addError(L('Export is not available: the iCalendar tool is turned off')); return }
+                const link = ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('toWorkEffortId', workEffortId)
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').one()
+                const seriesId = link ? link.workEffortId : workEffortId
+                const maps = ec.service.sync().name('mantle.work.EventServices.get#EventIcsMaps').parameters({workEffortIdList: [seriesId]}).call()?.eventMapList || []
+                if (ec.message.hasError()) return
+                const text = ec.factory.getTool('ICalendar').write({method: 'PUBLISH', calendarName: access.workEffort.workEffortName || seriesId,
+                    timeZone: ec.user.timeZone, events: maps})
+                fileName = String(access.workEffort.workEffortName || seriesId).replace(/[^A-Za-z0-9 _.-]/g, '_').trim().replace(/\s+/g, '-') + '.ics'
+                location = `dbresource://ironstone/CalendarExport/${ec.user.userId}/${fileName}`
+                ec.resource.getLocationReference(location).putText(text || '')
+            ]]></script>
+        </actions>
+    </service>
+</services>

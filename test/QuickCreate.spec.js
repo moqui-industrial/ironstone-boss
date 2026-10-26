@@ -1,5 +1,5 @@
 // QuickCreate (screen/Commons/QuickCreate.xml, impl-drawers-commons.md M2): each kind renders in qvt, with the record of the
-// screen context as a chip; each kind's transition creates its record through service/ironstone/QuickCreateServices.xml and
+// screen context as a chip; each kind's transition creates its record through service/ironstone/commons/QuickCreateServices.xml and
 // answers JSON messageInfos (so the shell's dialog closes) with the record's screen: a task (on a record), an activity on the
 // demo request (a call, and a meeting), an event with an attendee, a note on a record (its Chatter) and one without (the
 // user's notes space), a personal and a directory contact, and a request. A record the user may not see is refused.

@@ -43,7 +43,7 @@ function as(username, run) {
 }
 const setNow = (millis) => { now = millis; ec.user.setEffectiveTime(millis) }
 // the rows of TimeEntries as the screen finds them (the service the screen calls, as the user: what they may see)
-const rowsOf = (who, parameters) => as(who, () => sys(() => call("ironstone.TimeServices.find#TimeEntryRows",
+const rowsOf = (who, parameters) => as(who, () => sys(() => call("ironstone.projects.TimeServices.find#TimeEntryRows",
         Object.assign({ list: "all", rootWorkEffortId: PROJECT, pageNoLimit: true }, parameters || {}))))
 const entry = (id) => sys(() => ec.entity.find("mantle.work.time.TimeEntry").condition("timeEntryId", id).one())
 const entryBy = (comments) => sys(() => Array.from(ec.entity.find("mantle.work.time.TimeEntry").condition("comments", comments).list())[0])
@@ -80,7 +80,7 @@ spec({
             task("Ledger rows", 4)
             task("Bulk changes", 20)
             // the organization's time settings as they were, put back after
-            const org = call("ironstone.ProjectServices.get#SettingsOrganization", {}).organizationPartyId
+            const org = call("ironstone.projects.ProjectServices.get#SettingsOrganization", {}).organizationPartyId
             made.org = org
             for (const type of ["ProjTimesheetPolicy", "ProjWorkTypes"]) made[type] = org ? ec.entity.find("mantle.party.PartySetting").condition({ partyId: org, partySettingTypeId: type }).one()?.settingValue ?? null : null
         })
@@ -155,7 +155,7 @@ feature("the bulk changes keep the lock: a submitted week's entry changes only i
         const retypeScreen = as("joe.developer", () => post("Projects/Time/TimeEntries/bulkAction", { bulk: "workType", value: "WktpTesting", selectedIds: made.open, keep }))
         const bulk = (who, action, ids, value) => as(who, () => sys(() => {
             try {
-                const out = call("ironstone.TimeServices.bulk#TimeEntries", { action, selectedIds: ids, value: value ?? null })
+                const out = call("ironstone.projects.TimeServices.bulk#TimeEntries", { action, selectedIds: ids, value: value ?? null })
                 if (ec.message.hasError()) { const error = ec.message.getErrorsString(); ec.message.clearErrors(); return { error } }
                 return out
             } catch (err) { const error = String(err.message) + " " + (ec.message.hasError() ? ec.message.getErrorsString() : ""); ec.message.clearErrors(); return { error } }
@@ -238,7 +238,7 @@ feature("the Today source gives joe's running timer and his week to submit, and 
         sys(() => call("mantle.request.RequestServices.create#Request", { requestName: "Time entries walk request", requestTypeEnumId: "RqtSupport", rootWorkEffortId: PROJECT,
             statusId: "ReqSubmitted" }))
         const projects = { service: "mantle.work.ProjectServices.get#ProjectTodayItems", label: "Projects" }
-        const joeView = as("joe.developer", () => sys(() => call("ironstone.CommonsServices.get#TodayView", { sourceServiceNames: [projects] })))
+        const joeView = as("joe.developer", () => sys(() => call("ironstone.commons.CommonsServices.get#TodayView", { sourceServiceNames: [projects] })))
         const johnItems = sys(() => call("mantle.work.ProjectServices.get#ProjectTodayItems", {}).items)
         const group = (joeView.groups || []).find((one) => one.label === "Projects") || { items: [] }
         const timer = group.items.find((item) => item.kind === "timer") || {}
@@ -271,7 +271,7 @@ feature("ProjectDetail's Time tab renders the project's time with its totals; a 
         const tab = render("apps/Projects/Projects/ProjectDetail/Time", { workEffortId: PROJECT })
         const joeTab = as("joe.developer", () => render("apps/Projects/Projects/ProjectDetail/Time", { workEffortId: PROJECT }))
         const tui = render("apps/Projects/Projects/ProjectDetail/Time", { workEffortId: PROJECT }, "tui")
-        const totals = sys(() => call("ironstone.TimeServices.get#ProjectTime", { workEffortId: PROJECT, findParameters: { list: "all" } }).projectTime)
+        const totals = sys(() => call("ironstone.projects.TimeServices.get#ProjectTime", { workEffortId: PROJECT, findParameters: { list: "all" } }).projectTime)
         const rates = post("Projects/Projects/ProjectDetail/Time/updateRates", { workEffortId: PROJECT })
         const joeRates = as("joe.developer", () => post("Projects/Projects/ProjectDetail/Time/updateRates", { workEffortId: PROJECT }))
         const timeline = as("joe.developer", () => sys(() => call("mantle.party.CommunicationServices.get#RecordTimeline",
@@ -313,13 +313,13 @@ feature("TimeSettings keeps the policy and the work types offered; MyTime and th
         const added = post("Projects/Settings/Time/createType", { label: "Walk review" })
         // the Settings screens are the managers' (ProjectsSettings checks the screens); the services refuse the team too
         const teamSave = as("joe.developer", () => sys(() => {
-            try { call("ironstone.TimeServices.store#TimeSettings", { weekStart: 1, workDays: "12345" }) } catch (err) { /* the error is in the messages */ }
+            try { call("ironstone.projects.TimeServices.store#TimeSettings", { weekStart: 1, workDays: "12345" }) } catch (err) { /* the error is in the messages */ }
             const error = ec.message.hasError() ? ec.message.getErrorsString() : ""
             ec.message.clearErrors()
             return error
         }))
-        const settings = sys(() => call("ironstone.TimeServices.get#TimeSettings", {}))
-        const myWeek = sys(() => call("ironstone.TimeServices.get#MyWeek", { weekDate: "2027-01-13" }).myWeek)
+        const settings = sys(() => call("ironstone.projects.TimeServices.get#TimeSettings", {}))
+        const myWeek = sys(() => call("ironstone.projects.TimeServices.get#MyWeek", { weekDate: "2027-01-13" }).myWeek)
         const dialog = render("apps/Projects/Time/TimeEntries/EditEntry", {})
         return { page, saved, stopped, added, teamSave, settings, myWeek, dialog }
     },

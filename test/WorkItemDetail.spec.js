@@ -1,4 +1,4 @@
-// Projects WorkItemDetail (screen/Shared/WorkItemDetail.xml at Projects/WorkItems/WorkItemDetail, service/ironstone/WorkItemServices.xml
+// Projects WorkItemDetail (screen/Shared/WorkItemDetail.xml at Projects/WorkItems/WorkItemDetail, service/ironstone/projects/WorkItemServices.xml
 // get#WorkItemDetail; design-projects.md §5 WorkItemDetail; impl-projects.md P2) on the Projects demo
 // (data/BossProjectsDemoData.xml): the item's path, key and the stages of the development flow, the facts with the roll-up,
 // plan items and labels, the tabs; the compact render of the peek pane; the sub-item tree (a level, a move, a quick add);

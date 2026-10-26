@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     public URLs and who may read and edit it (allow any HTML for system administrators only), its storage as made (read only:
     for git the repository, its branch and newest commit), its members with what each may do (WikiSpaceUser: read, edit,
     administer), and its restricted pages with the people who may read or edit each (WikiPageUser). An administrator of the
-    space changes them (ironstone.KnowledgeServices update#SpaceSettings, store#SpaceMember, remove#SpaceMember,
+    space changes them (ironstone.commons.KnowledgeServices update#SpaceSettings, store#SpaceMember, remove#SpaceMember,
     set#PageRestriction, store#PageMember, remove#PageMember); any other user who may read the space sees them. Archiving a
     space is not offered: WikiSpace has no archived state. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -25,43 +25,43 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="wikiSpaceId" required="true"/>
 
     <transition name="updateSettings">
-        <service-call name="ironstone.KnowledgeServices.update#SpaceSettings" in-map="{wikiSpaceId:wikiSpaceId, description:description,
+        <service-call name="ironstone.commons.KnowledgeServices.update#SpaceSettings" in-map="{wikiSpaceId:wikiSpaceId, description:description,
                 publicPageUrl:(publicPageUrl || ''), publicAttachmentUrl:(publicAttachmentUrl || ''), restrictView:restrictView, restrictUpdate:restrictUpdate,
                 allowAnyHtml:(allowAnyHtml || null)}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Settings saved</message></if></actions>
         <default-response url="."><parameter name="wikiSpaceId"/></default-response>
     </transition>
     <transition name="storeMember">
-        <service-call name="ironstone.KnowledgeServices.store#SpaceMember" in-map="{wikiSpaceId:wikiSpaceId, userId:userId, permission:(permission || 'view')}"/>
+        <service-call name="ironstone.commons.KnowledgeServices.store#SpaceMember" in-map="{wikiSpaceId:wikiSpaceId, userId:userId, permission:(permission || 'view')}"/>
         <default-response url="."><parameter name="wikiSpaceId"/></default-response>
     </transition>
     <transition name="removeMember">
-        <service-call name="ironstone.KnowledgeServices.remove#SpaceMember" in-map="{wikiSpaceId:wikiSpaceId, userId:userId}"/>
+        <service-call name="ironstone.commons.KnowledgeServices.remove#SpaceMember" in-map="{wikiSpaceId:wikiSpaceId, userId:userId}"/>
         <default-response url="."><parameter name="wikiSpaceId"/></default-response>
     </transition>
     <!-- a page restricted, or opened up again: by its path in the space -->
     <transition name="restrictPage">
         <actions><script><![CDATA[
-            const ref = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || null,
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || null,
                 wikiSpaceId: wikiPageId ? null : wikiSpaceId, pagePath: pagePath || '', need: 'admin'}).call()
             if (!ec.message.hasError() && ref?.found && !ref.wikiPageId) ec.message.addError(ec.l10n.localize('Save the page once before restricting it'))
-            if (!ec.message.hasError()) ec.service.sync().name('ironstone.KnowledgeServices.set#PageRestriction').parameters({wikiPageId: ref.wikiPageId,
+            if (!ec.message.hasError()) ec.service.sync().name('ironstone.commons.KnowledgeServices.set#PageRestriction').parameters({wikiPageId: ref.wikiPageId,
                 restrictView: restrictView === 'Y' ? 'Y' : 'N', restrictUpdate: restrictUpdate === 'Y' ? 'Y' : 'N'}).call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize(restrictView === 'Y' || restrictUpdate === 'Y' ? 'Page restricted' : 'Page open to the space again'), 'success')
         ]]></script></actions>
         <default-response url="."><parameter name="wikiSpaceId"/></default-response>
     </transition>
     <transition name="storePageMember">
-        <service-call name="ironstone.KnowledgeServices.store#PageMember" in-map="{wikiPageId:wikiPageId, userId:userId, permission:(permission || 'view')}"/>
+        <service-call name="ironstone.commons.KnowledgeServices.store#PageMember" in-map="{wikiPageId:wikiPageId, userId:userId, permission:(permission || 'view')}"/>
         <default-response url="."><parameter name="wikiSpaceId"/></default-response>
     </transition>
     <transition name="removePageMember">
-        <service-call name="ironstone.KnowledgeServices.remove#PageMember" in-map="{wikiPageId:wikiPageId, userId:userId}"/>
+        <service-call name="ironstone.commons.KnowledgeServices.remove#PageMember" in-map="{wikiPageId:wikiPageId, userId:userId}"/>
         <default-response url="."><parameter name="wikiSpaceId"/></default-response>
     </transition>
     <transition name="searchUsers" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.shared.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.userList || []).map((user) =&gt; ({value: user.value, label: user.label})))</script>
         </actions>
         <default-response type="none"/>
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             ec.message.pushErrors()
             try {
-                detail = ec.service.sync().name('ironstone.KnowledgeServices.get#SpaceDetail').parameter('wikiSpaceId', wikiSpaceId || '').call() || {}
+                detail = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#SpaceDetail').parameter('wikiSpaceId', wikiSpaceId || '').call() || {}
                 if (ec.message.hasError()) detail = {}
             } finally { ec.message.clearErrors(); ec.message.popErrors() }
         ]]></script>
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             pageOptions = []
             if (space) {
-                const out = ec.service.sync().name('ironstone.KnowledgeServices.get#SpacePageOptions').parameter('wikiSpaceId', wikiSpaceId).call()
+                const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#SpacePageOptions').parameter('wikiSpaceId', wikiSpaceId).call()
                 pageOptions = Array.from(out?.optionList || []).filter((option) => option.value).map((option) => ({key: option.value, text: option.label}))
             }
             permissionOptions = [{key: 'view', text: ec.l10n.localize('Read')}, {key: 'edit', text: ec.l10n.localize('Edit')},

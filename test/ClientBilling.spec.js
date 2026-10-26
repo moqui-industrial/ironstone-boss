@@ -170,7 +170,7 @@ feature("a client's Billing: the menu has Invoices only, Billing opens on Invoic
             }
             // one refused screen here: test/ClientIsolation.spec.js renders every screen file as the client (Rates, CreateInvoice, OrderDetail)
             return { levels, billing: render("Billing", {}), unbilled: render("Billing/Unbilled", {}),
-                money: service("ironstone.BillingServices.check#Money", { need: "none" }) }
+                money: service("ironstone.projects.BillingServices.check#Money", { need: "none" }) }
         })
     },
     then({ levels, billing, unbilled, money }) {
@@ -202,9 +202,9 @@ feature("a client lists only its organization's invoices sent to it on its clien
     when() {
         const sheldon = as(SHELDON, () => ({ list: render("Billing/Invoices", { list: "all" }), tui: render("Billing/Invoices", { list: "all" }, "tui"),
             sent: render("Billing/Invoices", { list: "sent" }), paid: render("Billing/Invoices", { list: "paid" }),
-            rows: service("ironstone.BillingServices.find#InvoiceRows", { list: "all" }),
-            other: service("ironstone.BillingServices.find#InvoiceRows", { list: "all", rootWorkEffortId: "BLUTH" }) }))
-        const gob = as(GOB, () => ({ rows: service("ironstone.BillingServices.find#InvoiceRows", { list: "all" }), list: render("Billing/Invoices", {}) }))
+            rows: service("ironstone.projects.BillingServices.find#InvoiceRows", { list: "all" }),
+            other: service("ironstone.projects.BillingServices.find#InvoiceRows", { list: "all", rootWorkEffortId: "BLUTH" }) }))
+        const gob = as(GOB, () => ({ rows: service("ironstone.projects.BillingServices.find#InvoiceRows", { list: "all" }), list: render("Billing/Invoices", {}) }))
         return { sheldon, gob }
     },
     then({ sheldon, gob }) {
@@ -231,7 +231,7 @@ feature("a client opens its own invoice read only: lines, payments, the time of 
     when() {
         return as(SHELDON, () => ({ detail: render("Billing/InvoiceDetail", { invoiceId: INV.sent }), whole: render("Billing/InvoiceDetail", { invoiceId: INV.sent }, "qvt", false),
             tui: render("Billing/InvoiceDetail", { invoiceId: INV.sent }, "tui"),
-            service: service("ironstone.BillingServices.get#InvoiceDetail", { invoiceId: INV.sent }).detail }))
+            service: service("ironstone.projects.BillingServices.get#InvoiceDetail", { invoiceId: INV.sent }).detail }))
     },
     then({ detail, whole, tui, service }) {
         detail.status == 200 && !detail.broken
@@ -266,7 +266,7 @@ feature("a client's print and PDF of its invoice: the time as hours only; any ot
             const others = {}
             for (const id of [INV.draft, INV.finalized, INV.acmeApp, INV.worker, INV.workerToAcme, INV.expense, INV.bluth].concat(made.brightwater))
                 others[id] = { detail: render("Billing/InvoiceDetail", { invoiceId: id }), print: render("Billing/InvoicePrint", { invoiceId: id }, "html-print"),
-                    fo: render("Billing/InvoicePrint", { invoiceId: id }, "xsl-fo"), access: service("ironstone.BillingServices.get#InvoiceAccess", { invoiceId: id, need: "none" }) }
+                    fo: render("Billing/InvoicePrint", { invoiceId: id }, "xsl-fo"), access: service("ironstone.projects.BillingServices.get#InvoiceAccess", { invoiceId: id, need: "none" }) }
             return { own, others }
         })
     },
@@ -288,8 +288,8 @@ feature("no write of InvoiceDetail works for a client, through the screen or the
         const posts = as(SHELDON, () => [
             hit("Billing/InvoiceDetail/changeStatus", { invoiceId: INV.sent, action: "cancel" }, "post")])
         const calls = as(SHELDON, () => [
-            service("ironstone.BillingServices.update#InvoiceStatus", { invoiceId: INV.sent, action: "cancel" }),
-            service("ironstone.BillingServices.get#InvoiceAccess", { invoiceId: INV.sent, need: "change" })])
+            service("ironstone.projects.BillingServices.update#InvoiceStatus", { invoiceId: INV.sent, action: "cancel" }),
+            service("ironstone.projects.BillingServices.get#InvoiceAccess", { invoiceId: INV.sent, need: "change" })])
         return { posts, calls, invoice: one("mantle.account.invoice.Invoice", { invoiceId: INV.sent }), draft: one("mantle.account.invoice.Invoice", { invoiceId: INV.draft }),
             line: one("mantle.account.invoice.InvoiceItem", { invoiceId: INV.sent, invoiceItemSeqId: "01" }), emails: newEmails("BOSS_PROJECT_INVOICE", before) }
     },
@@ -318,15 +318,15 @@ feature("ProjectDetail's Hours for a client: hours by week and work item on shar
             const tabs = tabsOf()
             return { tabs, page: render("Projects/ProjectDetail/ClientHours", { workEffortId: "ACME" }),
                 tui: render("Projects/ProjectDetail/ClientHours", { workEffortId: "ACME" }, "tui"),
-                hours: service("ironstone.TimeServices.get#ClientHours", { workEffortId: "ACME" }).clientHours,
-                bluth: service("ironstone.TimeServices.get#ClientHours", { workEffortId: "BLUTH" }).clientHours,
-                time: render("Projects/ProjectDetail/Time", { workEffortId: "ACME" }), itemTime: service("ironstone.TimeServices.get#ItemTime", { workEffortId: "ACME-1" }).itemTime }
+                hours: service("ironstone.projects.TimeServices.get#ClientHours", { workEffortId: "ACME" }).clientHours,
+                bluth: service("ironstone.projects.TimeServices.get#ClientHours", { workEffortId: "BLUTH" }).clientHours,
+                time: render("Projects/ProjectDetail/Time", { workEffortId: "ACME" }), itemTime: service("ironstone.projects.TimeServices.get#ItemTime", { workEffortId: "ACME-1" }).itemTime }
         })
         const gob = as(GOB, () => ({ page: render("Projects/ProjectDetail/ClientHours", { workEffortId: "BLUTH" }),
-            hours: service("ironstone.TimeServices.get#ClientHours", { workEffortId: "BLUTH" }).clientHours,
+            hours: service("ironstone.projects.TimeServices.get#ClientHours", { workEffortId: "BLUTH" }).clientHours,
             detail: render("Billing/InvoiceDetail", { invoiceId: INV.bluth }) }))
         const john = as("john.doe", () => ({ tabs: tabsOf(), page: render("Projects/ProjectDetail/ClientHours", { workEffortId: "ACME" }),
-            hours: service("ironstone.TimeServices.get#ClientHours", { workEffortId: "ACME" }).clientHours }))
+            hours: service("ironstone.projects.TimeServices.get#ClientHours", { workEffortId: "ACME" }).clientHours }))
         return { sheldon, gob, john }
     },
     then({ sheldon, gob, john }) {

@@ -19,46 +19,46 @@ along with this software (see the LICENSE.md file). If not, see
     email rule that makes its requests, or work items for internal senders: ProjectRequestServices save#IntakeAddress, written
     as the user, who must manage the account) and the public form (ProjPublicForm: the CAPTCHA, files and their limits, the
     confirmation email). A project's own intake (its address, form link, triage assignee) is in its Settings. Services:
-    ironstone.ProjectRequestServices get#IntakeSettingsInfo, store#IntakeTypes, store#RequestCategory, save#IntakeAddress,
+    ironstone.projects.ProjectRequestServices get#IntakeSettingsInfo, store#IntakeTypes, store#RequestCategory, save#IntakeAddress,
     store#PublicForm. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Intake" default-menu-index="8" menu-image="sym_o_inbox" menu-image-type="icon">
 
     <transition name="saveTypes">
-        <service-call name="ironstone.ProjectRequestServices.store#IntakeTypes" out-map="saveOut" in-map="{offered:(offered ?? []), triaged:(triaged ?? []),
+        <service-call name="ironstone.projects.ProjectRequestServices.store#IntakeTypes" out-map="saveOut" in-map="{offered:(offered ?? []), triaged:(triaged ?? []),
                 defaultType:(defaultType || null), triagePartyId:(triagePartyId || null)}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="saveCategory">
-        <service-call name="ironstone.ProjectRequestServices.store#RequestCategory" out-map="saveOut" in-map="{requestCategoryId:(requestCategoryId || null),
+        <service-call name="ironstone.projects.ProjectRequestServices.store#RequestCategory" out-map="saveOut" in-map="{requestCategoryId:(requestCategoryId || null),
                 description:description, parentCategoryId:(parentCategoryId || null), responsiblePartyId:(responsiblePartyId || null)}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="deleteCategory">
-        <service-call name="ironstone.ProjectRequestServices.store#RequestCategory" out-map="saveOut" in-map="{requestCategoryId:requestCategoryId, remove:true}"/>
+        <service-call name="ironstone.projects.ProjectRequestServices.store#RequestCategory" out-map="saveOut" in-map="{requestCategoryId:requestCategoryId, remove:true}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="saveAddress">
-        <service-call name="ironstone.ProjectRequestServices.save#IntakeAddress" out-map="saveOut" in-map="{workEffortId:(addressProjectId || ''),
+        <service-call name="ironstone.projects.ProjectRequestServices.save#IntakeAddress" out-map="saveOut" in-map="{workEffortId:(addressProjectId || ''),
                 emailAccountId:(emailAccountId || null), plusTag:(plusTag || null), makes:(makes || 'requests')}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="removeAddress">
-        <service-call name="ironstone.ProjectRequestServices.save#IntakeAddress" out-map="saveOut" in-map="{workEffortId:addressProjectId, emailAccountId:null}"/>
+        <service-call name="ironstone.projects.ProjectRequestServices.save#IntakeAddress" out-map="saveOut" in-map="{workEffortId:addressProjectId, emailAccountId:null}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="saveForm">
-        <service-call name="ironstone.ProjectRequestServices.store#PublicForm" out-map="saveOut" in-map="{captcha:(captcha || 'N'), files:(files || 'N'),
+        <service-call name="ironstone.projects.ProjectRequestServices.store#PublicForm" out-map="saveOut" in-map="{captcha:(captcha || 'N'), files:(files || 'N'),
                 maxFiles:maxFiles, maxMb:maxMb, confirm:(confirm || 'N')}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
         <default-response url="."/>
@@ -66,7 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="partySearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const info = ec.service.sync().name('ironstone.ProjectRequestServices.get#IntakeSettingsInfo').call()?.info || {}
+            const info = ec.service.sync().name('ironstone.projects.ProjectRequestServices.get#IntakeSettingsInfo').call()?.info || {}
             hasOrganization = !!info.organizationPartyId
             organizationName = info.organizationName || ''
             typeList = Array.from(info.typeList || [])
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
             categoryOptions = categoryList.map((row) => ({key: row.requestCategoryId, text: row.description}))
             addressList = Array.from(info.addressList || [])
             accountOptions = Array.from(info.accountList || [])
-            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            projectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             formValue = Object.assign({}, info.publicForm || {})
             captchaKeysGiven = !!info.captchaKeysGiven
         ]]></script>

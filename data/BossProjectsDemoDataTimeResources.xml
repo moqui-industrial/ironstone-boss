@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- P7: resources (design-projects.md §9; impl-projects.md P7). A file of its own after BossProjectsDemoDataTime.xml (the files load
         in name order), since its allocations are on SUPP too. The skills the services firm plans by (SkillType enumerations; an
         organization keeps its own) and its people's ratings (PartySkill); Ana Designer, a part-time UI designer with no user, on ACME
-        and in Ziziwork Dev Team A beside Joe and Bob; then service/ironstone/ResourceDemoServices.xml load#ResourceDemo dates the rest
+        and in Ziziwork Dev Team A beside Joe and Bob; then service/ironstone/projects/ResourceDemoServices.xml load#ResourceDemo dates the rest
         from the week the data is loaded: Ana's working hours (Monday to Thursday, 9 to 5, a WetAvailable work effort as Commons'
         calendar settings write it; the others plan by the timesheet policy's week), a day of leave for Bob, and the allocations on
         IRON, ACME and SUPP: Joe over-allocated (IRON, ACME and SUPP, 48 hours a week of 40), John Doe at a percent on IRON, a
@@ -52,5 +52,5 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.humanres.ability.PartySkill partyId="EX_PRJ_ANA" skillTypeEnumId="BossSkJavaScript" rating="3" yearsExperience="2"/>
     <mantle.humanres.ability.PartySkill partyId="EX_JOHN_DOE" skillTypeEnumId="BossSkProjectMgmt" rating="5" yearsExperience="12"/>
 
-    <ironstone.ResourceDemoServices.load-ResourceDemo/>
+    <ironstone.projects.ResourceDemoServices.load-ResourceDemo/>
 </entity-facade-xml>

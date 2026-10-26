@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- Comms Home (design-drawers-commons.md §12 Home; style-guide §3.1 Landing): what screen/Comms/Home.xml shows, each part
+    on its own over the services that own the data, which check what the user may see (R21): the unread of each account and
+    the internal messages (mantle.party.CommunicationServices.get#InboxUnreadCounts), flagged, snoozed until today, mentions
+    (chat mentions and unread comments to the user), mail that could not be sent, Needs reply (find#InboxThreads with
+    needsReply), the follow-up calls and emails due (WorkEffortAndParty, WepPhoneCall and WepEmail), the meetings of the next
+    days with their join links (mantle.work.EventServices.get#FullCalendarData), the mailboxes and chat rooms with unread
+    (mantle.marketing.ContactListServices.find#ContactLists, org.moqui.impl.ChatServices.find#Rooms). Failure tolerant
+    (AGENTS.md): each part runs in a transaction of its own; one that fails is logged by name, named in failedParts and
+    left out, and the rest is answered. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="CommsHome">
+        <description>Comms Home for the current user. cardList: the counters, each {key, title, value, icon, link}: one per
+            mail account with its unread Inbox mail, Messages (internal), Flagged, Snoozed (back by the end of today), Mentions and Not sent
+            (sends that failed). needsReplyList, followUpList, meetingList, mailboxList and roomList: the lists, ten at most.
+            hasMailAccount is false until the user has a mail account; problemAccountList names the accounts whose sign-in or
+            sync failed, with canManage (only a manager fixes one). failedParts names what could not be read.</description>
+        <out-parameters>
+            <parameter name="cardList" type="List"/>
+            <parameter name="needsReplyList" type="List"/>
+            <parameter name="followUpList" type="List"/>
+            <parameter name="meetingList" type="List"/>
+            <parameter name="mailboxList" type="List"/>
+            <parameter name="roomList" type="List"/>
+            <parameter name="hasMailAccount" type="Boolean"/>
+            <parameter name="problemAccountList" type="List"/>
+            <parameter name="failedParts" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => text.length > 255 ? text : ec.l10n.localize(text)
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const number = Number(value)
+                return Number.isNaN(number) ? new Date(String(value)).getTime() : number
+            }
+            cardList = []; needsReplyList = []; followUpList = []; meetingList = []; mailboxList = []; roomList = []
+            hasMailAccount = false; problemAccountList = []; failedParts = []
+            const nowMillis = toMillis(ec.user.nowTimestamp)
+            const day = (millis) => ec.l10n.format(new Date(Number(millis)), 'yyyy-MM-dd')
+            const todayText = day(nowMillis)
+            const INBOX = '/qapps/Comms/Inbox'
+            const count = (n) => ec.l10n.format(n, '#,##0')
+            // one part: its own errors and transaction; a failure leaves it out
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try {
+                    run()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    failedParts.push(name)
+                    ec.logger.error(`Comms Home of user ${ec.user.userId}: ${name} failed and is left out: ${err && err.message ? err.message : err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+            const callService = (name, parameters) => {
+                const out = ec.service.sync().name(name).parameters(parameters || {}).requireNewTransaction(true).call()
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                if (out == null) throw new Error(`${name} answered nothing`)
+                return out
+            }
+            const threads = (parameters) => Array.from(callService('mantle.party.CommunicationServices.find#InboxThreads', parameters).threadList || [])
+            const whenText = (millis) => {
+                if (millis == null) return ''
+                return day(millis) === todayText ? ec.l10n.format(new Date(Number(millis)), 'h:mm a') : ec.l10n.format(new Date(Number(millis)), 'MMM d')
+            }
+
+            // the unread of each account, the internal messages and the mailboxes
+            let mailboxes = []
+            part('unread', () => {
+                const counts = callService('mantle.party.CommunicationServices.get#InboxUnreadCounts')
+                let notSent = 0
+                for (const account of Array.from(counts.accountList || [])) {
+                    if (account.isInternal) {
+                        cardList.push({key: 'internal', title: L('Messages'), value: count(account.unreadCount || 0), icon: 'sym_o_forum', link: INBOX + '?view=internal'})
+                        continue
+                    }
+                    hasMailAccount = true
+                    notSent += account.outboxErrorCount || 0
+                    if (['EasAuthFailed', 'EasError'].includes(account.statusId)) problemAccountList.push({emailAccountId: account.emailAccountId,
+                        accountName: account.accountName || account.emailAddress, problemText: account.statusId === 'EasAuthFailed' ? L('the sign-in failed') : L('the last sync failed'),
+                        canManage: account.canManage === true,
+                        link: '/qapps/Comms/Settings/MailAccounts/Account?emailAccountId=' + encodeURIComponent(account.emailAccountId) + (account.statusId === 'EasAuthFailed' ? '&fix=Y' : '')})
+                    cardList.push({key: 'account_' + account.emailAccountId, title: account.accountName || account.emailAddress || L('Mail'),
+                        value: account.unreadCount == null ? '–' : count(account.unreadCount), icon: 'sym_o_mail', link: INBOX + '?account=' + encodeURIComponent(account.emailAccountId)})
+                }
+                if (hasMailAccount) cardList.push({key: 'notSent', title: L('Not sent'), value: count(notSent), icon: notSent ? 'sym_o_error' : 'sym_o_outbox', link: INBOX + '?view=outbox'})
+                mailboxes = Array.from(counts.mailboxList || [])
+            })
+            part('flagged', () => {
+                const rows = threads({view: 'flagged', pageSize: 100})
+                cardList.push({key: 'flagged', title: L('Flagged'), value: rows.length >= 100 ? '100+' : count(rows.length), icon: 'sym_o_flag', link: INBOX + '?view=flagged'})
+            })
+            part('snoozed', () => {
+                const rows = threads({view: 'snoozed', pageSize: 200}).filter((row) => row.snoozedThruDate != null && day(toMillis(row.snoozedThruDate)) <= todayText)
+                cardList.push({key: 'snoozed', title: L('Snoozed'), value: count(rows.length), icon: 'sym_o_snooze', link: INBOX + '?view=snoozed'})
+            })
+            // mentions: chat mentions and the unread notes to the user on records (Comments)
+            let rooms = null
+            part('rooms', () => { rooms = callService('org.moqui.impl.ChatServices.find#Rooms', {filter: 'unread', limit: 50}) })
+            part('mentions', () => {
+                const comments = threads({store: 'internal', view: 'comments', unreadOnly: true, pageSize: 100}).length
+                const total = comments + (rooms?.mentionTotal || 0)
+                cardList.push({key: 'mentions', title: L('Mentions'), value: count(total), icon: 'sym_o_alternate_email',
+                    link: comments || !rooms?.mentionTotal ? INBOX + '?view=comments' : '/qapps/Comms/Chat'})
+            })
+            part('needsReply', () => {
+                for (const row of threads({view: 'inbox', needsReply: true, pageSize: 10})) {
+                    // an internal row names its sender among its participants
+                    const sender = row.fromName || row.fromAddress || (row.fromPartyId ? (Array.from(row.participantList || [])
+                        .find((person) => person.partyId === row.fromPartyId)?.name || '') : '')
+                    needsReplyList.push({rowKey: row.rowKey, subject: row.subject || L('(no subject)'), who: sender,
+                        snippet: row.snippet || '', whenText: whenText(toMillis(row.sortDate)), store: row.store,
+                        link: INBOX + '?thread=' + encodeURIComponent(row.rowKey)})
+                }
+            })
+            part('followUps', () => { followUpList = Array.from(callService('ironstone.comms.CommsHomeServices.get#HomeFollowUps').followUpList || []) })
+            part('meetings', () => { meetingList = Array.from(callService('ironstone.comms.CommsHomeServices.get#HomeMeetings').meetingList || []) })
+            mailboxList = mailboxes.filter((box) => (box.unreadCount || 0) > 0).slice(0, 10).map((box) => ({contactListId: box.contactListId,
+                name: box.contactListName || box.contactListId, unreadCount: box.unreadCount, link: INBOX + '?mailbox=' + encodeURIComponent(box.contactListId)}))
+            if (rooms) roomList = Array.from(rooms.roomList || []).filter((room) => (room.unreadCount || 0) > 0 || (room.mentionCount || 0) > 0).slice(0, 10)
+                .map((room) => ({chatRoomId: room.chatRoomId, name: room.displayName || room.roomName || room.chatRoomId, unreadCount: room.unreadCount || 0,
+                    mentionCount: room.mentionCount || 0, snippet: room.lastMessage ? ((room.lastMessage.senderName ? room.lastMessage.senderName + ': ' : '') +
+                        (room.lastMessage.snippet || '')) : '', link: '/qapps/Comms/Chat?chatRoomId=' + encodeURIComponent(room.chatRoomId)}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="HomeFollowUps" allow-remote="false">
+        <description>Internal, for get#CommsHome: the user's open follow-up calls and emails (tasks of the purposes WepPhoneCall
+            and WepEmail on which the user is a party, not declined or unassigned) due within a week or overdue, the soonest
+            first, ten at most.</description>
+        <out-parameters><parameter name="followUpList" type="List"/></out-parameters>
+        <actions>
+            <set field="partyId" from="ec.user.userAccount?.partyId"/>
+            <set field="followUpList" from="[]"/>
+            <if condition="!partyId"><return/></if>
+            <set field="weekEnd" from="new Date(Number(ec.user.nowTimestamp) + 7 * 86400000)"/>
+            <entity-find entity-name="mantle.work.effort.WorkEffortAndParty" list="followUpRows" limit="60">
+                <date-filter/>
+                <econdition field-name="partyId"/>
+                <econdition field-name="workEffortTypeEnumId" value="WetTask"/>
+                <econdition field-name="purposeEnumId" operator="in" value="WepPhoneCall,WepEmail"/>
+                <econdition field-name="statusId" operator="not-in" value="WeComplete,WeClosed,WeCancelled"/>
+                <econdition field-name="partyStatusId" operator="not-in" value="WeptDeclined,WeptUnassigned" or-null="true"/>
+                <econditions combine="or">
+                    <econdition field-name="estimatedCompletionDate" operator="less" from="weekEnd"/>
+                    <econditions combine="and">
+                        <econdition field-name="estimatedCompletionDate" operator="is-null"/>
+                        <econdition field-name="estimatedStartDate" operator="less" from="weekEnd"/>
+                    </econditions>
+                </econditions>
+                <select-field field-name="workEffortId,workEffortName,purposeEnumId,estimatedCompletionDate,estimatedStartDate,priority"/>
+            </entity-find>
+            <script><![CDATA[
+                const L = (text) => ec.l10n.localize(text)
+                const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+                const todayText = fmt(Number(ec.user.nowTimestamp), 'yyyy-MM-dd')
+                const seen = new Set()
+                const items = []
+                for (const row of Array.from(followUpRows ?? [])) {
+                    if (seen.has(row.workEffortId)) continue
+                    seen.add(row.workEffortId)
+                    const due = row.estimatedCompletionDate != null ? Number(String(row.estimatedCompletionDate)) : (row.estimatedStartDate != null ? Number(String(row.estimatedStartDate)) : null)
+                    if (due == null) continue
+                    const dueDay = fmt(due, 'yyyy-MM-dd')
+                    items.push({workEffortId: row.workEffortId, title: row.workEffortName || row.workEffortId, due: due,
+                        kindLabel: row.purposeEnumId === 'WepPhoneCall' ? L('Call') : L('Email'), icon: row.purposeEnumId === 'WepPhoneCall' ? 'sym_o_call' : 'sym_o_mail',
+                        dueText: dueDay === todayText ? L('Today') : fmt(due, 'EEE MMM d'), overdue: dueDay < todayText,
+                        link: '/qapps/Commons/Tasks/TaskDetail?workEffortId=' + encodeURIComponent(row.workEffortId)})
+                }
+                items.sort((left, right) => left.due - right.due)
+                followUpList = items.slice(0, 10)
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="get" noun="HomeMeetings" allow-remote="false">
+        <description>Internal, for get#CommsHome: the user's events from now through the next two days that have not ended
+            (mantle.work.EventServices.get#FullCalendarData for the user's party: their calendars and the events they are on,
+            declined ones left out), the soonest first, ten at most, each with its join link (the event's link, else the first
+            web address in its location or description).</description>
+        <out-parameters><parameter name="meetingList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            meetingList = []
+            const partyId = ec.user.userAccount?.partyId || null
+            if (!partyId) return
+            const nowMillis = Number(ec.user.nowTimestamp)
+            const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+            const todayText = fmt(nowMillis, 'yyyy-MM-dd')
+            const out = ec.service.sync().name('mantle.work.EventServices.get#FullCalendarData').parameters({partyId: partyId, start: todayText,
+                end: fmt(nowMillis + 3 * 86400000, 'yyyy-MM-dd'), excludeCancelled: true, titleGString: '${workEffort.workEffortName || workEffort.workEffortId}'}).call()
+            if (ec.message.hasError()) return
+            const events = Array.from(out?.eventList || []).filter((event) => event.endMillis == null || Number(event.endMillis) > nowMillis)
+                .sort((left, right) => Number(left.startMillis || 0) - Number(right.startMillis || 0)).slice(0, 10)
+            if (!events.length) return
+            const ids = Array.from(new Set(events.map((event) => event.workEffortId)))
+            const rows = {}
+            for (const row of ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', 'in', ids)
+                    .selectField('workEffortId,infoUrl,location,description').list()) rows[row.workEffortId] = row
+            const urlIn = (text) => { const match = /https?:\/\/[^\s<>"')]+/i.exec(String(text || '')); return match ? match[0] : null }
+            for (const event of events) {
+                const row = rows[event.workEffortId] || {}
+                const joinUrl = row.infoUrl && /^https?:\/\//i.test(String(row.infoUrl)) ? String(row.infoUrl) : (urlIn(row.location) || urlIn(row.description))
+                const start = Number(event.startMillis)
+                const dayText = fmt(start, 'yyyy-MM-dd') === todayText ? L('Today') : fmt(start, 'EEE MMM d')
+                const started = start <= nowMillis
+                meetingList.push({workEffortId: event.workEffortId, title: event.title || event.workEffortId,
+                    whenText: event.allDay ? dayText + ' · ' + L('All day') : dayText + ' ' + fmt(start, 'h:mm a') + (event.endMillis ? ' – ' + fmt(Number(event.endMillis), 'h:mm a') : ''),
+                    joinUrl: joinUrl, isNow: started && !event.allDay, link: '/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(event.workEffortId)})
+            }
+        ]]></script></actions>
+    </service>
+</services>

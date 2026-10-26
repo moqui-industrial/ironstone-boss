@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     create#ProjectRepository, its id the key in lower case unless given) or one linked that the user may view
     (add#ProjectRepository; a mirror of a URL is an administrator's, in the tools); documentation: none, or a wiki space on
     database files, or in the repository made or linked here at docs/ (impl-projects.md P4b). Next saves them
-    (ironstone.ProjectServices.save#ProjectModules); without git hosting in the build no repository can be made or linked. -->
+    (ironstone.projects.ProjectServices.save#ProjectModules); without git hosting in the build no repository can be made or linked. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Modules and code" default-menu-index="3" menu-image="sym_o_apps" menu-image-type="icon">
 
@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveModules">
         <actions>
-            <service-call name="ironstone.ProjectServices.save#ProjectModules" out-map="saveOut" in-map="{workEffortId:workEffortId, modules:(modules ?? []),
+            <service-call name="ironstone.projects.ProjectServices.save#ProjectModules" out-map="saveOut" in-map="{workEffortId:workEffortId, modules:(modules ?? []),
                     estimateUnit:estimateUnit, statusFlowId:statusFlowId, repositoryChoice:(repositoryChoice || 'none'), repositoryId:repositoryId,
                     linkRepositoryId:linkRepositoryId, docsChoice:(docsChoice || 'none')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>

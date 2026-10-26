@@ -17,14 +17,14 @@ along with this software (see the LICENSE.md file). If not, see
     their email and whether they have a user; client sign-in itself is impl-projects.md P10 (ProjectSettings keeps the choice).
     The Allocations box (impl-projects.md P7): who is planned on it, a person or a placeholder role, from, thru, hours a week (or the
     percent), the status chip; Request allocation for its managers and the Projects managers (allocated at once by the latter unless they
-    ask for approval), Approve and Cancel on a row, and the team planner on the project. Services: ironstone.ProjectServices
-    get#ProjectTeam, add#ProjectMember, end#ProjectMember; ironstone.ResourceServices get#ProjectAllocations, save#, decide#Allocation. -->
+    ask for approval), Approve and Cancel on a row, and the team planner on the project. Services: ironstone.projects.ProjectServices
+    get#ProjectTeam, add#ProjectMember, end#ProjectMember; ironstone.projects.ResourceServices get#ProjectAllocations, save#, decide#Allocation. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Team" default-menu-index="9" menu-image="sym_o_groups" menu-image-type="icon">
 
     <transition name="addMember">
         <actions>
-            <service-call name="ironstone.ProjectServices.add#ProjectMember" out-map="addOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
+            <service-call name="ironstone.projects.ProjectServices.add#ProjectMember" out-map="addOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -32,7 +32,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="endMember">
         <actions>
-            <service-call name="ironstone.ProjectServices.end#ProjectMember" out-map="endOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
+            <service-call name="ironstone.projects.ProjectServices.end#ProjectMember" out-map="endOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(endOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -40,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="requestAllocation">
         <actions>
-            <service-call name="ironstone.ResourceServices.save#Allocation" out-map="allocOut" in-map="{workEffortId:workEffortId, partyId:(allocPartyId || null),
+            <service-call name="ironstone.projects.ResourceServices.save#Allocation" out-map="allocOut" in-map="{workEffortId:workEffortId, partyId:(allocPartyId || null),
                     roleTypeId:(allocRoleTypeId || null), skillTypeEnumId:(allocSkillTypeEnumId || null), fromDate:allocFromDate, thruDate:allocThruDate, amount:amount,
                     unit:(unit || 'h'), comments:(comments || null), request:(request || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(allocOut.message, 'success')</script></if>
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="decideAllocation">
         <actions>
-            <service-call name="ironstone.ResourceServices.decide#Allocation" out-map="decideOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:action}"/>
+            <service-call name="ironstone.projects.ResourceServices.decide#Allocation" out-map="decideOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:action}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(decideOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -58,14 +58,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="allocationPeople" read-only="true">
         <actions>
-            <service-call name="ironstone.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.projects.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
     </transition>
     <transition name="peopleSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -93,18 +93,18 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!recordFound) return
-            const team = ec.service.sync().name('ironstone.ProjectServices.get#ProjectTeam').parameters({workEffortId: workEffortId}).call() || {}
+            const team = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectTeam').parameters({workEffortId: workEffortId}).call() || {}
             memberList = Array.from(team.memberList || [])
             teamList = Array.from(team.teamList || [])
             clientList = Array.from(team.clientList || [])
             roleOptions = Array.from(team.roleOptions || [])
             canManage = !!team.canManage
-            const allocations = ec.service.sync().name('ironstone.ResourceServices.get#ProjectAllocations').parameters({workEffortId: workEffortId}).call() || {}
+            const allocations = ec.service.sync().name('ironstone.projects.ResourceServices.get#ProjectAllocations').parameters({workEffortId: workEffortId}).call() || {}
             ec.message.clearErrors()
             allocationList = Array.from(allocations.allocationList || [])
             canRequestAllocation = !!allocations.canRequest
             canApproveAllocation = !!allocations.canApprove
-            const allocOptions = ec.service.sync().name('ironstone.ResourceServices.get#AllocationRoleOptions').call() || {}
+            const allocOptions = ec.service.sync().name('ironstone.projects.ResourceServices.get#AllocationRoleOptions').call() || {}
             allocRoleOptions = Array.from(allocOptions.roleOptions || []).map((one) => ({key: one.value, text: one.label}))
             allocSkillOptions = Array.from(allocOptions.skillOptions || []).map((one) => ({key: one.value, text: one.label}))
             const today = ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')

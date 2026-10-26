@@ -198,8 +198,9 @@ feature("every IronStone write service is in the client's deny pattern, and only
         const patterns = member.map((text) => new RegExp("^(?:" + text + ")$"))
         const root = "component://mr-boss/service/ironstone"
         const notDenied = []
-        const nested = []
+        const clientExtra = []
         const clientWrites = []
+        const clientDenied = []
         const walk = (location, prefix) => {
             for (const ref of ec.resource.getLocationReference(location).getDirectoryEntries()) {
                 const name = ref.location.substring(ref.location.lastIndexOf("/") + 1)
@@ -207,12 +208,16 @@ feature("every IronStone write service is in the client's deny pattern, and only
                 if (!name.endsWith(".xml")) continue
                 const className = prefix + name.replace(/\.xml$/, "")
                 const text = String(ref.getText())
+                const clientFile = className === "client.ClientServices"
+                if (className.startsWith("client.") && !clientFile) clientExtra.push(className)
                 for (const match of text.matchAll(/<service verb="([A-Za-z]+)" noun="([A-Za-z]+)"/g)) {
                     const full = "ironstone." + className + "." + match[1] + "#" + match[2]
                     const denied = patterns.some((pattern) => pattern.test(full))
-                    if (className.includes(".")) {
-                        if (className !== "client.ClientServices") nested.push(full)
-                        else if (!READS.includes(match[1])) clientWrites.push(full)
+                    if (clientFile) {
+                        if (!READS.includes(match[1])) {
+                            clientWrites.push(full)
+                            if (denied) clientDenied.push(full)
+                        }
                         continue
                     }
                     if (!READS.includes(match[1]) && !denied) notDenied.push(full)
@@ -222,11 +227,12 @@ feature("every IronStone write service is in the client's deny pattern, and only
         walk(root, "")
         const clientText = sys(() => String(ec.resource.getLocationReference(root + "/client/ClientServices.xml").getText()))
         const remoteOpen = (clientText.match(/<service verb="/g) || []).length - (clientText.match(/<service verb="[^"]+" noun="[^"]+" allow-remote="false"/g) || []).length
-        return { notDenied, nested, clientWrites, remoteOpen }
+        return { notDenied, clientExtra, clientWrites, clientDenied, remoteOpen }
     },
-    then({ notDenied, nested, clientWrites, remoteOpen }) {
+    then({ notDenied, clientExtra, clientWrites, clientDenied, remoteOpen }) {
         notDenied == []
-        nested == []
+        clientExtra == []
+        clientDenied == []
         clientWrites.length >= 6
         remoteOpen == 0
     },

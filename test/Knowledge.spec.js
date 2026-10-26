@@ -1,5 +1,5 @@
 // Commons Knowledge (screen/Commons/Knowledge.xml and Knowledge.qvue, its subscreens Spaces and SpaceDetail,
-// service/ironstone/KnowledgeServices.xml; impl-drawers-commons.md M9, design-drawers-commons.md §10): the JSON transitions the
+// service/ironstone/commons/KnowledgeServices.xml; impl-drawers-commons.md M9, design-drawers-commons.md §10): the JSON transitions the
 // screen calls under the Commons app root, on the knowledge demo (data/BossKnowledgeDemoData.xml). The side pane's spaces, the
 // tree a level at a time, a page with its links, backlinks, history, tags, files and review; a new page, edit with a version
 // note and a save that met another, history and compare, restore, publish, rename, move, a tree drop, delete; search; tags,

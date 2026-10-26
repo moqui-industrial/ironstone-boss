@@ -17,13 +17,13 @@ along with this software (see the LICENSE.md file). If not, see
     the Inbox view it counts; Needs reply (the conversations waiting a day or more for the user's answer), the follow-up calls
     and emails due, the meetings of the next days with Join; the shortcuts (Compose, New room, Add a mail account until there
     is one); the mailboxes and chat rooms with unread. A mail account whose sign-in or sync failed is named at the top with
-    the way to fix it. ironstone.CommsHomeServices.get#CommsHome reads each part on its own: one that fails is left out and
+    the way to fix it. ironstone.comms.CommsHomeServices.get#CommsHome reads each part on its own: one that fails is left out and
     said so. Missed calls come with Calls. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Home" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
 
     <actions>
-        <service-call name="ironstone.CommsHomeServices.get#CommsHome" out-map="home"/>
+        <service-call name="ironstone.comms.CommsHomeServices.get#CommsHome" out-map="home"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             cardList = Array.from(home?.cardList || [])

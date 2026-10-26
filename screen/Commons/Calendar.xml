@@ -16,8 +16,8 @@ along with this software (see the LICENSE.md file). If not, see
     user's calendars as a day, work week, week, month or agenda grid, with the rail of calendars to turn on and off, and its
     subscreens EventDetail and Schedules (rooms and equipment). The component is Calendar.qvue next to this file; while a
     subscreen is in the path it shows only that subscreen. Its state is in the URL (view, date, showTasks) and the user's
-    preferences (the calendars turned off, tasks, declined: ironstone.CalendarServices.get#CalendarDefaults); the data and every
-    change go through the JSON transitions below (service/ironstone/CalendarServices.xml), as the user: each checks what the user
+    preferences (the calendars turned off, tasks, declined: ironstone.commons.CalendarServices.get#CalendarDefaults); the data and every
+    change go through the JSON transitions below (service/ironstone/commons/CalendarServices.xml), as the user: each checks what the user
     may see and change, and every day and time is wall-clock text in the user's time zone. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Calendar" default-menu-index="3" render-modes="vue,qvue,tui" server-static="vue,qvue" menu-image="sym_o_calendar_month" menu-image-type="icon">
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the rail and the defaults: calendars, preferences, time zone, today, the rooms of the quick event -->
     <transition name="calendarSetup" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.get#CalendarSetup').call()
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.get#CalendarSetup').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {calendarList: out.calendarList, defaultCalendarId: out.defaultCalendarId,
                 defaults: out.defaults, timeZone: out.timeZone, todayText: out.todayText, nowText: out.nowText, me: out.me,
                 roomOptions: out.roomOptions, failedSources: out.failedSources})
@@ -41,7 +41,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the events from start to end (days): calendarIds shown, hiddenCalendarIds off, showDeclined, showTasks -->
     <transition name="calendarEvents" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.get#CalendarEvents').parameters({start: start, end: end,
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.get#CalendarEvents').parameters({start: start, end: end,
                 calendarIds: calendarIds || '', hiddenCalendarIds: hiddenCalendarIds || '', showDeclined: showDeclined === 'Y' || showDeclined === 'true',
                 showTasks: showTasks === 'Y' || showTasks === 'true'}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventList: out.eventList, skippedCalendarIdList: out.skippedCalendarIdList,
@@ -52,7 +52,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the event popover -->
     <transition name="eventSummary" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.get#EventSummary').parameters({workEffortId: workEffortId || '',
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.get#EventSummary').parameters({workEffortId: workEffortId || '',
                 instanceStart: instanceStart || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() || !out.visible ? {visible: false} : {visible: true, event: out.event})
         ]]></script></actions>
@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the search line -->
     <transition name="searchEvents" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.search#CalendarEvents').parameters({text: text || '', calendarIds: calendarIds || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.search#CalendarEvents').parameters({text: text || '', calendarIds: calendarIds || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {resultList: out.resultList})
         ]]></script></actions>
         <default-response type="none"/>
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people of the attendees drop-down: [{value, label}] -->
     <transition name="searchPeople" read-only="true">
         <actions>
-            <service-call name="ironstone.CalendarServices.search#Attendees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.CalendarServices.search#Attendees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -104,7 +104,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="createEvent">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.create#QuickEvent').parameters({workEffortName: workEffortName || '',
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.create#QuickEvent').parameters({workEffortName: workEffortName || '',
                 start: start || '', end: end || null, allDay: allDay || 'N', calendarId: calendarId || null, facilityId: facilityId || null,
                 attendeePartyIds: attendeePartyIds || null, repeat: repeat || null, reminderMinutes: reminderMinutes ?? null, location: location || null,
                 description: description || null}).call()
@@ -120,7 +120,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="moveEvent">
         <actions><script><![CDATA[
             const id = workEffortId || ''
-            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
+            ec.service.sync().name('ironstone.commons.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const theScope = scope || 'all'
             // the notifications open the event: an instance changed on its own by the series and the instance's start
@@ -140,7 +140,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="cancelEvent">
         <actions><script><![CDATA[
             const id = workEffortId || ''
-            ec.service.sync().name('ironstone.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
+            ec.service.sync().name('ironstone.commons.CalendarServices.get#EventAccessInfo').parameters({workEffortId: id, need: 'edit'}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const out = ec.service.sync().name('mantle.work.EventServices.cancel#EventOccurrence').parameters({workEffortId: id,
                 instanceStart: instanceStart || null, scope: scope || 'all', notify: notify || 'N',
@@ -151,7 +151,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="respond">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.respond#Invitation').parameters({workEffortId: workEffortId || '',
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.respond#Invitation').parameters({workEffortId: workEffortId || '',
                 response: response || '', message: message || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId, messageInfos: [{type: 'success', message: out.resultMessage}]})
         ]]></script></actions>
@@ -159,7 +159,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveRailState">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.CalendarServices.save#CalendarRailState').parameters({hiddenCalendarIds: hiddenCalendarIds ?? null,
+            ec.service.sync().name('ironstone.commons.CalendarServices.save#CalendarRailState').parameters({hiddenCalendarIds: hiddenCalendarIds ?? null,
                 showTasks: showTasks ?? null, showDeclined: showDeclined ?? null}).call()
             ec.web.sendJsonResponse({})
         ]]></script></actions>
@@ -168,7 +168,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a calendar as an .ics download -->
     <transition name="exportCalendar" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.export#CalendarFile').parameters({calendarId: calendarId || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.export#CalendarFile').parameters({calendarId: calendarId || ''}).call()
             if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>

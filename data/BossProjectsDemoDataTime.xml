@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- P6a: time (design-projects.md §8; impl-projects.md P6a). A file of its own after the projects (the files load in name order).
         SUPP, the support desk of IronStone, a project whose estimates leave room for the demo's weeks of time (time on IRON would
         take its hours past its estimate and make it At risk), with John Doe its manager, Joe Developer and Bob Developer on its
-        team; then service/ironstone/TimeDemoServices.xml load#TimeDemo logs the weeks, dated from the week the data is loaded:
+        team; then service/ironstone/projects/TimeDemoServices.xml load#TimeDemo logs the weeks, dated from the week the data is loaded:
         Joe's week two weeks back submitted and approved by John Doe, his last week submitted and waiting for John Doe, Bob's last
         week returned with a reason, this week's time of Joe and John Doe, and John Doe's timer running on SUPP-1. -->
     <mantle.work.effort.WorkEffort workEffortId="SUPP" workEffortTypeEnumId="WetProject" purposeEnumId="WepPrProdDev" statusId="WeInProgress"
@@ -43,5 +43,5 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.WorkEffortParty workEffortId="SUPP-3" partyId="ORG_ZIZI_BD" roleTypeId="Assignee" fromDate="2026-09-01 09:00:00" statusId="WeptAssigned"/>
     <mantle.work.effort.WorkEffortParty workEffortId="SUPP-3" partyId="EX_JOHN_DOE" roleTypeId="Assignee" fromDate="2026-09-01 09:00:00" statusId="WeptAssigned"/>
 
-    <ironstone.TimeDemoServices.load-TimeDemo/>
+    <ironstone.projects.TimeDemoServices.load-TimeDemo/>
 </entity-facade-xml>

@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The terminal twin of the composer (style-guide §4.8): Compose.tui.json is a dynamic container of this screen with
     Compose's parameters (a draft by emailMessageId; a reply by replyToEmailMessageId or replyToCommEventId; mailto-style to,
     cc, bcc, subject and body; a mailbox post by contactListId; the record chip recordEntity and recordId). What the composer
-    starts with comes from the same ironstone.ComposeServices.get#ComposeData (a forward, which makes a draft as it opens, is
+    starts with comes from the same ironstone.comms.ComposeServices.get#ComposeData (a forward, which makes a draft as it opens, is
     left to the browser), and Send goes through the same send#Compose: the sender is always the user, from an identity the
     user may send from. The recipients are text, comma separated (an address, or the party:, group: and list: values of the
     browser's chips); the body is plain text, sent as paragraphs, with the quoted message of a reply after it. Files are
@@ -57,7 +57,7 @@ along with this software (see the LICENSE.md file). If not, see
             const escape = (line) => line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
             const text = String(bodyText || '').replace(/\r\n?/g, '\n')
             const html = text.split(/\n{2,}/).filter((part) => part.trim()).map((part) => '<p>' + part.split('\n').map(escape).join('<br>') + '</p>').join('')
-            const out = ec.service.sync().name('ironstone.ComposeServices.send#Compose').parameters({fromValue: fromValue || '', emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.send#Compose').parameters({fromValue: fromValue || '', emailMessageId: emailMessageId || null,
                 toJson: chips(toText), ccJson: chips(ccText), bccJson: chips(bccText), subject: subject ?? '', body: html, bodyText: text || null,
                 quoteHtml: quoteHtml || null, parentEmailMessageId: parentEmailMessageId || null, isForward: String(isForward) === 'true',
                 parentCommEventId: parentCommEventId || null, replyToSenderOnly: String(replyToSenderOnly) === 'true',
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.get#ComposeData').parameters({emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.get#ComposeData').parameters({emailMessageId: emailMessageId || null,
                 replyToEmailMessageId: replyToEmailMessageId || null, replyAll: String(replyAll) === 'true', replyToCommEventId: replyToCommEventId || null,
                 replyToSender: String(replyToSender) === 'true', contactListId: contactListId || null, to: to || null, cc: cc || null, bcc: bcc || null,
                 subject: subject || null, body: body || null, recordEntity: recordEntity || null, recordId: recordId || null}).call()

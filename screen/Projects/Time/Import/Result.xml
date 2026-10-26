@@ -12,7 +12,7 @@ You should have received a copy of the CC0 Public Domain Dedication
 along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
-<!-- Time import step 3 (design-projects.md §8 ImportTime): the wizard's Import submits runImport (ironstone.TimeImportServices.run#Import:
+<!-- Time import step 3 (design-projects.md §8 ImportTime): the wizard's Import submits runImport (ironstone.projects.TimeImportServices.run#Import:
     mantle.work.TimeServices.import#TimeEntryCsv, each row through store#TimeEntry in its own transaction), then the step shows the
     outcome: made, skipped and failed with the reason by row (the failed rows also as a CSV download, the reason first), the hours
     imported, the warnings, and the way to the time entries. A file of up to 200 rows is imported in the request; a larger one runs
@@ -26,7 +26,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="runImport">
         <parameter name="background"/>
         <actions>
-            <service-call name="ironstone.TimeImportServices.run#Import" in-map="{importId:importId, background:(background == 'Y' ? true : null)}" out-map="runOut"/>
+            <service-call name="ironstone.projects.TimeImportServices.run#Import" in-map="{importId:importId, background:(background == 'Y' ? true : null)}" out-map="runOut"/>
             <if condition="runOut?.running"><then><message type="info">The import runs on; this page shows how far it is</message></then>
                 <else><set field="done" value="Y"/></else></if>
         </actions>
@@ -36,7 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the rows that failed, as a CSV file with the reason first -->
     <transition name="failuresCsv">
         <actions><script><![CDATA[
-            const current = ec.service.sync().name('ironstone.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call()
+            const current = ec.service.sync().name('ironstone.projects.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call()
             const failures = Array.from(current?.draft?.result?.failureList || [])
             if (!current?.found || !failures.length) { ec.web.sendJsonResponse({errors: ec.l10n.localize('No failures to download')}); return }
             const columns = []
@@ -53,7 +53,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
-        const current = ec.service.sync().name('ironstone.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+        const current = ec.service.sync().name('ironstone.projects.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call() || {}
         hasDraft = !!current.found
         if (!hasDraft) return
         draft = current.draft

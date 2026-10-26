@@ -27,7 +27,7 @@ const names = (answer) => (answer.json.fileList || []).map((row) => row.name)
 
 spec({
     setupSpec() {
-        sys(() => call("ironstone.FilesDemoServices.load#FilesDemo", {}))
+        sys(() => call("ironstone.commons.FilesDemoServices.load#FilesDemo", {}))
         logout()
     },
     cleanupSpec() { login("john.doe") },

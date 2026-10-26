@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveMapping">
         <actions><script><![CDATA[
-            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
             if (!current?.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
             const parsed = ec.service.sync().name('mantle.party.ContactImportServices.parse#ContactFile').parameters({fileLocation: current.fileLocation,
                 fileName: current.draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: current.draft.fileKind === 'csv' ? current.draft.presetId : null,
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
                 mapping[column.columnName] = value ? String(value) : null
             })
             if (!Object.values(mapping).some((target) => target)) { ec.message.addError(ec.l10n.localize('Map at least one column')); return }
-            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: mapping, status: 'mapped'}}).call()
+            ec.service.sync().name('ironstone.commons.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: mapping, status: 'mapped'}}).call()
         ]]></script></actions>
         <default-response url="."><parameter name="importId"/></default-response>
         <error-response url="."/>
@@ -47,13 +47,13 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- back to the preset's mapping -->
     <transition name="autoMap">
         <actions><script><![CDATA[
-            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
             if (!current?.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
             const parsed = ec.service.sync().name('mantle.party.ContactImportServices.parse#ContactFile').parameters({fileLocation: current.fileLocation,
                 fileName: current.draft.fileExt === 'vcf' ? 'source.vcf' : 'source.csv', presetId: current.draft.fileKind === 'csv' ? current.draft.presetId : null,
                 sampleSize: 1}).call()
             if (ec.message.hasError()) return
-            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: parsed.columnMapping || {}}}).call()
+            ec.service.sync().name('ironstone.commons.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: parsed.columnMapping || {}}}).call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Mapped from the file kind'), 'success')
         ]]></script></actions>
         <default-response url="."><parameter name="importId"/></default-response>
@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
-        const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+        const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
         hasDraft = !!current.found
         mapRows = []
         targetOptions = []

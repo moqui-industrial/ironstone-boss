@@ -30,7 +30,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
         const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 10) / 10, '#,##0.#')
-        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        const options = ec.service.sync().name('ironstone.projects.ReportServices.get#ReportOptions').call() || {}
         ec.message.clearErrors()
         managerOptions = Array.from(options.managerOptions || [])
         clientOptions = Array.from(options.clientOptions || [])
@@ -64,7 +64,7 @@ along with this software (see the LICENSE.md file). If not, see
         // the chart: % complete by project (projects with an estimate)
         const charted = projects.filter((row) => row.percentComplete != null)
         hasChart = charted.length > 0
-        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'PortfolioChart', type: 'bar',
+        const chart = hasChart ? ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'PortfolioChart', type: 'bar',
             labels: charted.map((row) => row.workEffortName), series: [{name: L('% complete'), data: charted.map((row) => row.percentComplete)}], horizontal: true,
             percent: true, height: Math.max(160, 40 + charted.length * 32) + 'px'}).call() || {} : {}
         ec.message.clearErrors()

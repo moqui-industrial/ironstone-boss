@@ -1,4 +1,4 @@
-// Commons Requests and RequestDetail (screen/Commons/Requests/List.xml and RequestDetail.xml, service/ironstone/RequestServices.xml;
+// Commons Requests and RequestDetail (screen/Commons/Requests/List.xml and RequestDetail.xml, service/ironstone/commons/RequestServices.xml;
 // impl-drawers-commons.md M6, design-drawers-commons.md §8): john.doe's lists on the demo (data/BossDemoData.xml,
 // DemoServices.load#TasksDemo): All open, Raised by me, Assigned to me, Watching and Closed, the find, New request (submitted
 // or a draft); RequestDetail with its stage chips and the requester's actions: submit a draft, cancel one's own, edit a
@@ -49,7 +49,7 @@ const one = (entityName, fields) => sys(() => ec.entity.find(entityName).conditi
 const all = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields).list()))
 const current = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields)
         .condition(ec.entity.conditionFactory.makeConditionDate("fromDate", "thruDate", null)).list()))
-const rows = (list, parameters) => sys(() => call("ironstone.RequestServices.find#RequestRows", Object.assign({ list, pageSize: 200 }, parameters || {})))
+const rows = (list, parameters) => sys(() => call("ironstone.commons.RequestServices.find#RequestRows", Object.assign({ list, pageSize: 200 }, parameters || {})))
 const idsOf = (out) => (out.rowList || []).map((row) => row.requestId)
 // a request john.doe raises through New request, by its name
 function raise(name, parameters) {
@@ -61,7 +61,7 @@ function raise(name, parameters) {
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.DemoServices.load#TasksDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#TasksDemo", {}))
     },
 })
 

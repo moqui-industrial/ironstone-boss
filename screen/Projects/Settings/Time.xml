@@ -20,13 +20,13 @@ along with this software (see the LICENSE.md file). If not, see
     day and the working days (the working hours until Capacity), and the missing-time reminder's day and hour; and the work types
     offered (PartySetting ProjWorkTypes through get# and store#WorkTypes: offered in order, Offer or Stop offering, Up and Down,
     Rename of the organization's own) with NewWorkType (an Enumeration of WorkType, WktpOrg and a number). MyTime, QuickTime,
-    TimeEntries and the import offer these. Service: ironstone.TimeServices get# and store#TimeSettings, change#WorkTypes,
+    TimeEntries and the import offer these. Service: ironstone.projects.TimeServices get# and store#TimeSettings, change#WorkTypes,
     create#WorkType. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Time" default-menu-index="5" server-static="qvt" menu-image="sym_o_work_history" menu-image-type="icon">
 
     <transition name="savePolicy">
-        <service-call name="ironstone.TimeServices.store#TimeSettings" out-map="saveOut" in-map="{weekStart:weekStart, approvers:approvers, lock:(lock || 'N'),
+        <service-call name="ironstone.projects.TimeServices.store#TimeSettings" out-map="saveOut" in-map="{weekStart:weekStart, approvers:approvers, lock:(lock || 'N'),
                 needItem:(needItem || 'N'), needComment:(needComment || 'N'), minHours:minHours, future:(future || 'N'), dayHours:dayHours, workDays:workDays,
                 remindDay:remindDay, remindHour:remindHour}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
@@ -34,13 +34,13 @@ along with this software (see the LICENSE.md file). If not, see
         <error-response url="."/>
     </transition>
     <transition name="changeType">
-        <service-call name="ironstone.TimeServices.change#WorkTypes" out-map="typeOut" in-map="{enumId:enumId, change:change, label:label}"/>
+        <service-call name="ironstone.projects.TimeServices.change#WorkTypes" out-map="typeOut" in-map="{enumId:enumId, change:change, label:label}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(typeOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
     </transition>
     <transition name="createType">
-        <service-call name="ironstone.TimeServices.create#WorkType" out-map="typeOut" in-map="{label:label}"/>
+        <service-call name="ironstone.projects.TimeServices.create#WorkType" out-map="typeOut" in-map="{label:label}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(typeOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
@@ -48,7 +48,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const info = ec.service.sync().name('ironstone.TimeServices.get#TimeSettings').call() || {}
+            const info = ec.service.sync().name('ironstone.projects.TimeServices.get#TimeSettings').call() || {}
             hasOrganization = !!info.organizationPartyId
             organizationName = info.organizationName || ''
             policyValue = Object.assign({}, info.policy || {})

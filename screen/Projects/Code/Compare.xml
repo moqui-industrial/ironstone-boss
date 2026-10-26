@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     branch's work item or the first commit, a Closes line per work item named, the projects' leads as reviewers (any internal member of them may be chosen), draft,
     complete the linked items on merge as the project says, delete the branch after); then the commits and every file's diff
     (the moqui-diff table), up to 25 files, past that a file list opening each. Opening the merge request goes on to its
-    MergeRequestDetail. Services: ironstone.CodeServices get#CompareInfo,
+    MergeRequestDetail. Services: ironstone.projects.CodeServices get#CompareInfo,
     create#MergeRequestFromCompare (org.moqui.impl.GitServices.get#GitCompare, org.moqui.impl.GitReviewServices.create#MergeRequest,
     mantle.work.GitServices.link#MergeRequestItems). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="pickRefs"><default-response url="."><parameter name="repositoryId"/><parameter name="base"/><parameter name="head"/></default-response></transition>
     <transition name="openMergeRequest">
         <actions>
-            <service-call name="ironstone.CodeServices.create#MergeRequestFromCompare" out-map="openOut" in-map="{repositoryId:repositoryId, sourceRef:sourceRef,
+            <service-call name="ironstone.projects.CodeServices.create#MergeRequestFromCompare" out-map="openOut" in-map="{repositoryId:repositoryId, sourceRef:sourceRef,
                     targetRef:targetRef, title:title, description:description, reviewerUserIds:reviewerUserIds, draft:(draft || 'N'),
                     completeItems:(completeItems || 'N'), deleteSourceBranch:(deleteSourceBranch || 'N')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(openOut.message, 'success')</script></if>
@@ -46,14 +46,14 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            repoAccess = codeHosting ? (ec.service.sync().name('ironstone.CodeServices.get#RepositoryAccess').parameters({repositoryId: repositoryId || ''}).call() || {}) : {}
+            repoAccess = codeHosting ? (ec.service.sync().name('ironstone.projects.CodeServices.get#RepositoryAccess').parameters({repositoryId: repositoryId || ''}).call() || {}) : {}
             recordFound = !!repoAccess.canView
             if (!recordFound) return
             const L = (text) => ec.l10n.localize(text)
             repo = repoAccess.repository || {}
             canPush = !!(repoAccess.canCreate || repoAccess.canUpdate)
             isArchived = !!repoAccess.archived
-            const info = ec.service.sync().name('ironstone.CodeServices.get#CompareInfo').parameters({repositoryId: repositoryId, base: base || null, head: head || null,
+            const info = ec.service.sync().name('ironstone.projects.CodeServices.get#CompareInfo').parameters({repositoryId: repositoryId, base: base || null, head: head || null,
                 diffPath: diffPath || null}).call() || {}
             ec.message.clearErrors()
             base = info.base || base || repo.branch
@@ -64,7 +64,7 @@ along with this software (see the LICENSE.md file). If not, see
             commitList = Array.from(info.commitList || [])
             defaults = info.defaults || {}
             openMergeRequest = info.openMergeRequest || null
-            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+            refOptions = ec.service.sync().name('ironstone.projects.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
             refsValue = {repositoryId: repositoryId, base: base, head: head || ''}
             swapParams = {repositoryId: repositoryId, base: head || '', head: base}
             mayOpen = !!(comparison && head && defaults.isBranch && canPush && !isArchived && !openMergeRequest && comparison.aheadBy > 0 && !comparison.alreadyMerged)

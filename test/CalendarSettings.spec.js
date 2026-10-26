@@ -1,5 +1,5 @@
 // Commons Settings/Calendars and the Calendar box of Settings/Preferences (screen/Commons/Settings/Calendars.xml, Preferences.xml,
-// service/ironstone/CalendarServices.xml; impl-drawers-commons.md M7, design-drawers-commons.md §11): john.doe's calendars on the
+// service/ironstone/commons/CalendarServices.xml; impl-drawers-commons.md M7, design-drawers-commons.md §11): john.doe's calendars on the
 // calendar demo (data/BossCalendarDemoData.xml, loaded again here). The page lists his own, the shared ones and the
 // subscription whose fetch failed; a calendar is created, renamed, colored, made the default and deleted; Family is shared with
 // Joe Developer, who then sees its events, and unshared; a feed is subscribed to, fetched now from an address that does not
@@ -48,7 +48,7 @@ const ics = (uid, summary, dayText) => ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODI
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.CalendarDemoServices.load#CalendarDemo", {}))
+        sys(() => call("ironstone.commons.CalendarDemoServices.load#CalendarDemo", {}))
         D = ec.l10n.format(ec.user.nowTimestamp, "yyyy-MM-dd")
     },
     cleanup() { login("john.doe") },
@@ -56,7 +56,7 @@ spec({
 
 feature("Settings/Calendars lists john.doe's calendars, the shared ones and the subscription whose fetch failed", {
     when() {
-        return { page: render("apps/Commons/Settings/Calendars"), settings: sys(() => call("ironstone.CalendarServices.get#CalendarSettings", {})) }
+        return { page: render("apps/Commons/Settings/Calendars"), settings: sys(() => call("ironstone.commons.CalendarServices.get#CalendarSettings", {})) }
     },
     then({ page, settings }) {
         page.status == 200
@@ -124,7 +124,7 @@ feature("a feed: subscribed, fetched now from an address that does not answer (f
         const subscribed = post("subscribe", { url: "http://127.0.0.1:9/school.ics", calendarName: "BOSS_TEST School", refreshMinutes: "1440", fetchNow: "N" })
         const calendar = all("mantle.work.calendar.Calendar", { calendarName: "BOSS_TEST School" })[0] || {}
         made.feed = calendar.calendarId
-        const fresh = sys(() => call("ironstone.CalendarServices.get#CalendarSettings", {})).subscriptionList.find((item) => item.calendarId === calendar.calendarId) || {}
+        const fresh = sys(() => call("ironstone.commons.CalendarServices.get#CalendarSettings", {})).subscriptionList.find((item) => item.calendarId === calendar.calendarId) || {}
         const fetched = post("fetchNow", { calendarId: calendar.calendarId })
         const failed = one("mantle.work.calendar.CalendarSubscription", { calendarId: calendar.calendarId })
         sys(() => call("mantle.work.CalendarServices.store#CalendarFeedText", { calendarId: calendar.calendarId, feedText: ics("boss-test-school-1@example.org", "Parents evening", day(3)) }))

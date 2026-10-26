@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
     recordEntity and recordId to open a record's room, made on first use), so a room is a link. The tray's Chat tab
     (Panel/Chat, ChatPanel.qvue) uses these transitions and the same room view.
 
-    Each transition is a JSON answer of service/ironstone/ChatServices.xml or of org.moqui.impl.ChatServices, which checks the
+    Each transition is a JSON answer of service/ironstone/comms/ChatServices.xml or of org.moqui.impl.ChatServices, which checks the
     room for the current user (IronStone R21): a room the user may not reach, and its files, are "not found". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Chat" default-menu-index="3" menu-image="sym_o_chat" menu-image-type="icon"
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the rail: me, the chat preferences, my rooms and the totals -->
     <transition name="chatData" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.get#ChatData').parameter('limit', limit ? Number(limit) : 200).call()
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.get#ChatData').parameter('limit', limit ? Number(limit) : 200).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {me: out.me, prefs: out.prefs, roomList: out.roomList, unreadTotal: out.unreadTotal,
                 mentionTotal: out.mentionTotal})
         ]]></script></actions>
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- rooms by filter and text; joinableOnly for Browse rooms -->
     <transition name="rooms" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.find#ChatRooms').parameters({filter: filter || null, searchText: searchText || null,
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.find#ChatRooms').parameters({filter: filter || null, searchText: searchText || null,
                 includeJoinable: String(includeJoinable) === 'true', joinableOnly: String(joinableOnly) === 'true', limit: limit ? Number(limit) : 200}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {roomList: out.roomList})
         ]]></script></actions>
@@ -51,7 +51,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a room as the room view opens it: the room, my member row and access, the members and the first page -->
     <transition name="roomView" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.get#RoomView').parameters({chatRoomId: chatRoomId || '',
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.get#RoomView').parameters({chatRoomId: chatRoomId || '',
                 aroundSeq: aroundSeq ? Number(aroundSeq) : null, limit: limit ? Number(limit) : 50}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {room: out.room, member: out.member, access: out.access, memberList: out.memberList,
                 timeline: out.timeline})
@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the room alone, after a change of its members or settings -->
     <transition name="room" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.get#RoomView').parameters({chatRoomId: chatRoomId || '', limit: 1}).call()
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.get#RoomView').parameters({chatRoomId: chatRoomId || '', limit: 1}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {room: out.room, member: out.member, access: out.access, memberList: out.memberList})
         ]]></script></actions>
         <default-response type="none"/>
@@ -70,7 +70,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="timeline" method="get" read-only="true">
         <actions><script><![CDATA[
             const number = (value) => value == null || value === '' ? null : Number(value)
-            const out = ec.service.sync().name('ironstone.ChatServices.get#TimelinePage').parameters({chatRoomId: chatRoomId || '',
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.get#TimelinePage').parameters({chatRoomId: chatRoomId || '',
                 beforeSeq: number(beforeSeq), afterSeq: number(afterSeq), aroundSeq: number(aroundSeq), threadRootEventSeq: number(threadRootEventSeq),
                 pinnedOnly: String(pinnedOnly) === 'true', eventSeq: number(eventSeq), limit: number(limit) || 50}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : (out.page || {}))
@@ -117,7 +117,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the @ mention list of a room: [{id, label}] -->
     <transition name="mentionUsers" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.find#MentionUsers').parameters({chatRoomId: chatRoomId || '', term: term || ''}).call()
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.find#MentionUsers').parameters({chatRoomId: chatRoomId || '', term: term || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.userList || []))
         ]]></script></actions>
         <default-response type="none"/>
@@ -125,7 +125,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people pickers (new direct message, new room, add members): [{value (userId), label}] -->
     <transition name="searchUsers" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.search#Users').parameters({term: term || '', limit: 12}).call()
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.search#Users').parameters({term: term || '', limit: 12}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? [] : Array.from(out.userList || []).filter((user) => user.id !== ec.user.userId)
                     .map((user) => ({value: user.id, label: user.label})))
         ]]></script></actions>
@@ -143,7 +143,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the card of a record a message links to (m-record-card) -->
     <transition name="recordCard" method="get" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.get#RecordCard" in-map="{recordEntityName:recordEntity, recordId:recordId}" out-map="cardOut"/>
+            <service-call name="ironstone.shared.ChatterServices.get#RecordCard" in-map="{recordEntityName:recordEntity, recordId:recordId}" out-map="cardOut"/>
             <script>ec.web.sendJsonResponse(ec.message.hasError() ? {} : (cardOut.card || {}))</script>
         </actions>
         <default-response type="none"/>
@@ -154,7 +154,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="send">
         <actions><script><![CDATA[
             const number = (value) => value == null || value === '' ? null : Number(value)
-            const out = ec.service.sync().name('ironstone.ChatServices.send#ChatMessage').parameters({chatRoomId: chatRoomId || '', body: body || null,
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.send#ChatMessage').parameters({chatRoomId: chatRoomId || '', body: body || null,
                 replyToEventSeq: number(replyToEventSeq), threadRootEventSeq: number(threadRootEventSeq), chatAttachmentIds: chatAttachmentIds || null,
                 clientRef: clientRef || null, forwardOfChatRoomId: forwardOfChatRoomId || null, forwardOfEventSeq: number(forwardOfEventSeq)}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventSeq: out.eventSeq, event: out.event, clientRef: out.clientRef, duplicate: out.duplicate})
@@ -250,7 +250,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- files for the next message: each stored on its own -->
     <transition name="upload">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.upload#ChatFiles').parameters({chatRoomId: chatRoomId || '', file: file || null}).call()
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.upload#ChatFiles').parameters({chatRoomId: chatRoomId || '', file: file || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {uploadList: out.uploadList, failedList: out.failedList,
                 messageInfos: (out.failedList || []).map((failed) => ({type: 'warning', message: failed.fileName + ': ' + failed.error}))})
         ]]></script></actions>
@@ -259,7 +259,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a task, request or event made from a message, which is filed on it -->
     <transition name="createFrom">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.create#FromChat').parameters({chatRoomId: chatRoomId || '',
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.create#FromChat').parameters({chatRoomId: chatRoomId || '',
                 eventSeq: Number(eventSeq || 0), kind: kind || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {recordEntityName: out.recordEntityName, recordId: out.recordId, url: out.url,
                 roomRecordLinked: out.roomRecordLinked, messageInfos: [{type: 'success', message: out.message, link: out.url, linkText: ec.l10n.localize('Open')}]})
@@ -269,7 +269,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a message filed on a record (its Chatter shows it) -->
     <transition name="fileOnRecord">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.file#OnRecord').parameters({chatRoomId: chatRoomId || '',
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.file#OnRecord').parameters({chatRoomId: chatRoomId || '',
                 eventSeq: Number(eventSeq || 0), recordEntityName: recordEntityName || '', recordId: recordId || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId, messageInfos: [{type: 'success',
                 message: ec.l10n.localize('Filed on') + ' ' + out.title, link: out.url, linkText: ec.l10n.localize('Open')}]})
@@ -279,7 +279,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the records to file a message on: [{value (entity|id), label}] -->
     <transition name="searchRecords" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.InboxServices.search#LinkRecords').parameter('term', term || '').call()
+            const out = ec.service.sync().name('ironstone.comms.InboxServices.search#LinkRecords').parameter('term', term || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
         ]]></script></actions>
         <default-response type="none"/>
@@ -289,7 +289,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="createRoom">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.create#ChatRoom').parameters({roomTypeEnumId: roomTypeEnumId || 'private',
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.create#ChatRoom').parameters({roomTypeEnumId: roomTypeEnumId || 'private',
                 roomName: roomName || null, topic: topic || null, memberUserIds: memberUserIds || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {chatRoomId: out.chatRoomId, created: out.created})
         ]]></script></actions>
@@ -298,7 +298,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a direct message with these users: the room there is, or a new one -->
     <transition name="createDirect">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.create#ChatRoom').parameters({roomTypeEnumId: 'direct',
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.create#ChatRoom').parameters({roomTypeEnumId: 'direct',
                 memberUserIds: userIds || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {chatRoomId: out.chatRoomId, created: out.created})
         ]]></script></actions>
@@ -307,7 +307,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the room of a record, made on first use -->
     <transition name="recordRoom">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatServices.find#RecordRoom').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.comms.ChatServices.find#RecordRoom').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {chatRoomId: out.chatRoomId, created: out.created})
         ]]></script></actions>
@@ -315,7 +315,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="join">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.ChatServices.join#ChatRoom').parameter('chatRoomId', chatRoomId || '').call()
+            ec.service.sync().name('ironstone.comms.ChatServices.join#ChatRoom').parameter('chatRoomId', chatRoomId || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Joined')}]})
         ]]></script></actions>
         <default-response type="none"/>

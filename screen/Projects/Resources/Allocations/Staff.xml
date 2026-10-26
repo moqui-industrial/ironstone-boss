@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- StaffAllocation (design-projects.md §9): the dialog of a placeholder's Staff on Allocations. The placeholder (project, role and
     skill, the period and hours), then its candidates ranked (mantle.work.ResourceServices.find#StaffingCandidates through
-    service/ironstone/ResourceServices.xml get#StaffCandidates): those with the hours free in every week first, then by the skill, the
+    service/ironstone/projects/ResourceServices.xml get#StaffCandidates): those with the hours free in every week first, then by the skill, the
     role and the free hours; each with the free hours against the hours needed, the weeks short, the skill and role, their current
     projects and, for those who manage money, their cost rate. Staff names the person (an approver allocates it too) and adds them to
     the project in the role. -->
@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="staff">
         <actions>
-            <service-call name="ironstone.ResourceServices.decide#Allocation" out-map="staffOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:'staff',
+            <service-call name="ironstone.projects.ResourceServices.decide#Allocation" out-map="staffOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:'staff',
                     partyId:staffPartyId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(staffOut.message, 'success')</script></if>
         </actions>
@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.ResourceServices.get#StaffCandidates" out-map="staffInfo" in-map="{workEffortAllocationId:workEffortAllocationId}"/>
+        <service-call name="ironstone.projects.ResourceServices.get#StaffCandidates" out-map="staffInfo" in-map="{workEffortAllocationId:workEffortAllocationId}"/>
         <script><![CDATA[
             ec.message.clearErrors()
             allocation = staffInfo.allocation || null

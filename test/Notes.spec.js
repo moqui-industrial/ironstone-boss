@@ -1,4 +1,4 @@
-// Commons Notes (screen/Commons/Notes.xml and Notes.qvue, service/ironstone/KnowledgeServices.xml; impl-drawers-commons.md M9,
+// Commons Notes (screen/Commons/Notes.xml and Notes.qvue, service/ironstone/commons/KnowledgeServices.xml; impl-drawers-commons.md M9,
 // R22; design-drawers-commons.md §10 Notes): the JSON transitions the screen calls under the Commons app root, on john.doe's demo
 // notes (data/BossKnowledgeDemoData.xml). The list pinned first, then the latest changed, with the tags and their counts; search
 // and a tag narrow it; a new note, saved on idle with no note and as a named version, a save that met another; pin, tags, a
@@ -176,10 +176,10 @@ feature("delete takes a note away; QuickCreate's note kind without a record land
     when() {
         const created = post("createNote", { title: `Spec delete ${RUN}` })
         const deleted = post("deleteNote", { wikiPageId: created.json.wikiPageId })
-        const quick = sys(() => call("ironstone.QuickCreateServices.create#Note", { title: `Spec quick ${RUN}`, noteText: "Call the plumber" }))
+        const quick = sys(() => call("ironstone.commons.QuickCreateServices.create#Note", { title: `Spec quick ${RUN}`, noteText: "Call the plumber" }))
         const list = get("notes")
         call_("Knowledge/page", { wikiSpaceId: "BOSSKB", pagePath: "Office" }, null)
-        const recent = sys(() => call("ironstone.KnowledgeServices.get#RecentPages", { limit: 5 })).pageList
+        const recent = sys(() => call("ironstone.commons.KnowledgeServices.get#RecentPages", { limit: 5 })).pageList
         const home = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render("Home", { lastStandalone: "-2" }, null)
         ec.message.clearErrors()
         return { deleted, gone: pageId("NOTES_EX_JOHN_DOE", `Spec delete ${RUN}`), quick, list, recent, home: String(home.output || "") }

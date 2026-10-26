@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- MergeRequests (design-projects.md §7 MergeRequests; style-guide §3.2 List): the merge requests of the repositories the user
-    may view (org.moqui.impl.GitReviewServices.find#MergeRequests through ironstone.CodeServices.find#MergeRequests). Chips with
+    may view (org.moqui.impl.GitReviewServices.find#MergeRequests through ironstone.projects.CodeServices.find#MergeRequests). Chips with
     their counts: Waiting for my review (the default when there are any), Mine, Open (with the drafts), Draft, Merged, Closed and
     All; the find in the list's dialog (text in the title, repository, project, author, reviewer, target branch), its saved finds
     the user keeps. The columns: the number and title (a link to MergeRequestDetail) with the branches, the repository, the
@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
                     .filter((entry) => !clientUser || !['waiting', 'mine'].includes(entry[0]))
             const index = Number(pageIndex || 0) || 0
             if (clientUser && (!list || ['waiting', 'mine'].includes(list))) list = 'open'
-            const out = ec.service.sync().name('ironstone.CodeServices.find#MergeRequests').parameters({list: list || null, text: text || null,
+            const out = ec.service.sync().name('ironstone.projects.CodeServices.find#MergeRequests').parameters({list: list || null, text: text || null,
                 repositoryId: repositoryId || null, projectId: projectId || null, authorUserId: authorUserId || null, reviewerUserId: reviewerUserId || null,
                 targetRef: targetRef || null, pageIndex: index, pageSize: 25}).call() || {}
             ec.message.clearErrors()
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
             listChips = lists.map(([key, label, icon]) => ({label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
                 params: Object.assign({list: key}, kept)}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
-            const options = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestFindOptions').call() || {}
+            const options = ec.service.sync().name('ironstone.projects.CodeServices.get#MergeRequestFindOptions').call() || {}
             // in a repository's tab the find stays in it
             repositoryOptions = repositoryFixed ? [{key: repositoryId, text: repositoryId}] : (options.repositoryOptions || [])
             projectOptions = options.projectOptions || []

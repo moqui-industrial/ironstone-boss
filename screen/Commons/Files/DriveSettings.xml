@@ -89,14 +89,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="searchMembers" read-only="true">
         <actions>
-            <service-call name="ironstone.DriveServices.search#ShareTargets" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.DriveServices.search#ShareTargets" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.optionList || []).map((option) =&gt; ({value: option.value, label: option.label})))</script>
         </actions>
         <default-response type="none"/>
     </transition>
 
     <actions>
-        <service-call name="ironstone.DriveServices.get#DriveSettings" in-map="{driveId:driveId}" out-map="settings"/>
+        <service-call name="ironstone.commons.DriveServices.get#DriveSettings" in-map="{driveId:driveId}" out-map="settings"/>
         <service-call name="org.moqui.impl.DavServices.get#SyncAddresses" in-map="{driveId:driveId}" out-map="syncAddresses"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)

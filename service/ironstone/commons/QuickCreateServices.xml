@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The quick-create kinds of IronStone Commons (screen/Commons/QuickCreate.xml; design-drawers-commons.md §4 QuickCreate):
+    task, activity, event, note, contact and request, each on the record of the screen context when one is given
+    (recordEntity, recordId): a work effort through mantle.work.WorkEffortServices.link#WorkEffortRecord (the record's own join
+    when it has one), a note through mantle.party.CommunicationServices.log#RecordNote. Each answers the created record's id,
+    its BOSS screen (url, a /qapps link) and the message the dialog shows. The record must be one the user may see:
+    get#RecordLinkInfo finds it under the user's filters. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="create" noun="Task">
+        <description>A task for the user or someone else (assignToPartyId, default the user's party), owned by the user, due on
+            estimatedCompletionDate, on the record in context.</description>
+        <in-parameters>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="estimatedCompletionDate" type="Timestamp"/>
+            <parameter name="assignToPartyId" default="ec.user.userAccount?.partyId"/>
+            <parameter name="priority" type="Long" default="5"/>
+            <parameter name="description"/>
+            <parameter name="purposeEnumId" default-value="WepTask"/>
+            <parameter name="recordEntity"/>
+            <parameter name="recordId"/>
+        </in-parameters>
+        <out-parameters><parameter name="workEffortId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <service-call name="mantle.work.TaskServices.create#SimpleTask" out-map="context" in-map="{workEffortName:workEffortName,
+                    estimatedCompletionDate:estimatedCompletionDate, assignToPartyId:assignToPartyId, priority:priority, description:description,
+                    purposeEnumId:purposeEnumId, ownerPartyId:ec.user.userAccount?.partyId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.commons.QuickCreateServices.link#WorkEffort" in-map="{workEffortId:workEffortId, recordEntity:recordEntity, recordId:recordId}"/>
+            <service-call name="ironstone.commons.PaletteServices.get#RecordLink" out-map="linkOut" in-map="{docType:'MantleTask', id:workEffortId}"/>
+            <set field="url" from="linkOut.url"/>
+            <set field="message" from="ec.resource.expand('Task created: ${workEffortName}', '', {workEffortName:workEffortName})"/>
+        </actions>
+    </service>
+
+    <service verb="create" noun="Activity">
+        <description>A scheduled next action on the record in context (Chatter's activity; an activity is always on a record):
+            a call, email or to-do is a task (create#SimpleTask, purpose WepPhoneCall, WepEmail or WepToDo) due at dueDate; a
+            meeting is an event (mantle.work.EventServices.create#Event, purpose WepMeeting) from dueDate to endDate (30
+            minutes by default) in the user's default calendar. Assigned to assignToPartyId (default the user), with the note in
+            description. The record's followers of activities are notified (link#WorkEffortRecord notifyFollowers), linked to
+            recordUrl when given (Chatter's host page) or else the record's Commons screen.</description>
+        <in-parameters>
+            <parameter name="activityType" required="true"><description>call, email, todo or meeting</description></parameter>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="dueDate" type="Timestamp" required="true"/>
+            <parameter name="endDate" type="Timestamp"/>
+            <parameter name="assignToPartyId" default="ec.user.userAccount?.partyId"/>
+            <parameter name="description"/>
+            <parameter name="recordEntity" required="true"/>
+            <parameter name="recordId" required="true"/>
+            <parameter name="recordUrl"/>
+        </in-parameters>
+        <out-parameters><parameter name="workEffortId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <set field="purposes" from="{call:'WepPhoneCall', email:'WepEmail', todo:'WepToDo', meeting:'WepMeeting'}"/>
+            <if condition="!purposes[activityType]"><return error="true" message="An activity is a call, an email, a to-do or a meeting, not ${activityType}"/></if>
+            <!-- the record first, so nothing is made for a record the user may not see -->
+            <service-call name="mantle.party.CommunicationServices.get#RecordLinkInfo" in-map="{recordEntityName:recordEntity, recordId:recordId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="activityType == 'meeting'"><then>
+                <service-call name="mantle.work.CalendarServices.ensure#UserDefaultCalendar" out-map="calendarOut"/>
+                <set field="startMillis" from="Number(String(dueDate))"/>
+                <set field="endDate" from="endDate || new Date(startMillis + 1800000)"/>
+                <service-call name="mantle.work.EventServices.create#Event" out-map="context" in-map="{workEffortName:workEffortName,
+                        purposeEnumId:'WepMeeting', estimatedStartDate:dueDate, estimatedCompletionDate:endDate, assignToPartyId:assignToPartyId,
+                        description:description, calendarId:calendarOut?.calendarId}"/>
+                <set field="docType" value="MantleEvent"/>
+            </then><else>
+                <service-call name="mantle.work.TaskServices.create#SimpleTask" out-map="context" in-map="{workEffortName:workEffortName,
+                        purposeEnumId:purposes[activityType], estimatedCompletionDate:dueDate, assignToPartyId:assignToPartyId,
+                        description:description, ownerPartyId:ec.user.userAccount?.partyId}"/>
+                <set field="docType" value="MantleTask"/>
+            </else></if>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.commons.PaletteServices.get#RecordLink" out-map="recordLinkOut" in-map="{recordEntityName:recordEntity, id:recordId}"/>
+            <service-call name="ironstone.commons.QuickCreateServices.link#WorkEffort" in-map="{workEffortId:workEffortId, recordEntity:recordEntity,
+                    recordId:recordId, notifyFollowers:true, recordUrl:(recordUrl || recordLinkOut.url)}"/>
+            <service-call name="ironstone.commons.PaletteServices.get#RecordLink" out-map="linkOut" in-map="{docType:docType, id:workEffortId}"/>
+            <set field="url" from="linkOut.url"/>
+            <set field="message" from="ec.resource.expand('Activity scheduled: ${workEffortName}', '', {workEffortName:workEffortName})"/>
+        </actions>
+    </service>
+
+    <service verb="create" noun="Event">
+        <description>An event from estimatedStartDate to estimatedCompletionDate (an hour by default), or all day on those days,
+            in calendarId (the user's default calendar by default), with the user assigned and the attendees invited
+            (WorkEffortParty WeptOffered and mantle.work.EventServices.send#EventInvitations; an invitation that fails is
+            logged and the event stays), on the record in context. With attendees it is a meeting (WepMeeting).</description>
+        <in-parameters>
+            <parameter name="workEffortName" required="true"/>
+            <parameter name="estimatedStartDate" type="Timestamp" required="true"/>
+            <parameter name="estimatedCompletionDate" type="Timestamp"/>
+            <parameter name="allDay"><description>Y for an all-day event (allDayStart and allDayEnd)</description></parameter>
+            <parameter name="calendarId"/>
+            <parameter name="attendeePartyIds" type="List"><parameter name="partyId"/></parameter>
+            <parameter name="description"/>
+            <parameter name="recordEntity"/>
+            <parameter name="recordId"/>
+        </in-parameters>
+        <out-parameters><parameter name="workEffortId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <if condition="!calendarId">
+                <service-call name="mantle.work.CalendarServices.ensure#UserDefaultCalendar" out-map="calendarOut"/>
+                <set field="calendarId" from="calendarOut?.calendarId"/>
+            </if>
+            <script><![CDATA[
+                const myPartyId = ec.user.userAccount?.partyId
+                attendees = Array.from(new Set((Array.isArray(attendeePartyIds) ? attendeePartyIds : (attendeePartyIds ? String(attendeePartyIds).split(',') : []))
+                        .map((id) => String(id).trim()).filter((id) => id && id !== myPartyId)))
+                const startMillis = Number(String(estimatedStartDate))
+                eventFields = {workEffortName: workEffortName, description: description, calendarId: calendarId, assignToPartyId: myPartyId,
+                    purposeEnumId: attendees.length ? 'WepMeeting' : null}
+                if (allDay === 'Y' || allDay === 'true') {
+                    const endMillis = estimatedCompletionDate != null ? Number(String(estimatedCompletionDate)) : startMillis
+                    eventFields.allDayStart = ec.l10n.format(String(startMillis), 'yyyy-MM-dd')
+                    eventFields.allDayEnd = ec.l10n.format(String(Math.max(startMillis, endMillis)), 'yyyy-MM-dd')
+                } else {
+                    eventFields.estimatedStartDate = estimatedStartDate
+                    eventFields.estimatedCompletionDate = estimatedCompletionDate != null && Number(String(estimatedCompletionDate)) > startMillis ?
+                            estimatedCompletionDate : new Date(startMillis + 3600000)
+                }
+            ]]></script>
+            <service-call name="mantle.work.EventServices.create#Event" out-map="context" in-map="eventFields"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <iterate list="attendees" entry="attendeePartyId">
+                <service-call name="mantle.work.WorkEffortServices.add#WorkEffortParty" in-map="{workEffortId:workEffortId, partyId:attendeePartyId,
+                        roleTypeId:'Assignee', statusId:'WeptOffered'}"/>
+            </iterate>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.commons.QuickCreateServices.link#WorkEffort" in-map="{workEffortId:workEffortId, recordEntity:recordEntity, recordId:recordId}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <service-call name="ironstone.commons.PaletteServices.get#RecordLink" out-map="linkOut" in-map="{docType:'MantleEvent', id:workEffortId}"/>
+            <set field="url" from="linkOut.url"/>
+            <script><![CDATA[
+                // the invitations stand alone: one that fails is logged, the event stays
+                if (attendees.length) {
+                    ec.message.pushErrors()
+                    try {
+                        ec.service.sync().name('mantle.work.EventServices.send#EventInvitations').parameters({workEffortId: workEffortId,
+                            partyIdList: attendees, eventUrl: url}).call()
+                        if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                    } catch (err) {
+                        ec.logger.warn(`Event ${workEffortId}: the invitations were not sent: ${err && err.message ? err.message : err}`)
+                    } finally {
+                        ec.message.clearErrors()
+                        ec.message.popErrors()
+                    }
+                }
+                message = ec.resource.expand('Event created: ${workEffortName}', '', {workEffortName: workEffortName})
+            ]]></script>
+        </actions>
+    </service>
+
+    <service verb="create" noun="Note">
+        <description>A note. On the record in context it is a note on its Chatter (log#RecordNote, a Comment communication
+            event filed on the record), rich text (HTML, the rich-light editor) whose @ mentions (data-mention-id, a party)
+            are notified; without one it is a page of the user's private notes space, markdown
+            (org.moqui.impl.WikiServices.ensure#UserNotesSpace, made on first use, then update#WikiPage), named for the title
+            (a new name when a page has it already).</description>
+        <in-parameters>
+            <parameter name="title"/>
+            <parameter name="noteText" required="true" allow-html="safe"/>
+            <parameter name="contentType"><description>text/html for the rich text of a note on a record (the default there),
+                text/markdown otherwise</description></parameter>
+            <parameter name="recordEntity"/>
+            <parameter name="recordId"/>
+            <parameter name="recordTitle"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="communicationEventId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="wikiPageId"/>
+            <parameter name="url"/>
+            <parameter name="message"/>
+        </out-parameters>
+        <actions>
+            <if condition="recordEntity &amp;&amp; recordId"><then>
+                <service-call name="ironstone.commons.PaletteServices.get#RecordLink" out-map="recordLinkOut" in-map="{recordEntityName:recordEntity, id:recordId}"/>
+                <script><![CDATA[
+                    // the parties mentioned, as the rich text writes them
+                    const ids = []
+                    for (const match of String(noteText).matchAll(/data-mention-id="([^"]+)"/g)) if (!ids.includes(match[1])) ids.push(match[1])
+                    mentionPartyIds = ids
+                    noteContentType = contentType || (/<\/?(p|br|strong|em|ul|ol|li|a|code|span)\b/i.test(String(noteText)) ? 'text/html' : 'text/plain')
+                ]]></script>
+                <service-call name="mantle.party.CommunicationServices.log#RecordNote" out-map="noteOut" in-map="{recordEntityName:recordEntity,
+                        recordId:recordId, subject:title, body:noteText, contentType:noteContentType, mentionPartyIds:mentionPartyIds,
+                        recordUrl:recordLinkOut.url}"/>
+                <if condition="ec.message.hasError()"><return/></if>
+                <set field="communicationEventId" from="noteOut.communicationEventId"/>
+                <set field="url" from="recordLinkOut.url"/>
+                <set field="message" from="ec.resource.expand('Note added to ${recordName}', '', {recordName:(recordTitle || recordId)})"/>
+            </then><else>
+                <service-call name="org.moqui.impl.WikiServices.ensure#UserNotesSpace" out-map="spaceOut"/>
+                <if condition="ec.message.hasError()"><return/></if>
+                <set field="wikiSpaceId" from="spaceOut.wikiSpaceId"/>
+                <script><![CDATA[
+                    // a page name has letters, digits and .,'-_:()!? only; a name in use gets the time added
+                    const fromText = String(noteText).split('\n').map((line) => line.replace(/^#+\s*/, '').trim()).find((line) => line) || ''
+                    let name = String(title || fromText.substring(0, 60)).replace(/[^\w\.\-,':()!\? ]+/g, ' ').replace(/\s+/g, ' ').trim()
+                    if (!name) name = ec.l10n.localize('Note')
+                    const inUse = (pageName) => ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', wikiSpaceId)
+                            .condition('pagePath', pageName).disableAuthz().count() > 0
+                    if (inUse(name)) name = name + ' (' + ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd HH.mm.ss') + ')'
+                    pageName = name
+                ]]></script>
+                <service-call name="org.moqui.impl.WikiServices.update#WikiPage" out-map="pageOut"
+                        in-map="{wikiSpaceId:wikiSpaceId, pageName:pageName, wikiType:'md', pageText:noteText}"/>
+                <if condition="ec.message.hasError()"><return/></if>
+                <set field="wikiPageId" from="pageOut.wikiPageId"/>
+                <set field="url" from="'/qapps/Commons/Notes?wikiPageId=' + encodeURIComponent(wikiPageId)"/>
+                <set field="message" from="ec.resource.expand('Note saved in your notes: ${pageName}', '', {pageName:pageName})"/>
+            </else></if>
+        </actions>
+    </service>
+
+    <service verb="create" noun="Contact">
+        <description>A person or an organization. By default a personal contact (mantle.party.ContactBookServices
+            create#PersonalContact) in contactBookId or the user's default book, seen only by the user; with contactBookId
+            DIRECTORY a directory party (store#ContactParty with the role Contact for a person or Account for an
+            organization, owned by the active organization when one is active). A person's name is split at its last space
+            into first and last name. The phone is digits: ten are the area code and number, one more is the country code.</description>
+        <in-parameters>
+            <parameter name="partyTypeEnumId" default-value="PtyPerson"/>
+            <parameter name="contactName" required="true"/>
+            <parameter name="emailAddress"><text-email/></parameter>
+            <parameter name="phone"/>
+            <parameter name="organizationPartyId"><description>A person's organization</description></parameter>
+            <parameter name="contactBookId"><description>A book, DIRECTORY, or empty for the default book</description></parameter>
+        </in-parameters>
+        <out-parameters><parameter name="partyId"/><parameter name="contactBookId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <script><![CDATA[
+                const isOrg = partyTypeEnumId === 'PtyOrganization'
+                const name = String(contactName).trim().replace(/\s+/g, ' ')
+                const space = name.lastIndexOf(' ')
+                contact = {partyTypeEnumId: isOrg ? 'PtyOrganization' : 'PtyPerson'}
+                if (isOrg) contact.organizationName = name
+                else if (space > 0) { contact.firstName = name.substring(0, space); contact.lastName = name.substring(space + 1) }
+                else contact.firstName = name
+                if (!isOrg && organizationPartyId) contact.organizationPartyId = organizationPartyId
+                let digits = phone ? String(phone).replace(/\D/g, '') : ''
+                phoneParts = null
+                if (digits) {
+                    let countryCode = null
+                    if (digits.length === 11 && digits.startsWith('1')) { countryCode = '1'; digits = digits.substring(1) }
+                    phoneParts = digits.length === 10 ? {countryCode: countryCode, areaCode: digits.substring(0, 3), contactNumber: digits.substring(3, 6) + '-' + digits.substring(6)}
+                            : {countryCode: countryCode, areaCode: null, contactNumber: digits}
+                }
+                if (emailAddress) contact.emails = [{emailAddress: String(emailAddress).trim(), contactMechPurposeId: 'EmailPrimary'}]
+                if (phoneParts) contact.phones = [Object.assign({contactMechPurposeId: 'PhonePrimary'}, phoneParts)]
+                isDirectory = contactBookId === 'DIRECTORY'
+            ]]></script>
+            <if condition="isDirectory"><then>
+                <service-call name="mantle.party.ContactBookServices.store#ContactParty" out-map="storeOut"
+                        in-map="{contact:contact, roleTypeId:(partyTypeEnumId == 'PtyOrganization' ? 'Account' : 'Contact')}"/>
+                <if condition="ec.message.hasError()"><return/></if>
+                <set field="partyId" from="storeOut.partyId"/>
+                <set field="contactBookId" from="null"/>
+                <set field="activeOrgId" from="ec.user.context?.activeOrgId"/>
+                <if condition="activeOrgId"><service-call name="update#mantle.party.Party" in-map="{partyId:partyId, ownerPartyId:activeOrgId}"/></if>
+            </then><else>
+                <service-call name="mantle.party.ContactBookServices.create#PersonalContact" out-map="personalOut" in-map="Object.assign({
+                        contactBookId:contactBookId, partyTypeEnumId:contact.partyTypeEnumId, firstName:contact.firstName, lastName:contact.lastName,
+                        organizationName:contact.organizationName, organizationPartyId:contact.organizationPartyId, emailAddress:emailAddress},
+                        phoneParts || {})"/>
+                <if condition="ec.message.hasError()"><return/></if>
+                <set field="partyId" from="personalOut.partyId"/>
+                <set field="contactBookId" from="personalOut.contactBookId"/>
+            </else></if>
+            <service-call name="ironstone.commons.PaletteServices.get#RecordLink" out-map="linkOut"
+                    in-map="{docType:'MantleParty', id:partyId, partyTypeEnumId:contact.partyTypeEnumId}"/>
+            <set field="url" from="linkOut.url"/>
+            <set field="message" from="ec.resource.expand(isDirectory ? 'Contact added to the directory: ${name}' : 'Contact added: ${name}', '', {name:contactName})"/>
+        </actions>
+    </service>
+
+    <service verb="create" noun="Request">
+        <description>A request filed by the user and submitted (mantle.request.RequestServices.create#Request), with its
+            customer (the party in context by default); on the record in context through link#RequestRecord (a work effort
+            through RequestWorkEffort, a wiki page through WikiPageRequest, any other record through RequestRecord).</description>
+        <in-parameters>
+            <parameter name="requestName" required="true"/>
+            <parameter name="requestTypeEnumId" default-value="RqtSupport"/>
+            <parameter name="priority" type="Long" default="5"/>
+            <parameter name="customerPartyId"/>
+            <parameter name="description"/>
+            <parameter name="recordEntity"/>
+            <parameter name="recordId"/>
+        </in-parameters>
+        <out-parameters><parameter name="requestId"/><parameter name="url"/><parameter name="message"/></out-parameters>
+        <actions>
+            <set field="recordInfo" from="null"/>
+            <if condition="recordEntity &amp;&amp; recordId">
+                <service-call name="mantle.party.CommunicationServices.get#RecordLinkInfo" out-map="recordInfo"
+                        in-map="{recordEntityName:recordEntity, recordId:recordId}"/>
+                <if condition="ec.message.hasError()"><return/></if>
+                <if condition="!customerPartyId &amp;&amp; recordInfo.isParty"><set field="customerPartyId" from="recordId"/></if>
+            </if>
+            <service-call name="mantle.request.RequestServices.create#Request" out-map="context" in-map="{requestName:requestName,
+                    requestTypeEnumId:requestTypeEnumId, priority:priority, customerPartyId:customerPartyId, description:description,
+                    statusId:'ReqSubmitted'}"/>
+            <if condition="ec.message.hasError()"><return/></if>
+            <if condition="recordEntity &amp;&amp; recordId">
+                <service-call name="mantle.request.RequestServices.link#RequestRecord" in-map="{requestId:requestId,
+                        recordEntityName:recordEntity, recordId:recordId}"/>
+            </if>
+            <service-call name="ironstone.commons.PaletteServices.get#RecordLink" out-map="linkOut" in-map="{docType:'MantleRequest', id:requestId}"/>
+            <set field="url" from="linkOut.url"/>
+            <set field="message" from="ec.resource.expand('Request created: ${requestName}', '', {requestName:requestName})"/>
+        </actions>
+    </service>
+
+    <service verb="link" noun="WorkEffort" allow-remote="false">
+        <description>Puts a new work effort on the record in context, when there is one (link#WorkEffortRecord).</description>
+        <in-parameters>
+            <parameter name="workEffortId" required="true"/>
+            <parameter name="recordEntity"/>
+            <parameter name="recordId"/>
+            <parameter name="notifyFollowers" type="Boolean" default="false"/>
+            <parameter name="recordUrl"/>
+        </in-parameters>
+        <actions>
+            <if condition="recordEntity &amp;&amp; recordId">
+                <service-call name="mantle.work.WorkEffortServices.link#WorkEffortRecord" in-map="{workEffortId:workEffortId,
+                        recordEntityName:recordEntity, recordId:recordId, notifyFollowers:notifyFollowers, recordUrl:recordUrl}"/>
+            </if>
+        </actions>
+    </service>
+</services>

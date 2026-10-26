@@ -19,7 +19,7 @@ along with this software (see the LICENSE.md file). If not, see
     rule first: a page the user may not view is not found. Editing, history, reviews and the rest are the browser's.
     The project mode (impl-projects.md P11): ProjectDetail mounts this screen as its hidden KnowledgeTui beside its Docs tab
     (Knowledge.xml), so its always-actions put the project in projectTabId and inProjectDetail. Then the space is the project's
-    documentation space only (ironstone.ProjectServices.get#ProjectDocs), with the pages of other spaces linked to the project;
+    documentation space only (ironstone.projects.ProjectServices.get#ProjectDocs), with the pages of other spaces linked to the project;
     the links stay in the tab (../Docs); a project without a space says so, and its managers get Set up documentation (in the
     database; in a repository is the browser's). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const projectId = ec.context.get('projectTabId')
             if (!projectId) ec.message.addError(ec.l10n.localize('Project not available'))
-            const out = projectId ? ec.service.sync().name('ironstone.ProjectServices.setup#ProjectDocs').parameters({workEffortId: projectId, storage: 'db'}).call() || {} : {}
+            const out = projectId ? ec.service.sync().name('ironstone.projects.ProjectServices.setup#ProjectDocs').parameters({workEffortId: projectId, storage: 'db'}).call() || {} : {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
         <default-response url="../Docs"><parameter name="workEffortId"/></default-response>
@@ -49,7 +49,7 @@ along with this software (see the LICENSE.md file). If not, see
         let projectSpaceId = null
         if (projectMode) {
             const projectId = ec.context.get('projectTabId')
-            docs = projectId ? ec.service.sync().name('ironstone.ProjectServices.get#ProjectDocs').parameters({workEffortId: projectId}).call()?.docs || null : null
+            docs = projectId ? ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectDocs').parameters({workEffortId: projectId}).call()?.docs || null : null
             ec.message.clearErrors()
             if (!docs) projectNote = ec.l10n.localize('This project is not available.')
             else {
@@ -63,7 +63,7 @@ along with this software (see the LICENSE.md file). If not, see
             }
         }
         const setup = projectMode && !projectSpaceId ? {spaceList: []}
-                : ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', projectMode ? projectSpaceId : (wikiSpaceId || null)).call()
+                : ec.service.sync().name('ironstone.commons.KnowledgeServices.get#KnowledgeSetup').parameter('wikiSpaceId', projectMode ? projectSpaceId : (wikiSpaceId || null)).call()
         // in the project mode a page of a linked space opens too (wikiSpaceId given), else the project's space
         const openSpaceId = projectMode ? (wikiSpaceId || projectSpaceId) : (wikiSpaceId || setup.defaultWikiSpaceId || null)
         spaceList = Array.from(setup.spaceList || []).filter((space) => !projectMode || space.wikiSpaceId === projectSpaceId)
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
         childList = []
         changeText = ''
         if (!ec.message.hasError() && (wikiPageId || openSpaceId)) {
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#PageView').parameters(wikiPageId ? {wikiPageId: wikiPageId}
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageView').parameters(wikiPageId ? {wikiPageId: wikiPageId}
                     : {wikiSpaceId: openSpaceId, pagePath: pagePath || ''}).call()
             if (!ec.message.hasError() && out.page) {
                 page = out.page
@@ -84,7 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const change = page.lastChange
                 changeText = change ? [change.dateText, change.userName, change.note].filter((part) => part).join(' · ') : ''
                 if (page.exists) {
-                    const children = ec.service.sync().name('ironstone.KnowledgeServices.get#PageChildren').parameters({wikiSpaceId: page.wikiSpaceId,
+                    const children = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageChildren').parameters({wikiSpaceId: page.wikiSpaceId,
                         pagePath: page.pagePath || ''}).call()
                     if (!ec.message.hasError()) childList = Array.from(children.childList || []).map((child) => ({childSpaceId: page.wikiSpaceId,
                         childPath: child.pagePath, name: child.name + (child.hasChildren ? ' …' : ''), restrictedText: child.restricted ? ec.l10n.localize('Restricted') : ''}))

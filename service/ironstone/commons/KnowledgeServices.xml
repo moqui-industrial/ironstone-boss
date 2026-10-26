@@ -1,0 +1,1835 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- What Commons Knowledge, Spaces, Review and Notes show and do (design-drawers-commons.md §10; impl-drawers-commons.md M9)
+    over the framework wiki (org.moqui.impl.WikiServices, mr-moqui docs/Revision-Management.md "Wiki pages").
+
+    WikiSpace and WikiPage are moqui.* entities, which no entity filter covers (R21, R28), so every service here first finds
+    the page or space through get#PageRef, which asks the wiki's own rule (WikiServices.get#WikiPageAccess: view, update,
+    admin) and refuses what the user may not do: a page the user may not view is "Page not found" (never its path), a change
+    the user may not make is refused. The framework's wiki services check the same rule themselves on every read and write
+    (update#WikiPage, delete#WikiPage, set#PublishedVersion, the attachment services), so get#PageRef is the one check here
+    and the friendly words, not the only guard. A service that reads many pages filters them with
+    WikiServices.get#WikiViewScope, or calls a framework service that does (get#WikiSpacePages, search#WikiPages,
+    get#WikiPageBacklinks, find#WikiPageReviews). A user's notes space (NOTES_<userId>, WikiServices.ensure#UserNotesSpace) is
+    left out of the Knowledge lists and searches; Notes shows only the user's own.
+
+    Failure tolerance (AGENTS.md): the parts of a page view (last change, links, tags, attachments, reviews, linked records,
+    the follow state) and the recent pages each stand alone; one that fails is logged and named in failedParts. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <!-- ========== Access ========== -->
+
+    <service verb="get" noun="PageRef" allow-remote="false">
+        <description>A page by wikiPageId, or by its space and exact path (an old path of a moved page finds the page at its
+            new place), with what the user may do (WikiServices.get#WikiPageAccess) checked against need: view (a page the user
+            may not view is "Page not found"), update or admin (an administrator of the space, or the ADMIN group). A page that
+            has no file yet (a link to a page not made) is found with exists false; access is then the space's.</description>
+        <in-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="need" default-value="view"><description>view, update or admin</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="pageName"/>
+            <parameter name="wikiPage" type="Map"/>
+            <parameter name="wikiSpace" type="Map"/>
+            <parameter name="pageReference" type="org.moqui.resource.ResourceReference"/>
+            <parameter name="exists" type="Boolean"/>
+            <parameter name="access" type="Map"/>
+            <parameter name="isNotes" type="Boolean"/>
+            <parameter name="isMyNotes" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            found = false
+            const L = (text) => ec.l10n.localize(text)
+            const notFound = () => { ec.message.addError(L('Page not found')) }
+            if (wikiPageId) {
+                const row = ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiPageId', wikiPageId).one()
+                if (row == null) return notFound()
+                wikiSpaceId = row.wikiSpaceId
+                pagePath = row.pagePath || ''
+            }
+            if (!wikiSpaceId) return notFound()
+            const space = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', wikiSpaceId).useCache(true).one()
+            if (space == null || !space.rootPageLocation) return notFound()
+            pagePath = String(pagePath || '').split('/').map((part) => part.trim()).filter((part) => part).join('/')
+            const refOut = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageReference')
+                    .parameters({wikiSpaceId: wikiSpaceId, pagePath: pagePath}).call()
+            if (ec.message.hasError() || refOut == null) { ec.message.clearErrors(); return notFound() }
+            const ref = refOut.pageReference
+            wikiSpaceId = refOut.wikiSpaceId
+            pagePath = refOut.pagePath || ''
+            wikiPageId = refOut.wikiPageId || null
+            const rights = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess')
+                    .parameters(wikiPageId ? {wikiPageId: wikiPageId} : {wikiSpaceId: wikiSpaceId}).call() || {}
+            if (!rights.canView) {
+                ec.logger.info(`Knowledge: ${wikiSpaceId}/${pagePath} is not visible to user ${ec.user.username}`)
+                return notFound()
+            }
+            if (need === 'admin' && !rights.canAdmin) { ec.message.addError(L('Only an administrator of this space may do that')); return }
+            if (need === 'update' && !rights.canUpdate) {
+                ec.message.addError(rights.readOnly ? L('This space is a read-only mirror') : L('You may not change this page'))
+                return
+            }
+            found = true
+            wikiPage = refOut.wikiPage ? refOut.wikiPage.getMap() : null
+            wikiSpace = space.getMap()
+            pageReference = ref
+            exists = !!(ref != null && ref.exists)
+            pageName = pagePath ? pagePath.substring(pagePath.lastIndexOf('/') + 1) : (space.description || wikiSpaceId)
+            isNotes = String(wikiSpaceId).startsWith('NOTES_')
+            isMyNotes = !!ec.user.userId && wikiSpaceId === 'NOTES_' + ec.user.userId
+            access = {canView: !!rights.canView, canUpdate: !!rights.canUpdate, canAdmin: !!rights.canAdmin, storage: rights.storage || null,
+                repositoryId: rights.repositoryId || null, repositoryKind: rights.repositoryKind || null, readOnly: !!rights.readOnly}
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Knowledge: the side pane, the tree, the page ========== -->
+
+    <service verb="get" noun="KnowledgeSetup">
+        <description>The side pane of Knowledge: the spaces the user may view (get#WikiViewScope; no notes space), each with
+            what the user may do there and its storage; the space to open (wikiSpaceId when given and visible, else the last
+            one opened, the KNOWLEDGE_SPACE preference, else the first); the pages the user opened or changed lately (not
+            notes); the reviews waiting on the user; and the user.</description>
+        <in-parameters><parameter name="wikiSpaceId"/></in-parameters>
+        <out-parameters>
+            <parameter name="spaceList" type="List"/>
+            <parameter name="defaultWikiSpaceId"/>
+            <parameter name="recentList" type="List"/>
+            <parameter name="reviewCount" type="Integer"/>
+            <parameter name="me" type="Map"/>
+            <parameter name="failedParts" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            spaceList = []
+            recentList = []
+            reviewCount = 0
+            failedParts = []
+            const L = (text) => ec.l10n.localize(text)
+            const storageText = (access) => access.storage === 'git' ? (access.repositoryKind === 'remote' ? L('Git mirror (read only)')
+                    : access.repositoryKind === 'local' ? L('Git on disk') : L('Git in the database')) : L('Database files')
+            const scope = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiViewScope').call() || {}
+            const viewIds = new Set(Array.from(scope.viewSpaceIdList || []))
+            for (const space of Array.from(ec.entity.find('moqui.resource.wiki.WikiSpace').orderBy('description,wikiSpaceId').list())) {
+                if (!viewIds.has(space.wikiSpaceId) || String(space.wikiSpaceId).startsWith('NOTES_')) continue
+                const access = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', space.wikiSpaceId).call() || {}
+                spaceList.push({wikiSpaceId: space.wikiSpaceId, description: space.description || space.wikiSpaceId, canUpdate: !!access.canUpdate,
+                    canAdmin: !!access.canAdmin, storage: access.storage || null, repositoryKind: access.repositoryKind || null, readOnly: !!access.readOnly,
+                    storageText: storageText(access), restrictView: space.restrictView === 'Y', restrictUpdate: space.restrictUpdate === 'Y'})
+            }
+            const ids = spaceList.map((space) => space.wikiSpaceId)
+            let last = null
+            try { last = ec.user.getPreference('KNOWLEDGE_SPACE') } catch (err) { last = null }
+            defaultWikiSpaceId = wikiSpaceId && ids.includes(wikiSpaceId) ? wikiSpaceId : (last && ids.includes(last) ? last : (ids[0] || null))
+            try {
+                recentList = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#RecentPages').parameters({limit: 6, includeNotes: false}).call()?.pageList || []
+            } catch (err) { ec.logger.warn(`Knowledge setup: the recent pages not read: ${err}`); failedParts.push('recent') }
+            ec.message.pushErrors()
+            try {
+                reviewCount = ec.service.sync().name('org.moqui.impl.WikiServices.find#WikiPageReviews').parameter('filter', 'toDo').call()?.reviewCount || 0
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+            } catch (err) { ec.logger.warn(`Knowledge setup: the reviews not counted: ${err}`); failedParts.push('reviews') }
+            finally { ec.message.clearErrors(); ec.message.popErrors() }
+            const account = ec.user.userAccount
+            me = {userId: ec.user.userId, name: account ? (account.userFullName || account.username) : ec.user.username,
+                isAdmin: ec.user.isInGroup('ADMIN'), notesSpaceId: ec.user.userId ? 'NOTES_' + ec.user.userId : null}
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="PageChildren">
+        <description>The pages under a page (the space's top pages under its root, pagePath empty), as the tree shows them,
+            loaded as a node opens: path, name, page id, whether it has pages under it and is restricted; in their sequence,
+            then by name. The restricted pages the user may not view (get#WikiViewScope) are left out, and with them what is
+            under them.</description>
+        <in-parameters>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="pagePath"/>
+        </in-parameters>
+        <out-parameters><parameter name="childList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            childList = []
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiSpaceId: wikiSpaceId,
+                pagePath: pagePath || '', need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found || !ref.exists) return
+            const base = ref.pagePath || ''
+            const scope = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiViewScope').call() || {}
+            const hidden = new Set(Array.from(scope.hiddenPageIdList || []))
+            const rows = new Map()
+            for (const row of Array.from(ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', ref.wikiSpaceId).list()))
+                rows.set(row.pagePath || '', row)
+            for (const childRef of Array.from(ref.pageReference.getChildren() || [])) {
+                if (!childRef.isFile()) continue
+                const fileName = String(childRef.getFileName())
+                if (fileName.startsWith('.')) continue
+                const dot = fileName.lastIndexOf('.')
+                const name = dot > 0 ? fileName.substring(0, dot) : fileName
+                const path = (base ? base + '/' : '') + name
+                const row = rows.get(path)
+                if (row && hidden.has(row.wikiPageId)) continue
+                let hasChildren = false
+                try { hasChildren = Array.from(childRef.getChildren() || []).some((child) => child.isFile()) } catch (err) { hasChildren = false }
+                childList.push({pagePath: path, name: name, wikiPageId: row ? row.wikiPageId : null, sequenceNum: row?.sequenceNum ?? 50,
+                    restricted: row?.restrictView === 'Y', hasChildren: hasChildren})
+            }
+            childList.sort((left, right) => Number(left.sequenceNum) - Number(right.sequenceNum) || left.name.localeCompare(right.name))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="PageView">
+        <description>A page as Knowledge and Notes show it: its text (the current one, or versionName), title (the first heading,
+            else the name), place (space, path, breadcrumbs), what the user may do, whether it or its space is restricted, the
+            current and published versions, the last change and who made it, its tags and pin, its links and backlinks
+            (get#WikiPageLinks, get#WikiPageBacklinks), attachments, the reviews open on it, the tasks, events and requests
+            it is linked to (the ones the user may see), and whether the user follows it. A page that has no file yet (a link
+            to a page not made) answers exists false. Opening a page (not an old version) adds it to the user's recent pages
+            (the KNOWLEDGE_RECENT preference) and its space as the one to open next.</description>
+        <in-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="versionName"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="page" type="Map"/>
+            <parameter name="failedParts" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            failedParts = []
+            page = null
+            const L = (text) => ec.l10n.localize(text)
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                if (value instanceof Date) return value.getTime()
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const fmt = (millis, pattern) => millis == null ? '' : ec.l10n.format(new Date(Number(millis)), pattern)
+            const short = (name) => name == null ? null : String(name).length > 12 ? String(name).substring(0, 10) : String(name)
+            const users = {}
+            const userName = (userId) => {
+                if (!userId) return null
+                if (!(userId in users)) {
+                    const account = ec.entity.find('moqui.security.UserAccount').condition('userId', userId).useCache(true).disableAuthz().one()
+                    users[userId] = account ? (account.userFullName || account.username || userId) : userId
+                }
+                return users[userId]
+            }
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const part = (name, run) => {
+                ec.message.pushErrors()
+                try {
+                    run()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    ec.logger.warn(`Knowledge page ${ref.wikiSpaceId}/${ref.pagePath || ''}: ${name} not read: ${err && err.message ? err.message : err}`)
+                    failedParts.push(name)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+            }
+            const space = ref.wikiSpace
+            const row = ref.wikiPage
+            const path = ref.pagePath || ''
+            const segments = path ? path.split('/') : []
+            const crumbs = [{label: space.description || ref.wikiSpaceId, pagePath: ''}]
+            segments.forEach((segment, index) => { if (index < segments.length - 1) crumbs.push({label: segment, pagePath: segments.slice(0, index + 1).join('/')}) })
+            page = {wikiPageId: ref.wikiPageId || null, wikiSpaceId: ref.wikiSpaceId, pagePath: path, pageName: ref.pageName,
+                parentPath: segments.length > 1 ? segments.slice(0, -1).join('/') : '', spaceDescription: space.description || ref.wikiSpaceId,
+                exists: !!ref.exists, isRoot: !path, isNotes: !!ref.isNotes, isMyNotes: !!ref.isMyNotes, canUpdate: !!ref.access.canUpdate,
+                canAdmin: !!ref.access.canAdmin, storage: ref.access.storage, repositoryKind: ref.access.repositoryKind, readOnly: !!ref.access.readOnly,
+                restrictView: row?.restrictView === 'Y', restrictUpdate: row?.restrictUpdate === 'Y',
+                spaceRestrictView: space.restrictView === 'Y', spaceRestrictUpdate: space.restrictUpdate === 'Y',
+                publishedVersionName: row?.publishedVersionName || null, publishedShort: short(row?.publishedVersionName), breadcrumbs: crumbs,
+                text: '', title: ref.pageName, tags: [], pinned: false, links: [], backlinks: [], attachments: [], reviews: [], records: [],
+                following: false, versionCount: 0}
+            page.restricted = page.restrictView || page.spaceRestrictView
+            if (!ref.exists) return
+            const pageRef = ref.pageReference
+            let text
+            if (versionName) {
+                text = pageRef.getText(versionName)
+                if (text == null) { page = null; ec.message.addError(L('That version of the page was not found')); return }
+            } else {
+                text = pageRef.getText() ?? ''
+            }
+            page.text = text
+            const heading = String(text).match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m)
+            page.title = heading ? heading[1].replace(/[*_`]/g, '').trim() : ref.pageName
+            const versioned = pageRef.supportsVersion()
+            const current = versioned ? (pageRef.getCurrentVersion()?.versionName ?? null) : null
+            page.currentVersionName = current
+            page.currentShort = short(current)
+            page.versionName = versionName || current
+            page.viewingOld = !!versionName && versionName !== current
+            page.viewShort = short(versionName)
+            page.isPublished = !!page.publishedVersionName && page.publishedVersionName === current
+            part('lastChange', () => {
+                const change = ec.resource.getLastChange(pageRef.location)
+                const millis = toMillis(change?.date)
+                page.lastChange = change ? {millis: millis, dateText: fmt(millis, 'MMM d, yyyy h:mm a'), userId: change.userId || null,
+                    userName: userName(change.userId), note: change.note ? String(change.note).split('\n')[0] : null,
+                    versionName: change.versionName || null, versionShort: short(change.versionName)} : null
+                if (versioned) page.versionCount = Array.from(pageRef.getVersionHistory() || []).length
+            })
+            if (ref.wikiPageId) {
+                part('tags', () => {
+                    const dateFilter = ec.entity.conditionFactory.makeConditionDate('fromDate', 'thruDate', null)
+                    const ids = Array.from(ec.entity.find('moqui.resource.wiki.WikiPageCategoryMember').condition('wikiPageId', ref.wikiPageId)
+                            .condition(dateFilter).list()).map((member) => member.wikiPageCategoryId)
+                    page.pinned = ids.includes('Pinned')
+                    page.tags = ids.filter((id) => id !== 'Pinned').map((id) => ec.entity.find('moqui.resource.wiki.WikiPageCategory')
+                            .condition('wikiPageCategoryId', id).useCache(true).one()?.categoryName || id).sort((a, b) => a.localeCompare(b))
+                })
+                part('links', () => {
+                    const links = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageLinks').parameter('wikiPageId', ref.wikiPageId).call()
+                    page.links = Array.from(links?.linkList || []).map((link) => ({toWikiSpaceId: link.toWikiSpaceId, toPagePath: link.toPagePath || '',
+                        toWikiPageId: link.toWikiPageId || null, linkText: link.linkText, linkTarget: link.linkTarget, found: !!link.found}))
+                    const back = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageBacklinks').parameter('wikiPageId', ref.wikiPageId).call()
+                    page.backlinks = Array.from(back?.backlinkList || []).filter((link) => !String(link.wikiSpaceId).startsWith('NOTES_') || link.wikiSpaceId === 'NOTES_' + ec.user.userId)
+                            .map((link) => ({wikiPageId: link.wikiPageId, wikiSpaceId: link.wikiSpaceId, spaceDescription: link.spaceDescription,
+                                pagePath: link.pagePath || '', pageName: link.pageName, linkText: link.linkText}))
+                })
+                part('attachments', () => {
+                    const directory = pageRef.getChild('_attachments')
+                    const entries = directory != null && directory.exists ? Array.from(directory.getDirectoryEntries() || []) : []
+                    page.attachments = entries.filter((entry) => entry.isFile()).map((entry) => {
+                        const size = entry.getSize()
+                        const modified = toMillis(entry.getLastModified())
+                        const type = entry.getContentType() || ''
+                        return {filename: entry.getFileName(), contentType: type, size: size ?? null,
+                            sizeText: size == null ? '' : size < 1024 ? size + ' B' : size < 1048576 ? Math.round(size / 1024) + ' KB' : (size / 1048576).toFixed(1) + ' MB',
+                            dateText: fmt(modified, 'MMM d, yyyy'), isImage: /^image\//.test(type)}
+                    }).sort((a, b) => a.filename.localeCompare(b.filename))
+                })
+                part('reviews', () => {
+                    const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.find#Reviews').parameters({filter: 'all', wikiPageId: ref.wikiPageId,
+                        statusId: 'WprRequested'}).call()
+                    page.reviews = Array.from(out?.reviewList || [])
+                })
+                part('records', () => {
+                    const records = []
+                    const add = (entityName, id) => {
+                        const info = ec.service.sync().name('ironstone.shared.ChatterServices.get#RecordInfo').parameters({recordEntityName: entityName, recordId: id}).call()
+                        if (info?.visible) records.push({recordEntityName: entityName, recordId: id, title: info.title, typeLabel: info.typeLabel,
+                            url: info.url, icon: info.icon})
+                    }
+                    for (const link of Array.from(ec.entity.find('mantle.work.effort.WikiPageWorkEffort').condition('wikiPageId', ref.wikiPageId).list()))
+                        add('mantle.work.effort.WorkEffort', link.workEffortId)
+                    for (const link of Array.from(ec.entity.find('mantle.request.WikiPageRequest').condition('wikiPageId', ref.wikiPageId).list()))
+                        add('mantle.request.Request', link.requestId)
+                    page.records = records
+                })
+                part('follow', () => {
+                    page.following = !!ec.user.userId && ec.entity.find('mantle.party.communication.RecordFollower').condition({
+                        recordEntityName: 'moqui.resource.wiki.WikiPage', recordId: ref.wikiPageId, userId: ec.user.userId}).one() != null
+                })
+                if (!page.viewingOld) part('recent', () => {
+                    ec.service.sync().name('ironstone.commons.KnowledgeServices.record#PageOpened').parameters({wikiPageId: ref.wikiPageId,
+                        wikiSpaceId: ref.wikiSpaceId}).call()
+                })
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="record" noun="PageOpened" allow-remote="false">
+        <description>The page goes first in the user's recent pages (KNOWLEDGE_RECENT, the 20 last, newest first, each the page
+            id and when) and, for a Knowledge space, the space becomes the one Knowledge opens next (KNOWLEDGE_SPACE).</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="wikiSpaceId"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            if (!ec.user.userId) return
+            let list = []
+            try { list = JSON.parse(ec.user.getPreference('KNOWLEDGE_RECENT') || '[]') } catch (err) { list = [] }
+            if (!Array.isArray(list)) list = []
+            const now = Number(String(ec.user.nowTimestamp))
+            list = [{id: wikiPageId, at: now}].concat(list.filter((item) => item && item.id && item.id !== wikiPageId)).slice(0, 20)
+            ec.user.setPreference('KNOWLEDGE_RECENT', JSON.stringify(list))
+            if (wikiSpaceId && !String(wikiSpaceId).startsWith('NOTES_') && ec.user.getPreference('KNOWLEDGE_SPACE') !== wikiSpaceId)
+                ec.user.setPreference('KNOWLEDGE_SPACE', wikiSpaceId)
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="RecentPages">
+        <description>The pages the user opened (KNOWLEDGE_RECENT) or changed (WikiPageHistory rows of the user) lately, the
+            latest first, of the ones the user may still view (get#WikiViewScope) and never another user's notes; with
+            includeNotes the user's own notes too, which link to Notes. Failure tolerant: a part that cannot be read is logged
+            and the rest is answered.</description>
+        <in-parameters>
+            <parameter name="limit" type="Integer" default="5"/>
+            <parameter name="includeNotes" type="Boolean" default="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="pageList" type="List"/>
+            <parameter name="failed" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            pageList = []
+            failed = false
+            const me = ec.user.userId
+            if (!me) return
+            const L = (text) => ec.l10n.localize(text)
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+            const items = new Map()
+            const note = (id, millis, kind) => {
+                if (!id || millis == null) return
+                const known = items.get(id)
+                if (!known || known.millis < millis) items.set(id, {millis: millis, kind: kind})
+            }
+            try {
+                let viewed = []
+                try { viewed = JSON.parse(ec.user.getPreference('KNOWLEDGE_RECENT') || '[]') } catch (err) { viewed = [] }
+                for (const item of Array.isArray(viewed) ? viewed : []) if (item && item.id) note(String(item.id), Number(item.at) || 0, 'opened')
+            } catch (err) { failed = true; ec.logger.warn(`Recent pages: the opened pages not read: ${err}`) }
+            try {
+                for (const row of Array.from(ec.entity.find('moqui.resource.wiki.WikiPageHistory').condition('userId', me)
+                        .orderBy('-changeDateTime').limit(200).list())) note(row.wikiPageId, toMillis(row.changeDateTime), 'changed')
+            } catch (err) { failed = true; ec.logger.warn(`Recent pages: the changed pages not read: ${err}`) }
+            try {
+                const scope = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiViewScope').call() || {}
+                const viewIds = new Set(Array.from(scope.viewSpaceIdList || []))
+                const hidden = new Set(Array.from(scope.hiddenPageIdList || []))
+                const mine = 'NOTES_' + me
+                const today = fmt(Number(String(ec.user.nowTimestamp)), 'yyyy-MM-dd')
+                const sorted = Array.from(items.entries()).sort((left, right) => right[1].millis - left[1].millis)
+                for (const [id, item] of sorted) {
+                    if (pageList.length >= (limit || 5)) break
+                    const row = ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiPageId', id).one()
+                    if (row == null || hidden.has(id) || !viewIds.has(row.wikiSpaceId)) continue
+                    const isNotes = String(row.wikiSpaceId).startsWith('NOTES_')
+                    if (isNotes && (row.wikiSpaceId !== mine || !includeNotes)) continue
+                    const space = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', row.wikiSpaceId).useCache(true).one()
+                    const path = row.pagePath || ''
+                    const title = path ? path.substring(path.lastIndexOf('/') + 1) : (space?.description || row.wikiSpaceId)
+                    const day = fmt(item.millis, 'yyyy-MM-dd')
+                    pageList.push({wikiPageId: id, wikiSpaceId: row.wikiSpaceId, pagePath: path, title: title, isNotes: isNotes,
+                        spaceDescription: isNotes ? L('My notes') : (space?.description || row.wikiSpaceId), kind: item.kind,
+                        kindText: L(item.kind === 'changed' ? 'Changed' : 'Opened'), millis: item.millis,
+                        whenText: day === today ? fmt(item.millis, 'h:mm a') : fmt(item.millis, 'MMM d'),
+                        url: isNotes ? '/qapps/Commons/Notes?wikiPageId=' + encodeURIComponent(id) : '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(id)})
+                }
+            } catch (err) { failed = true; ec.logger.warn(`Recent pages not read: ${err}`) }
+        ]]></script></actions>
+    </service>
+
+    <service verb="search" noun="Pages">
+        <description>The Knowledge search line and the Notes search: WikiServices.search#WikiPages (the search documents on
+            WikiPage when search is available, else the page paths; never a page the user may not view), in one space or
+            all; scope knowledge leaves every notes space out, notes keeps only the user's own notes.</description>
+        <in-parameters>
+            <parameter name="text"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="scope" default-value="knowledge"><description>knowledge or notes</description></parameter>
+            <parameter name="limit" type="Integer" default="25"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="pageList" type="List"/>
+            <parameter name="usedIndex" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            pageList = []
+            usedIndex = false
+            const needle = String(text || '').trim()
+            if (!needle) return
+            const me = ec.user.userId
+            const mine = me ? 'NOTES_' + me : null
+            const spaceId = scope === 'notes' ? mine : (wikiSpaceId || null)
+            if (scope === 'notes' && !mine) return
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.search#WikiPages').parameters({text: needle, wikiSpaceId: spaceId,
+                limit: Math.min(Number(limit) || 25, 100)}).call() || {}
+            usedIndex = !!out.usedIndex
+            const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+            for (const hit of Array.from(out.pageList || [])) {
+                const isNotes = String(hit.wikiSpaceId).startsWith('NOTES_')
+                if (scope === 'notes' ? hit.wikiSpaceId !== mine : isNotes) continue
+                const millis = hit.updatedDate == null || hit.updatedDate === '' ? null : Number(String(hit.updatedDate))
+                pageList.push({wikiPageId: hit.wikiPageId, wikiSpaceId: hit.wikiSpaceId, spaceDescription: hit.spaceDescription, pagePath: hit.pagePath || '',
+                    pageName: hit.pageName, title: hit.title || hit.pageName, updatedText: millis && !Number.isNaN(millis) ? fmt(millis, 'MMM d, yyyy') : ''})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="SpacePageOptions">
+        <description>The pages of a space the user may view, as the options of the Move and New page dialogs' parent
+            drop-down ({value: path, label}), the top level first; the user may add pages there (canUpdate).</description>
+        <in-parameters>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="excludePagePath"><description>A page and what is under it to leave out (a page cannot move under itself)</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="optionList" type="List"/>
+            <parameter name="canUpdate" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            optionList = []
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', wikiSpaceId).call() || {}
+            if (!access.canView) { ec.message.addError(L('Space not found')); return }
+            canUpdate = !!access.canUpdate
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiSpacePages').parameter('wikiSpaceId', wikiSpaceId).call() || {}
+            optionList.push({value: '', label: L('Top level')})
+            const skip = excludePagePath ? String(excludePagePath) : null
+            for (const item of Array.from(out.allChildFileFlatList || [])) {
+                const path = String(item.path || '')
+                if (!path || (skip && (path === skip || path.startsWith(skip + '/')))) continue
+                optionList.push({value: path, label: path.split('/').join(' / ')})
+            }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Knowledge and Notes: writes ========== -->
+
+    <service verb="save" noun="Page">
+        <description>Saves a page's text as a new version (WikiServices.update#WikiPage, with versionNote: the commit message on
+            git, the history note on database files), as a user who may update it. With baseVersionName (the version the
+            editor opened) and not force, a page changed since by someone else is not overwritten: conflict is true with who
+            changed it. A save with a note on a Knowledge page tells the page's followers (RecordFollow, kind changes;
+            failure tolerant). versionName is empty when the text was unchanged. With collab the page's co-edited document
+            is saved instead of pageText.</description>
+        <in-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="pageText" allow-html="any"/>
+            <parameter name="versionNote"/>
+            <parameter name="baseVersionName"/>
+            <parameter name="force" type="Boolean" default="false"/>
+            <parameter name="collab" type="Boolean" default="false"><description>Save the page's co-edited document (m-coedit) as
+                the version instead of pageText (CollabServices.save#CollabDocument): edits merge as they are made, so there
+                is no conflict to check</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="versionName"/>
+            <parameter name="currentVersionName"/>
+            <parameter name="conflict" type="Boolean"/>
+            <parameter name="conflictText"/>
+            <parameter name="savedText"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            conflict = false
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const pageRef = ref.pageReference
+            const path = ref.pagePath || ''
+            const name = path ? path.substring(path.lastIndexOf('/') + 1) : ref.wikiSpaceId
+            const note = versionNote ? String(versionNote).trim().substring(0, 255) : null
+            if (collab && ref.wikiPageId) {
+                // the co-edited document is the text: edits merged as they were made, so no conflict to check
+                const out = ec.service.sync().name('org.moqui.impl.CollabServices.save#CollabDocument').parameters({documentKey: `WikiPage:${ref.wikiPageId}`,
+                    versionNote: note}).call()
+                if (ec.message.hasError()) return
+                wikiPageId = ref.wikiPageId
+                wikiSpaceId = ref.wikiSpaceId
+                pagePath = path
+                versionName = out.versionName || null
+                currentVersionName = versionName
+                pageText = versionName ? ec.resource.getLocationReference(pageRef.location).getText() : null
+            } else {
+                const current = ref.exists && pageRef.supportsVersion() ? (pageRef.getCurrentVersion()?.versionName ?? null) : null
+                if (baseVersionName && !force && current && current !== baseVersionName) {
+                    const change = ec.resource.getLastChange(pageRef.location)
+                    const account = change?.userId ? ec.entity.find('moqui.security.UserAccount').condition('userId', change.userId).useCache(true).disableAuthz().one() : null
+                    conflict = true
+                    currentVersionName = current
+                    conflictText = ec.resource.expand('${name} saved this page since you opened it', '', {name: account ? (account.userFullName || account.username) : L('Someone')})
+                    wikiPageId = ref.wikiPageId
+                    wikiSpaceId = ref.wikiSpaceId
+                    pagePath = ref.pagePath
+                    return
+                }
+                const saved = ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: ref.wikiSpaceId,
+                    wikiPageId: ref.wikiPageId || null, pagePath: path || null, pageName: name,
+                    parentPath: path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : null, pageText: pageText ?? '', versionNote: note}).call()
+                if (ec.message.hasError()) return
+                wikiPageId = saved.wikiPageId || ref.wikiPageId
+                wikiSpaceId = ref.wikiSpaceId
+                pagePath = saved.pagePath ?? path
+                versionName = saved.versionName || null
+                currentVersionName = versionName || current
+            }
+            savedText = ec.l10n.format(ec.user.nowTimestamp, 'h:mm a')
+            if (versionName && note && !ref.isNotes && wikiPageId) {
+                ec.message.pushErrors()
+                try {
+                    const heading = String(pageText || '').match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m)
+                    ec.service.sync().name('mantle.party.CommunicationServices.notify#RecordFollowers').parameters({
+                        recordEntityName: 'moqui.resource.wiki.WikiPage', recordId: wikiPageId, kind: 'changes',
+                        subject: (heading ? heading[1] : name) + ': ' + note, recordUrl: '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(wikiPageId)}).call()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    ec.logger.warn(`The followers of wiki page ${wikiPageId} were not told of version ${versionName}: ${err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="create" noun="Page">
+        <description>A new page in a space the user may add pages to (WikiServices.update#WikiPage checks it), under a parent
+            page the user may view that is made already (or at the top of a space the user may view), with pageText or a
+            heading of its name; refused when a page is at that path already (its record or its file). A page of the same
+            name elsewhere in the space is another page: the wiki writes each at its exact path.</description>
+        <in-parameters>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="parentPath"/>
+            <parameter name="pageName" required="true"/>
+            <parameter name="pageText" allow-html="any"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="pagePath"/>
+            <parameter name="versionName"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const name = String(pageName || '').replace(/\s+/g, ' ').trim()
+            if (!name || !/^[\w.\-,':()!? ]+$/.test(name) || name === '.' || name === '..' || name.length > 100) {
+                ec.message.addError(L("A page name has letters, digits, spaces and . , ' - _ : ( ) ! ? only"))
+                return
+            }
+            let parent = String(parentPath || '').split('/').filter((part) => part).join('/')
+            if (parent === wikiSpaceId) parent = ''
+            // the parent page, or the space's home for a page at the top, which the user must see before anything is said of
+            // the paths there; whether they may add the page is update#WikiPage's to say
+            const parentRef = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiSpaceId: wikiSpaceId,
+                pagePath: parent, need: 'view'}).call()
+            if (ec.message.hasError() || !parentRef?.found) return
+            if (parent && !parentRef.exists) { ec.message.addError(L('The parent page has not been made yet')); return }
+            parent = parentRef.pagePath || ''
+            const path = (parent ? parent + '/' : '') + name
+            // update#WikiPage writes over a page at the path: a new page is not made there
+            const taken = () => { ec.message.addError(ec.resource.expand('There is a page ${path} already', '', {path: path})) }
+            if (ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', wikiSpaceId).condition('pagePath', path).one() != null) return taken()
+            const file = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageFile').parameters({wikiSpaceId: wikiSpaceId, pagePath: path}).call()
+            if (ec.message.hasError()) return
+            if (file?.exists) return taken()
+            const saved = ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: wikiSpaceId, pageName: name,
+                parentPath: parent || null, wikiType: 'md', pageText: pageText ? String(pageText) : '# ' + name + '\n\n'}).call()
+            if (ec.message.hasError()) return
+            wikiPageId = saved.wikiPageId
+            pagePath = saved.pagePath
+            versionName = saved.versionName
+        ]]></script></actions>
+    </service>
+
+    <service verb="duplicate" noun="Page">
+        <description>Duplicate page (Knowledge's menu; design §10 Clone): a copy of a page the user may view, with its text and
+            files and, with withChildren, the pages under it the user may view (each under the copy of its parent, by the same
+            name), as new pages at toParentPath/toPageName in toWikiSpaceId (the page's space by default), a space the user may
+            add pages to (WikiServices.update#WikiPage checks it). Each copy starts its own history, its first version noted with
+            the page it was copied from; with usePublished it is the text of the page's published version. Each page is copied
+            in a transaction of its own (copy#Page, one framework clone#WikiPage without its children), so one that fails is
+            logged and named in failedPaths, with the pages under it, and the others are kept; the first one failing refuses
+            the whole. This walk stays rather than one clone#WikiPage withChildren: each page is its own transaction, a page
+            the user may not view is left out as get#PageChildren does, and a failure is named in failedPaths.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="toWikiSpaceId"/>
+            <parameter name="toParentPath"/>
+            <parameter name="toPageName" required="true"/>
+            <parameter name="withChildren" type="Boolean" default="false"/>
+            <parameter name="usePublished" type="Boolean" default="false"><description>Copy each page's published version,
+                not its latest text (the latest for a page with none)</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="pageCount" type="Integer"/>
+            <parameter name="failedPaths" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            pageCount = 0
+            failedPaths = []
+            const L = (text) => ec.l10n.localize(text)
+            const MAX_PAGES = 500
+            const src = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
+            if (ec.message.hasError() || !src?.found) return
+            const srcPath = src.pagePath || ''
+            if (!srcPath) { ec.message.addError(L('The home page of a space is copied with its space (Spaces, Clone)')); return }
+            if (!src.exists) { ec.message.addError(L('This page has no text yet to copy')); return }
+            const spaceId = toWikiSpaceId || src.wikiSpaceId
+            const name = String(toPageName || '').replace(/\s+/g, ' ').trim()
+            if (!name || !/^[\w.\-,':()!? ]+$/.test(name) || name === '.' || name === '..' || name.length > 100) {
+                ec.message.addError(L("A page name has letters, digits, spaces and . , ' - _ : ( ) ! ? only"))
+                return
+            }
+            let parent = String(toParentPath || '').split('/').map((part) => part.trim()).filter((part) => part).join('/')
+            if (parent === spaceId) parent = ''
+            // the place for the copy, which the user must see; whether they may add pages there is update#WikiPage's to say
+            const parentRef = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiSpaceId: spaceId,
+                pagePath: parent, need: 'view'}).call()
+            if (ec.message.hasError() || !parentRef?.found) return
+            if (parent && !parentRef.exists) { ec.message.addError(L('The parent page has not been made yet')); return }
+            if (!parentRef.access?.canUpdate) {
+                ec.message.addError(parentRef.access?.readOnly ? L('This space is a read-only mirror') : L('You may not add pages to this space')); return }
+            parent = parentRef.pagePath || ''
+            const path = (parent ? parent + '/' : '') + name
+            if (withChildren && spaceId === src.wikiSpaceId && (path === srcPath || path.startsWith(srcPath + '/'))) {
+                ec.message.addError(L('A page is not copied under itself with the pages under it')); return }
+            const taken = () => { ec.message.addError(ec.resource.expand('There is a page ${path} already', '', {path: path})) }
+            if (ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', spaceId).condition('pagePath', path).one() != null) return taken()
+            const file = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageFile').parameters({wikiSpaceId: spaceId, pagePath: path}).call()
+            if (ec.message.hasError()) return
+            if (file?.exists) return taken()
+
+            // the pages to copy, top down: the page, then those under it the user may view (get#PageChildren)
+            const pages = [{fromPath: srcPath, toParent: parent, toName: name, toPath: path}]
+            if (withChildren) {
+                const queue = [[srcPath, path]]
+                while (queue.length && pages.length < MAX_PAGES) {
+                    const [from, to] = queue.shift()
+                    const kids = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageChildren').parameters({wikiSpaceId: src.wikiSpaceId,
+                        pagePath: from}).call()?.childList || []
+                    if (ec.message.hasError()) return
+                    for (const kid of kids) {
+                        if (pages.length >= MAX_PAGES) break
+                        const kidPath = to + '/' + kid.name
+                        pages.push({fromPath: kid.pagePath, toParent: to, toName: kid.name, toPath: kidPath})
+                        if (kid.hasChildren) queue.push([kid.pagePath, kidPath])
+                    }
+                }
+                if (pages.length >= MAX_PAGES) ec.logger.warn(`Knowledge: duplicate of ${src.wikiSpaceId}/${srcPath} stops at ${MAX_PAGES} pages`)
+            }
+            // each copy's first version names the page it was copied from
+            const noteOf = (fromPath) => ec.resource.expand('Copied from ${space}/${path}', '', {space: src.wikiSpaceId, path: fromPath}).substring(0, 255)
+            const failedUnder = []
+            for (const [index, item] of pages.entries()) {
+                // a page under one that failed is not copied either
+                if (failedUnder.some((failed) => item.toPath.startsWith(failed + '/'))) { failedPaths.push(item.fromPath); continue }
+                ec.message.pushErrors()
+                let out = null
+                let why = null
+                try {
+                    out = ec.service.sync().name('ironstone.commons.KnowledgeServices.copy#Page').parameters({fromWikiSpaceId: src.wikiSpaceId,
+                        fromPagePath: item.fromPath, toWikiSpaceId: spaceId, toParentPath: item.toParent, toPageName: item.toName, versionNote: noteOf(item.fromPath),
+                        usePublished: !!usePublished})
+                            .requireNewTransaction(true).call()
+                    if (ec.message.hasError()) why = ec.message.getErrorsString()
+                } catch (err) {
+                    why = err && err.message ? err.message : String(err)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                }
+                if (why) {
+                    if (index === 0) { ec.message.addError(why); return }
+                    ec.logger.error(`Knowledge: page ${src.wikiSpaceId}/${item.fromPath} was not copied to ${spaceId}/${item.toPath}, it and the pages under it are left out: ${why}`)
+                    failedPaths.push(item.fromPath)
+                    failedUnder.push(item.toPath)
+                    continue
+                }
+                for (const fileName of Array.from(out?.failedFiles || [])) failedPaths.push(item.fromPath + '/' + fileName)
+                if (index === 0) { wikiPageId = out.wikiPageId; pagePath = out.pagePath }
+                pageCount++
+            }
+            wikiSpaceId = spaceId
+        ]]></script></actions>
+    </service>
+    <service verb="copy" noun="Page" allow-remote="false">
+        <description>One page of duplicate#Page, through the framework's clone#WikiPage without the pages under it or its
+            aliases, and unpublished: the text of a page the user may view (its latest, or with usePublished its published
+            version's) as a new page the user may add (update#WikiPage checks both), with its page members and its files (a
+            file that is not copied is logged and named in failedFiles).</description>
+        <in-parameters>
+            <parameter name="fromWikiSpaceId" required="true"/>
+            <parameter name="fromPagePath" required="true"/>
+            <parameter name="toWikiSpaceId" required="true"/>
+            <parameter name="toParentPath"/>
+            <parameter name="toPageName" required="true"/>
+            <parameter name="versionNote"/>
+            <parameter name="usePublished" type="Boolean" default="false"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="pagePath"/>
+            <parameter name="failedFiles" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            failedFiles = []
+            // clone#WikiPage takes the space's id as the parent for the top level (an empty parent is the source page's)
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.clone#WikiPage').parameters({baseWikiSpaceId: fromWikiSpaceId,
+                pagePath: fromPagePath, wikiSpaceId: toWikiSpaceId, parentPath: toParentPath || toWikiSpaceId, pageName: toPageName,
+                withChildren: false, copyAliases: false, copyAttachments: true, publishNew: false, usePublished: !!usePublished,
+                versionNote: versionNote || null}).call()
+            if (ec.message.hasError()) return
+            if (!out?.wikiPageId) { ec.message.addError(ec.resource.expand('There is a page ${path} already', '', {path: toPageName})); return }
+            wikiPageId = out.wikiPageId
+            pagePath = out.pagePath
+            failedFiles = Array.from(out.failedFiles || [])
+        ]]></script></actions>
+    </service>
+    <service verb="rename" noun="Page">
+        <description>A new name for a page, in the same place (WikiServices.move#WikiPage, which keeps its history and leaves an
+            alias at the old path, so links to it keep working).</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="pageName" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const path = ref.pagePath || ''
+            if (!path) { ec.message.addError(L('The home page of a space keeps its name')); return }
+            const name = String(pageName || '').replace(/\s+/g, ' ').trim()
+            const moved = ec.service.sync().name('org.moqui.impl.WikiServices.move#WikiPage').parameters({wikiPageId: wikiPageId,
+                toWikiSpaceId: ref.wikiSpaceId, toParentPath: path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '', toPageName: name}).call()
+            if (ec.message.hasError()) return
+            wikiSpaceId = moved.wikiSpaceId
+            pagePath = moved.pagePath
+        ]]></script></actions>
+    </service>
+
+    <service verb="move" noun="Page">
+        <description>Moves a page with the pages under it and its attachments to another place or space (WikiServices.move#WikiPage:
+            the user must be able to update the page and the target space; into other storage the history is replayed, one
+            version at a time, by its own author and date); an alias at the old path keeps links to it working.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="toWikiSpaceId"/>
+            <parameter name="toParentPath"/>
+            <parameter name="toPageName"/>
+            <parameter name="versionNote"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="replayed" type="Boolean"/>
+            <parameter name="versionCount" type="Integer"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const moved = ec.service.sync().name('org.moqui.impl.WikiServices.move#WikiPage').parameters({wikiPageId: wikiPageId,
+                toWikiSpaceId: toWikiSpaceId || ref.wikiSpaceId, toParentPath: toParentPath || '', toPageName: toPageName || null,
+                versionNote: versionNote || null}).call()
+            if (ec.message.hasError()) return
+            wikiSpaceId = moved.wikiSpaceId
+            pagePath = moved.pagePath
+            replayed = !!moved.replayed
+            versionCount = moved.versionCount || 0
+        ]]></script></actions>
+    </service>
+
+    <service verb="drop" noun="Page">
+        <description>A page tree drop: the page goes before or after another page (among its siblings) or inside it (under it).
+            A new parent is a move (WikiServices.move#WikiPage); before and after set the siblings' sequence (WikiPage
+            sequenceNum, the tree's order), for a user who may update the space.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="targetPagePath"><description>Empty: the top level (inside)</description></parameter>
+            <parameter name="position" default-value="inside"><description>before, after or inside</description></parameter>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="oldPagePath"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const parentOf = (path) => path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''
+            const path = ref.pagePath || ''
+            oldPagePath = path
+            wikiSpaceId = ref.wikiSpaceId
+            if (!path) { ec.message.addError(L('The home page of a space is not moved')); return }
+            const target = String(targetPagePath || '').split('/').filter((part) => part).join('/')
+            if (!['before', 'after', 'inside'].includes(position)) { ec.message.addError(L('Drop before, after or inside a page')); return }
+            if (target === path) { pagePath = path; return }
+            const newParent = position === 'inside' ? target : parentOf(target)
+            if (newParent === path || newParent.startsWith(path + '/')) { ec.message.addError(L('A page cannot move under itself')); return }
+            const name = path.substring(path.lastIndexOf('/') + 1)
+            pagePath = path
+            if (parentOf(path) !== newParent) {
+                const moved = ec.service.sync().name('org.moqui.impl.WikiServices.move#WikiPage').parameters({wikiPageId: wikiPageId,
+                    toWikiSpaceId: ref.wikiSpaceId, toParentPath: newParent, toPageName: name}).call()
+                if (ec.message.hasError()) return
+                pagePath = moved.pagePath
+            }
+            if (position === 'inside') return
+            const spaceAccess = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', ref.wikiSpaceId).call() || {}
+            if (!spaceAccess.canUpdate) return
+            // the siblings in their order, the page moved before or after the target, each given its place
+            const children = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageChildren').parameters({wikiSpaceId: ref.wikiSpaceId,
+                pagePath: newParent}).call()?.childList || []
+            const order = children.map((child) => child.pagePath).filter((childPath) => childPath !== pagePath)
+            const at = order.indexOf(target)
+            order.splice(at < 0 ? order.length : (position === 'before' ? at : at + 1), 0, pagePath)
+            order.forEach((childPath, index) => {
+                const idOut = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageId').parameters({wikiSpaceId: ref.wikiSpaceId,
+                    pagePath: childPath, createIfMissing: true}).call()
+                const sequenceNum = (index + 1) * 10
+                if (idOut?.wikiPageId && Number(idOut.wikiPage?.sequenceNum) !== sequenceNum)
+                    ec.service.sync().name('update#moqui.resource.wiki.WikiPage').parameters({wikiPageId: idOut.wikiPageId, sequenceNum: sequenceNum}).call()
+            })
+        ]]></script></actions>
+    </service>
+
+    <service verb="delete" noun="Page">
+        <description>Deletes a page the user may update (WikiServices.delete#WikiPage, deleteAttachments) with its files,
+            history, tags, links and reviews, and Mantle's joins to it (its SECA: the comments' WikiPageCommunicationEvent rows,
+            the linked tasks and requests, the followers; the comments themselves stay); a page with pages under it, or the
+            home page of a space, is not deleted. A page record with no file goes too.</description>
+        <in-parameters><parameter name="wikiPageId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="parentPath"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.delete#WikiPage').parameters({wikiPageId: wikiPageId, deleteAttachments: true}).call()
+            if (ec.message.hasError()) return
+            wikiSpaceId = out.wikiSpaceId || ref.wikiSpaceId
+            parentPath = out.pagePath || ''
+        ]]></script></actions>
+    </service>
+
+    <service verb="publish" noun="Version">
+        <description>Publishes a version of a Knowledge page (the version the public and help-center views read,
+            WikiServices.set#PublishedVersion, which checks the version is the page's and keeps its full name), for a user who
+            may update it. A note has no published version.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="versionName"><description>Default the current version</description></parameter>
+        </in-parameters>
+        <out-parameters><parameter name="publishedVersionName"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            if (ref.isNotes) { ec.message.addError(L('A note is not published')); return }
+            // the current version by default: an empty name would take the page's published version away
+            const name = versionName || (ref.exists && ref.pageReference.supportsVersion() ? ref.pageReference.getCurrentVersion()?.versionName : null)
+            if (!name) { ec.message.addError(L('This page keeps no versions to publish')); return }
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.set#PublishedVersion').parameters({wikiPageId: wikiPageId,
+                publishedVersionName: name}).call()
+            if (ec.message.hasError()) return
+            publishedVersionName = out.publishedVersionName
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="History">
+        <description>A page's versions for the History dialog (WikiServices.get#WikiPageHistory: newest first, with the note,
+            who and when, current, published and where a version came from in a move) and what the user may do with them.</description>
+        <in-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="versionList" type="List"/>
+            <parameter name="historyList" type="List"/>
+            <parameter name="currentVersionName"/>
+            <parameter name="publishedVersionName"/>
+            <parameter name="storage"/>
+            <parameter name="canRestore" type="Boolean"/>
+            <parameter name="canPublish" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            versionList = []
+            historyList = []
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found || !ref.exists) return
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageHistory').parameters({wikiPageId: ref.wikiPageId || null,
+                wikiSpaceId: ref.wikiSpaceId, pagePath: ref.pagePath || ''}).call()
+            if (ec.message.hasError() || out == null) return
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const fmt = (millis) => millis == null ? '' : ec.l10n.format(new Date(Number(millis)), 'MMM d, yyyy h:mm a')
+            currentVersionName = out.currentVersionName
+            publishedVersionName = out.publishedVersionName
+            storage = out.storage
+            canRestore = !!ref.access.canUpdate && !!ref.wikiPageId
+            canPublish = !!ref.access.canUpdate && !!ref.wikiPageId && !ref.isNotes
+            versionList = Array.from(out.versionList || []).map((version) => {
+                const millis = toMillis(version.versionDate)
+                const note = version.note ? String(version.note) : ''
+                return {versionName: version.versionName, shortName: version.shortName, previousVersionName: version.previousVersionName || null,
+                    millis: millis, dateText: fmt(millis), userId: version.userId, userName: version.userName, note: note.split('\n')[0],
+                    noteMore: note.includes('\n') ? note.substring(note.indexOf('\n') + 1).trim() : null, isCurrent: !!version.isCurrent,
+                    isPublished: !!version.isPublished, movedFrom: version.movedFrom || null}
+            })
+            historyList = Array.from(out.historyList || []).map((row) => Object.assign({}, row, {dateText: fmt(toMillis(row.changeDateTime))}))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="VersionDiff">
+        <description>The compare of two versions of a page (WikiServices.get#WikiPageVersionDiff, the server's line diff as its
+            escaped moqui-diff table): from fromVersionName (empty: the version before) to toVersionName (empty: the current).</description>
+        <in-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+            <parameter name="fromVersionName"/>
+            <parameter name="toVersionName"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="fromVersionName"/>
+            <parameter name="toVersionName"/>
+            <parameter name="fromShort"/>
+            <parameter name="toShort"/>
+            <parameter name="html"/>
+            <parameter name="stats" type="Map"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || null,
+                wikiSpaceId: wikiSpaceId || null, pagePath: pagePath || '', need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageVersionDiff').parameters({wikiPageId: ref.wikiPageId || null,
+                wikiSpaceId: ref.wikiSpaceId, pagePath: ref.pagePath || '', fromVersionName: fromVersionName || null, toVersionName: toVersionName || null}).call()
+            if (ec.message.hasError() || out == null) return
+            const short = (name) => name == null ? null : String(name).length > 12 ? String(name).substring(0, 10) : String(name)
+            fromVersionName = out.fromVersionName
+            toVersionName = out.toVersionName
+            fromShort = short(fromVersionName)
+            toShort = short(toVersionName)
+            html = out.diff?.html || ''
+            stats = out.diff?.stats || {}
+        ]]></script></actions>
+    </service>
+
+    <service verb="restore" noun="Version">
+        <description>Writes an old version of a page back as its newest version (WikiServices.restore#WikiPageVersion: nothing in
+            the history is lost), for a user who may update it.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="versionName" required="true"/>
+            <parameter name="versionNote"/>
+        </in-parameters>
+        <out-parameters><parameter name="newVersionName"/></out-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.restore#WikiPageVersion').parameters({wikiPageId: wikiPageId,
+                versionName: versionName, versionNote: versionNote || null}).call()
+            if (ec.message.hasError()) return
+            newVersionName = out?.newVersionName || null
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Review ========== -->
+
+    <service verb="request" noun="Review">
+        <description>Asks reviewers (user ids, a list or comma text; none: anyone who may update the page, the space's
+            administrators told) to review a version of a Knowledge page (the current one by default) before it is published
+            (WikiServices.request#WikiPageReview), for a user who may update the page. The reviewers' notification opens this
+            page with its review (link).</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="versionName"/>
+            <parameter name="reviewerUserIds" type="Object"/>
+            <parameter name="dueDate"><description>yyyy-MM-dd, the end of that day in the user's time zone</description></parameter>
+            <parameter name="note"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageReviewId"/>
+            <parameter name="wikiPageReviewIdList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            if (ref.isNotes) { ec.message.addError(L('A note is not reviewed')); return }
+            const ids = (Array.isArray(reviewerUserIds) ? reviewerUserIds : String(reviewerUserIds || '').split(','))
+                    .map((id) => String(id || '').trim()).filter((id) => id && id !== 'null')
+            let due = null
+            if (dueDate) {
+                const text = String(dueDate).trim().substring(0, 10)
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) { ec.message.addError(L('The due date is a day: yyyy-MM-dd')); return }
+                due = ec.l10n.parseTimestamp(text + ' 23:59:59.000', 'yyyy-MM-dd HH:mm:ss.SSS')
+            }
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.request#WikiPageReview').parameters({wikiPageId: wikiPageId,
+                versionName: versionName || null, reviewerUserIdList: ids, dueDate: due, note: note ? String(note).trim() : null,
+                link: '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(wikiPageId) + '&review=open'}).call()
+            if (ec.message.hasError()) return
+            wikiPageReviewId = out.wikiPageReviewId
+            wikiPageReviewIdList = out.wikiPageReviewIdList
+        ]]></script></actions>
+    </service>
+
+    <service verb="decide" noun="Review">
+        <description>The reviewer's decision (WikiServices.decide#WikiPageReview, which checks it is the user's to decide):
+            approve publishes the version, changes says what to change (decisionNote). The requester's notification opens
+            what the request's opened (request#Review's link: the page on its review).</description>
+        <in-parameters>
+            <parameter name="wikiPageReviewId" required="true"/>
+            <parameter name="decision" required="true"><description>approve or changes</description></parameter>
+            <parameter name="decisionNote"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="statusId"/>
+            <parameter name="publishedVersionName"/>
+            <parameter name="wikiPageId"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.decide#WikiPageReview').parameters({wikiPageReviewId: wikiPageReviewId,
+                decision: decision, decisionNote: decisionNote ? String(decisionNote).trim() : null}).call()
+            if (ec.message.hasError()) return
+            statusId = out?.statusId
+            publishedVersionName = out?.publishedVersionName
+            wikiPageId = ec.entity.find('moqui.resource.wiki.WikiPageReview').condition('wikiPageReviewId', wikiPageReviewId).one()?.wikiPageId || null
+        ]]></script></actions>
+    </service>
+
+    <service verb="cancel" noun="Review">
+        <description>Withdraws a review the user asked for (WikiServices.cancel#WikiPageReview: its requester or a space administrator).</description>
+        <in-parameters>
+            <parameter name="wikiPageReviewId" required="true"/>
+            <parameter name="note"/>
+        </in-parameters>
+        <out-parameters><parameter name="statusId"/></out-parameters>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.cancel#WikiPageReview').parameters({wikiPageReviewId: wikiPageReviewId,
+                note: note || null}).call()
+            if (ec.message.hasError()) return
+            statusId = out?.statusId
+        ]]></script></actions>
+    </service>
+
+    <service verb="find" noun="Reviews">
+        <description>Reviews of the pages the user may view (WikiServices.find#WikiPageReviews): filter toDo (the user's to
+            decide), requested (asked by the user) or all; statusId WprRequested by default, any for every status; each with
+            its page, version, who asked and reviews, the dates as text, whether it is overdue, and the link that opens the page
+            on the review's compare. Notes are never reviewed.</description>
+        <in-parameters>
+            <parameter name="filter" default-value="toDo"/>
+            <parameter name="statusId" default-value="WprRequested"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="wikiPageId"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="reviewList" type="List"/>
+            <parameter name="reviewCount" type="Integer"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.find#WikiPageReviews').parameters({filter: filter || 'toDo',
+                statusId: statusId || 'WprRequested', wikiSpaceId: wikiSpaceId || null, wikiPageId: wikiPageId || null, limit: 200}).call() || {}
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const fmt = (millis, pattern) => millis == null ? '' : ec.l10n.format(new Date(Number(millis)), pattern)
+            const now = Number(String(ec.user.nowTimestamp))
+            const me = ec.user.userId
+            reviewList = Array.from(out.reviewList || []).filter((review) => !String(review.wikiSpaceId).startsWith('NOTES_')).map((review) => {
+                const requested = toMillis(review.requestedDate)
+                const due = toMillis(review.dueDate)
+                const decided = toMillis(review.decidedDate)
+                return Object.assign({}, review, {requestedText: fmt(requested, 'MMM d, h:mm a'), dueText: fmt(due, 'MMM d'),
+                    overdue: due != null && review.statusId === 'WprRequested' && due < now, decidedText: fmt(decided, 'MMM d, h:mm a'),
+                    reviewerText: review.reviewerName || ec.l10n.localize('Anyone who may edit'), isRequester: review.requestedByUserId === me,
+                    canCancel: review.statusId === 'WprRequested' && review.requestedByUserId === me,
+                    url: '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(review.wikiPageId) + '&review=' + encodeURIComponent(review.wikiPageReviewId)})
+            })
+            reviewCount = reviewList.length
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Tags, pin, attachments, follow, linked records ========== -->
+
+    <service verb="set" noun="PageTags">
+        <description>A page's tags (WikiPageCategory names, a list or comma text; a name not used before becomes a category),
+            for a user who may update the page. The reserved category Pinned is the pin (set#PagePinned) and stays as it is.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="tags" type="Object"/>
+        </in-parameters>
+        <out-parameters><parameter name="tagList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const raw = Array.isArray(tags) ? tags : String(tags || '').split(',')
+            const wanted = []
+            for (const tag of raw) {
+                const name = String(tag || '').replace(/\s+/g, ' ').trim().substring(0, 60)
+                if (!name || name.toLowerCase() === 'pinned' || wanted.some((known) => known.toLowerCase() === name.toLowerCase())) continue
+                wanted.push(name)
+            }
+            if (wanted.length > 20) { ec.message.addError(L('A page has 20 tags at most')); return }
+            const categories = Array.from(ec.entity.find('moqui.resource.wiki.WikiPageCategory').list())
+            const categoryOf = (name) => {
+                let category = categories.find((row) => row.categoryName === name) || categories.find((row) => String(row.categoryName || '').toLowerCase() === name.toLowerCase())
+                if (category == null) {
+                    category = ec.entity.makeValue('moqui.resource.wiki.WikiPageCategory')
+                    category.setSequencedIdPrimary()
+                    category.categoryName = name
+                    category.create()
+                    categories.push(category)
+                }
+                return category.wikiPageCategoryId
+            }
+            const wantedIds = wanted.map(categoryOf)
+            const now = ec.user.nowTimestamp
+            const members = Array.from(ec.entity.find('moqui.resource.wiki.WikiPageCategoryMember').condition('wikiPageId', wikiPageId).list())
+            for (const member of members) {
+                if (member.wikiPageCategoryId === 'Pinned') continue
+                if (!wantedIds.includes(member.wikiPageCategoryId)) member.delete()
+                else if (member.thruDate != null) { member.thruDate = null; member.update() }
+            }
+            for (const categoryId of wantedIds) {
+                if (members.some((member) => member.wikiPageCategoryId === categoryId)) continue
+                const member = ec.entity.makeValue('moqui.resource.wiki.WikiPageCategoryMember')
+                member.setFields({wikiPageCategoryId: categoryId, wikiPageId: wikiPageId, fromDate: now}, true, null, null)
+                member.create()
+            }
+            tagList = wanted.sort((a, b) => a.localeCompare(b))
+        ]]></script></actions>
+    </service>
+
+    <service verb="set" noun="PagePinned">
+        <description>Pins or unpins a page (the reserved category Pinned, which get#WikiSpacePages reads as pinned), for a user
+            who may update it: pinned notes come first in Notes.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="pinned" type="Boolean" required="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="pinned" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            if (ec.entity.find('moqui.resource.wiki.WikiPageCategory').condition('wikiPageCategoryId', 'Pinned').one() == null) {
+                const category = ec.entity.makeValue('moqui.resource.wiki.WikiPageCategory')
+                category.setFields({wikiPageCategoryId: 'Pinned', categoryName: 'Pinned'}, true, null, null)
+                category.create()
+            }
+            const member = ec.entity.find('moqui.resource.wiki.WikiPageCategoryMember').condition({wikiPageCategoryId: 'Pinned', wikiPageId: wikiPageId}).one()
+            if (pinned && member == null) {
+                const row = ec.entity.makeValue('moqui.resource.wiki.WikiPageCategoryMember')
+                row.setFields({wikiPageCategoryId: 'Pinned', wikiPageId: wikiPageId, fromDate: ec.user.nowTimestamp}, true, null, null)
+                row.create()
+            } else if (pinned && member.thruDate != null) {
+                member.thruDate = null
+                member.update()
+            } else if (!pinned && member != null) {
+                member.delete()
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="upload" noun="Attachment">
+        <description>Adds files to a page's attachments (WikiServices.upload#WikiPageAttachment, the page's _attachments folder,
+            for a user who may update the page); a file of the same name is replaced (a new version where the storage keeps
+            them). A page not saved yet takes no files.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="attachmentFile" type="Object" required="true"><description>An uploaded file or a list of them</description></parameter>
+        </in-parameters>
+        <out-parameters><parameter name="filenameList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            filenameList = []
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            if (!ref.wikiPageId || !ref.exists) { ec.message.addError(L('Save the page before adding files to it')); return }
+            const files = Array.isArray(attachmentFile) ? attachmentFile : [attachmentFile]
+            for (const file of files) {
+                if (file == null) continue
+                const name = String(file.getName ? file.getName() : (file.name || '')).replace(/^.*[\\/]/, '').trim()
+                if (!name || name.startsWith('.')) { ec.message.addError(L('A file needs a name')); return }
+                ec.service.sync().name('org.moqui.impl.WikiServices.upload#WikiPageAttachment').parameters({wikiPageId: ref.wikiPageId,
+                    attachmentFile: file}).call()
+                if (ec.message.hasError()) return
+                filenameList.push(name)
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="delete" noun="Attachment">
+        <description>Removes a file from a page's attachments (WikiServices.delete#WikiPageAttachment, for a user who may
+            update the page).</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="filename" required="true"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            ec.service.sync().name('org.moqui.impl.WikiServices.delete#WikiPageAttachment').parameters({wikiPageId: ref.wikiPageId,
+                filename: String(filename || '')}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="Attachment">
+        <description>An attachment of a page the user may view: its location to send, and whether it may show inline (an image
+            or a PDF; anything else downloads, so no script of an uploaded file runs in the app's origin).</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="filename" required="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="location"/>
+            <parameter name="inlineAllowed" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAttachment').parameters({wikiPageId: ref.wikiPageId,
+                filename: String(filename || '')}).call()
+            const attachment = out?.attachmentReference
+            if (ec.message.hasError() || attachment == null || !attachment.exists || !attachment.isFile()) { ec.message.addError(L('File not found')); return }
+            location = attachment.location
+            const type = String(attachment.getContentType() || '')
+            inlineAllowed = /^image\/(png|jpe?g|gif|webp|bmp)$/.test(type) || type === 'application/pdf'
+        ]]></script></actions>
+    </service>
+
+    <service verb="follow" noun="Page">
+        <description>Follows (watches) or stops following a page the user may view: mantle follow#Record and unfollow#Record on
+            the WikiPage record, as Chatter's Follow, with every kind on (messages, notes, activities and saved versions).</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="follow" type="Boolean" default="true"/>
+        </in-parameters>
+        <out-parameters><parameter name="following" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'view'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            if (follow) ec.service.sync().name('mantle.party.CommunicationServices.follow#Record').parameters({recordEntityName: 'moqui.resource.wiki.WikiPage',
+                recordId: wikiPageId, kinds: ['messages', 'notes', 'activities', 'changes']}).call()
+            else ec.service.sync().name('mantle.party.CommunicationServices.unfollow#Record').parameters({recordEntityName: 'moqui.resource.wiki.WikiPage',
+                recordId: wikiPageId}).call()
+            following = !!follow && !ec.message.hasError()
+        ]]></script></actions>
+    </service>
+
+    <service verb="link" noun="PageRecord">
+        <description>Links a page to a task or event (WikiPageWorkEffort) or a request (WikiPageRequest) the user may see
+            (ironstone.shared.ChatterServices.get#RecordInfo, the record visibility of R5 and R28), for a user who may update the page.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const joins = {'mantle.work.effort.WorkEffort': ['mantle.work.effort.WikiPageWorkEffort', 'workEffortId'],
+                'mantle.request.Request': ['mantle.request.WikiPageRequest', 'requestId']}
+            const join = joins[recordEntityName]
+            if (!join) { ec.message.addError(L('A page links to a task, an event or a request')); return }
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            ec.service.sync().name('ironstone.shared.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntityName, recordId: recordId,
+                requireVisible: true}).call()
+            if (ec.message.hasError()) return
+            if (ec.entity.find(join[0]).condition({wikiPageId: wikiPageId, [join[1]]: recordId}).one() == null)
+                ec.service.sync().name('create#' + join[0]).parameters({wikiPageId: wikiPageId, [join[1]]: recordId}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="unlink" noun="PageRecord">
+        <description>Takes a page's link to a task, event or request away, for a user who may update the page.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="recordEntityName" required="true"/>
+            <parameter name="recordId" required="true"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const joins = {'mantle.work.effort.WorkEffort': ['mantle.work.effort.WikiPageWorkEffort', 'workEffortId'],
+                'mantle.request.Request': ['mantle.request.WikiPageRequest', 'requestId']}
+            const join = joins[recordEntityName]
+            if (!join) return
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'update'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            ec.entity.find(join[0]).condition({wikiPageId: wikiPageId, [join[1]]: recordId}).deleteAll()
+        ]]></script></actions>
+    </service>
+
+    <service verb="search" noun="LinkRecords">
+        <description>The tasks, events and requests a page may link to, for the Link to a record drop-down: the Inbox's record
+            search (ironstone.comms.InboxServices.search#LinkRecords: an id, or the search index, each one the user may see) kept to
+            work efforts and requests, as options {value (entity|id), label}.</description>
+        <in-parameters><parameter name="term"/></in-parameters>
+        <out-parameters><parameter name="optionList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            optionList = []
+            ec.message.pushErrors()
+            try {
+                const out = ec.service.sync().name('ironstone.comms.InboxServices.search#LinkRecords').parameter('term', term || '').call() || {}
+                optionList = Array.from(out.optionList || []).filter((option) => ['mantle.work.effort.WorkEffort', 'mantle.request.Request']
+                        .includes(option.recordEntityName)).map((option) => ({value: option.value, label: option.label}))
+            } catch (err) {
+                ec.logger.warn(`Page record search for ${term} failed: ${err}`)
+            } finally { ec.message.clearErrors(); ec.message.popErrors() }
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Notes ========== -->
+
+    <service verb="get" noun="NotesList">
+        <description>The user's notes (the notes space of WikiServices.ensure#UserNotesSpace, made on first use) for the Notes
+            list (get#WikiSpacePages with the detail): title, snippet, when changed, tags and pin; pinned first, then the most
+            recently changed. text narrows by search#WikiPages in the notes space and by the title and snippet; tag by a tag.
+            tagList has every tag of the notes with its count.</description>
+        <in-parameters>
+            <parameter name="text"/>
+            <parameter name="tag"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="noteList" type="List"/>
+            <parameter name="tagList" type="List"/>
+            <parameter name="totalCount" type="Integer"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            noteList = []
+            tagList = []
+            totalCount = 0
+            const L = (text) => ec.l10n.localize(text)
+            const space = ec.service.sync().name('org.moqui.impl.WikiServices.ensure#UserNotesSpace').call()
+            if (ec.message.hasError() || !space?.wikiSpaceId) return
+            wikiSpaceId = space.wikiSpaceId
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiSpacePages').parameters({wikiSpaceId: wikiSpaceId, includeDetail: true}).call()
+            if (ec.message.hasError()) return
+            const toMillis = (value) => {
+                if (value == null || value === '') return null
+                if (typeof value === 'number') return value
+                const text = String(value)
+                if (/^-?\d+$/.test(text)) return Number(text)
+                const parsed = Date.parse(text)
+                return Number.isNaN(parsed) ? null : parsed
+            }
+            const fmt = (millis, pattern) => ec.l10n.format(new Date(Number(millis)), pattern)
+            const nowMillis = Number(String(ec.user.nowTimestamp))
+            const today = fmt(nowMillis, 'yyyy-MM-dd')
+            const year = fmt(nowMillis, 'yyyy')
+            const whenText = (millis) => millis == null ? '' : fmt(millis, 'yyyy-MM-dd') === today ? fmt(millis, 'h:mm a')
+                    : fmt(millis, 'yyyy') === year ? fmt(millis, 'MMM d') : fmt(millis, 'MMM d, yyyy')
+            let all = Array.from(out.allChildFileFlatList || []).filter((item) => item.path && item.wikiPageId).map((item) => {
+                const millis = toMillis(item.modifiedDate)
+                return {wikiPageId: item.wikiPageId, pagePath: item.path, title: item.title || item.name, snippet: item.snippet || '',
+                    millis: millis, whenText: whenText(millis), pinned: !!item.pinned,
+                    tags: Array.from(item.categoryNameList || []).filter((name) => name !== 'Pinned')}
+            })
+            totalCount = all.length
+            const counts = new Map()
+            for (const note of all) for (const name of note.tags) counts.set(name, (counts.get(name) || 0) + 1)
+            tagList = Array.from(counts.entries()).map(([name, count]) => ({name: name, count: count})).sort((a, b) => a.name.localeCompare(b.name))
+            const needle = String(text || '').trim()
+            if (needle) {
+                const lower = needle.toLowerCase()
+                const hits = new Set()
+                ec.message.pushErrors()
+                try {
+                    const found = ec.service.sync().name('ironstone.commons.KnowledgeServices.search#Pages').parameters({text: needle, scope: 'notes', limit: 100}).call()
+                    for (const hit of Array.from(found?.pageList || [])) hits.add(hit.wikiPageId)
+                } catch (err) {
+                    ec.logger.warn(`Notes search for ${needle} failed, the titles only: ${err}`)
+                } finally { ec.message.clearErrors(); ec.message.popErrors() }
+                all = all.filter((note) => hits.has(note.wikiPageId) || note.title.toLowerCase().includes(lower) || note.snippet.toLowerCase().includes(lower)
+                        || note.tags.some((name) => name.toLowerCase().includes(lower)))
+            }
+            if (tag) all = all.filter((note) => note.tags.includes(tag))
+            all.sort((left, right) => (right.pinned ? 1 : 0) - (left.pinned ? 1 : 0) || (right.millis || 0) - (left.millis || 0) || left.title.localeCompare(right.title))
+            noteList = all
+        ]]></script></actions>
+    </service>
+
+    <service verb="create" noun="Note">
+        <description>A new note in the user's notes space (made on first use): named for its title, else "Note" and the time,
+            with a number when the name is taken; its text pageText, else a heading of the title, else empty.</description>
+        <in-parameters>
+            <parameter name="title"/>
+            <parameter name="pageText" allow-html="any"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiPageId"/>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="pagePath"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const space = ec.service.sync().name('org.moqui.impl.WikiServices.ensure#UserNotesSpace').call()
+            if (ec.message.hasError() || !space?.wikiSpaceId) return
+            wikiSpaceId = space.wikiSpaceId
+            const cleanTitle = String(title || '').replace(/[^\w.\-,':()!? ]+/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 80)
+            const base = cleanTitle || (L('Note') + ' ' + ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd HH.mm'))
+            const inUse = (name) => ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', wikiSpaceId).condition('pagePath', name).count() > 0
+            let name = base
+            for (let n = 2; inUse(name) && n < 100; n++) name = `${base} (${n})`
+            const text = pageText != null && String(pageText).length ? String(pageText) : (cleanTitle ? '# ' + String(title).trim() + '\n\n' : '')
+            const saved = ec.service.sync().name('ironstone.commons.KnowledgeServices.create#Page').parameters({wikiSpaceId: wikiSpaceId, pageName: name,
+                pageText: text.length ? text : ' '}).call()
+            if (ec.message.hasError()) return
+            wikiPageId = saved.wikiPageId
+            pagePath = saved.pagePath
+        ]]></script></actions>
+    </service>
+
+    <!-- ========== Spaces ========== -->
+
+    <service verb="get" noun="SpaceList">
+        <description>The spaces the user may view (get#WikiViewScope; no notes space) for the Spaces list: description, pages,
+            who may read and write, members, the public URL, the storage, and what the user may do there.</description>
+        <out-parameters>
+            <parameter name="spaceList" type="List"/>
+            <parameter name="isAdmin" type="Boolean"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            spaceList = []
+            const L = (text) => ec.l10n.localize(text)
+            isAdmin = ec.user.isInGroup('ADMIN')
+            const scope = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiViewScope').call() || {}
+            const viewIds = new Set(Array.from(scope.viewSpaceIdList || []))
+            const storageText = (access) => access.storage === 'git' ? (access.repositoryKind === 'remote' ? L('Git mirror (read only)')
+                    : access.repositoryKind === 'local' ? L('Git on disk') : L('Git in the database')) : (access.storage === 'db' ? L('Database files') : L('Other'))
+            for (const space of Array.from(ec.entity.find('moqui.resource.wiki.WikiSpace').orderBy('description,wikiSpaceId').list())) {
+                if (!viewIds.has(space.wikiSpaceId) || String(space.wikiSpaceId).startsWith('NOTES_')) continue
+                const access = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', space.wikiSpaceId).call() || {}
+                const members = ec.entity.find('moqui.resource.wiki.WikiSpaceUser').condition('wikiSpaceId', space.wikiSpaceId).count()
+                const pages = ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', space.wikiSpaceId).count()
+                const view = space.restrictView === 'Y' ? L('Members') : L('Everyone')
+                const update = space.restrictUpdate === 'Y' ? L('members who may edit') : L('everyone')
+                spaceList.push({wikiSpaceId: space.wikiSpaceId, description: space.description || space.wikiSpaceId, pageCount: pages, memberCount: members,
+                    visibilityText: ec.resource.expand('${view} read · ${update} write', '', {view: view, update: update}),
+                    restrictView: space.restrictView === 'Y', restrictUpdate: space.restrictUpdate === 'Y', publicPageUrl: space.publicPageUrl || null,
+                    storage: access.storage || null, repositoryKind: access.repositoryKind || null, storageText: storageText(access),
+                    canUpdate: !!access.canUpdate, canAdmin: !!access.canAdmin,
+                    youText: access.canAdmin ? L('you administer it') : access.canUpdate ? L('you may edit') : L('you may read')})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="create" noun="Space">
+        <description>A new space (WikiServices.create#WikiSpace: the creator administers it) on the storage chosen: db (database
+            files, the default), gitdb (a git repository in the database), gitlocal (a git repository on disk) or mirror (a
+            read-only mirror of remoteUrl, for administrators); restrictView and restrictUpdate Y keep it to its members. A
+            space that is written to gets a home page of its description.</description>
+        <in-parameters>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="description" required="true"/>
+            <parameter name="storage" default-value="db"/>
+            <parameter name="remoteUrl"/>
+            <parameter name="restrictView"/>
+            <parameter name="restrictUpdate"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="repositoryId"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const kinds = {db: null, gitdb: 'db', gitlocal: 'local', mirror: 'remote'}
+            if (!(storage in kinds)) { ec.message.addError(L('Choose where the space keeps its pages')); return }
+            if (storage === 'mirror' && !ec.user.isInGroup('ADMIN')) { ec.message.addError(L('Only an administrator adds a mirror')); return }
+            const flag = (value) => value === 'Y' || value === true || value === 'true' ? 'Y' : 'N'
+            const id = String(wikiSpaceId || '').trim()
+            const title = String(description || '').trim()
+            const made = ec.service.sync().name('org.moqui.impl.WikiServices.create#WikiSpace').parameters({wikiSpaceId: id, description: title,
+                repositoryKind: kinds[storage], remoteUrl: storage === 'mirror' ? (remoteUrl || null) : null, restrictView: flag(restrictView),
+                restrictUpdate: flag(restrictUpdate), allowAnyHtml: 'N'}).call()
+            if (ec.message.hasError()) return
+            wikiSpaceId = made.wikiSpaceId
+            repositoryId = made.repositoryId || null
+            if (storage !== 'mirror') ec.service.sync().name('org.moqui.impl.WikiServices.update#WikiPage').parameters({wikiSpaceId: wikiSpaceId,
+                pageName: wikiSpaceId, pageText: '# ' + title + '\n\n' + L('The home page of this space: say what the space is for and link to its pages.') + '\n',
+                versionNote: L('New space')}).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="clone" noun="Space">
+        <description>A new space with the pages of a space the user may view (WikiServices.clone#WikiSpace: its members come
+            along, the user administers the new one), on database files or a git repository (gitdb, gitlocal); with
+            copyHistory every version of every page is replayed.</description>
+        <in-parameters>
+            <parameter name="baseWikiSpaceId" required="true"/>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="description"/>
+            <parameter name="storage" default-value="db"/>
+            <parameter name="copyHistory" type="Boolean" default="false"/>
+            <parameter name="copyAttachments" type="Boolean" default="true"/>
+        </in-parameters>
+        <out-parameters>
+            <parameter name="wikiSpaceId"/>
+            <parameter name="versionCount" type="Integer"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const kinds = {db: null, gitdb: 'db', gitlocal: 'local'}
+            if (!(storage in kinds)) { ec.message.addError(L('A clone is kept in database files or a git repository')); return }
+            if (String(baseWikiSpaceId).startsWith('NOTES_')) { ec.message.addError(L('Space not found')); return }
+            const out = ec.service.sync().name('org.moqui.impl.WikiServices.clone#WikiSpace').parameters({baseWikiSpaceId: baseWikiSpaceId,
+                wikiSpaceId: String(wikiSpaceId || '').trim(), description: description ? String(description).trim() : null, repositoryKind: kinds[storage],
+                copyHistory: !!copyHistory, copyAttachments: copyAttachments !== false}).call()
+            if (ec.message.hasError()) return
+            wikiSpaceId = out.wikiSpaceId
+            versionCount = out.versionCount || 0
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="SpaceDetail">
+        <description>A space's settings for SpaceDetail: description, the public URLs, who may read and write, allow any HTML,
+            the storage (for git the repository, its branch, a mirror's URL and the newest commit), the members with their
+            rights, and the restricted pages with who may read or edit each; what the user may do there.</description>
+        <in-parameters><parameter name="wikiSpaceId" required="true"/></in-parameters>
+        <out-parameters>
+            <parameter name="space" type="Map"/>
+            <parameter name="memberList" type="List"/>
+            <parameter name="restrictedPageList" type="List"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            memberList = []
+            restrictedPageList = []
+            const L = (text) => ec.l10n.localize(text)
+            if (String(wikiSpaceId).startsWith('NOTES_')) { ec.message.addError(L('Space not found')); return }
+            const row = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', wikiSpaceId).one()
+            const access = row ? (ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', wikiSpaceId).call() || {}) : {}
+            if (row == null || !access.canView) { ec.message.addError(L('Space not found')); return }
+            const users = {}
+            const userName = (userId) => {
+                if (!userId) return null
+                if (!(userId in users)) {
+                    const account = ec.entity.find('moqui.security.UserAccount').condition('userId', userId).useCache(true).disableAuthz().one()
+                    users[userId] = account ? (account.userFullName || account.username || userId) : userId
+                }
+                return users[userId]
+            }
+            const permissionOf = (member) => member.allowAdmin === 'Y' ? 'admin' : member.allowUpdate === 'Y' ? 'edit' : member.allowView === 'Y' ? 'view' : 'none'
+            const permissionText = {admin: L('Administer'), edit: L('Edit'), view: L('Read'), none: L('No access')}
+            space = {wikiSpaceId: row.wikiSpaceId, description: row.description || '', publicPageUrl: row.publicPageUrl || '',
+                publicAttachmentUrl: row.publicAttachmentUrl || '', restrictView: row.restrictView === 'Y' ? 'Y' : 'N',
+                restrictUpdate: row.restrictUpdate === 'Y' ? 'Y' : 'N', allowAnyHtml: row.allowAnyHtml === 'Y' ? 'Y' : 'N',
+                rootPageLocation: row.rootPageLocation, storage: access.storage, repositoryId: access.repositoryId || null,
+                repositoryKind: access.repositoryKind || null, readOnly: !!access.readOnly, canAdmin: !!access.canAdmin, canUpdate: !!access.canUpdate,
+                isAdminGroup: ec.user.isInGroup('ADMIN')}
+            space.storageText = space.storage === 'git' ? ec.resource.expand('Git repository ${repositoryId} (${kind})', '', {repositoryId: space.repositoryId,
+                    kind: space.repositoryKind === 'remote' ? L('a read-only mirror') : space.repositoryKind === 'local' ? L('on disk') : L('in the database')})
+                    : space.storage === 'db' ? L('Database files') : L('Other')
+            if (space.storage === 'git' && space.repositoryId) {
+                try {
+                    const repo = ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', space.repositoryId).disableAuthz().one()
+                    space.branch = repo?.branch || null
+                    space.remoteUrl = repo?.remoteUrl || null
+                    const head = ec.resource.getLastChange('git://' + space.repositoryId + '/')
+                    space.headCommit = head?.versionName ? String(head.versionName).substring(0, 10) : null
+                    space.headNote = head?.note ? String(head.note).split('\n')[0] : null
+                } catch (err) { ec.logger.warn(`Space ${wikiSpaceId}: the repository not read: ${err}`) }
+            }
+            for (const member of Array.from(ec.entity.find('moqui.resource.wiki.WikiSpaceUser').condition('wikiSpaceId', wikiSpaceId).list())) {
+                const permission = permissionOf(member)
+                memberList.push({userId: member.userId, name: userName(member.userId), permission: permission, permissionText: permissionText[permission],
+                    isMe: member.userId === ec.user.userId})
+            }
+            memberList.sort((a, b) => String(a.name).localeCompare(String(b.name)))
+            const cf = ec.entity.conditionFactory
+            for (const page of Array.from(ec.entity.find('moqui.resource.wiki.WikiPage').condition('wikiSpaceId', wikiSpaceId)
+                    .condition(cf.makeCondition([cf.makeCondition('restrictView', 'equals', 'Y'), cf.makeCondition('restrictUpdate', 'equals', 'Y')], 'or'))
+                    .orderBy('pagePath').list())) {
+                const pageAccess = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiPageId', page.wikiPageId).call() || {}
+                if (!pageAccess.canView && !access.canAdmin) continue
+                const pageUsers = Array.from(ec.entity.find('moqui.resource.wiki.WikiPageUser').condition('wikiPageId', page.wikiPageId).list())
+                        .map((user) => ({userId: user.userId, name: userName(user.userId), permission: user.allowUpdate === 'Y' ? 'edit' : user.allowView === 'Y' ? 'view' : 'none'}))
+                restrictedPageList.push({wikiPageId: page.wikiPageId, pagePath: page.pagePath || '', restrictView: page.restrictView === 'Y',
+                    restrictUpdate: page.restrictUpdate === 'Y', userList: pageUsers,
+                    usersText: pageUsers.map((user) => user.name + ' (' + permissionText[user.permission === 'edit' ? 'edit' : user.permission === 'view' ? 'view' : 'none'] + ')').join(', ')})
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="update" noun="SpaceSettings">
+        <description>A space's settings, by an administrator of it: description, public page and attachment URLs (http or https),
+            and who may read and write (restrictView, restrictUpdate). Allow any HTML is for the ADMIN group only, since a
+            page's HTML then runs in the app's origin.</description>
+        <in-parameters>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="description"/>
+            <parameter name="publicPageUrl"/>
+            <parameter name="publicAttachmentUrl"/>
+            <parameter name="restrictView"/>
+            <parameter name="restrictUpdate"/>
+            <parameter name="allowAnyHtml"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', wikiSpaceId).call() || {}
+            if (!access.canView || String(wikiSpaceId).startsWith('NOTES_')) { ec.message.addError(L('Space not found')); return }
+            if (!access.canAdmin) { ec.message.addError(L('Only an administrator of this space may do that')); return }
+            const url = (value) => {
+                const text = String(value || '').trim()
+                if (text && !/^https?:\/\/[^\s<>"']+$/i.test(text)) { ec.message.addError(L('A public URL starts with http:// or https://')); return null }
+                return text || null
+            }
+            const fields = {wikiSpaceId: wikiSpaceId}
+            if (description != null) fields.description = String(description).trim() || wikiSpaceId
+            if (publicPageUrl != null) fields.publicPageUrl = url(publicPageUrl)
+            if (publicAttachmentUrl != null) fields.publicAttachmentUrl = url(publicAttachmentUrl)
+            if (ec.message.hasError()) return
+            if (restrictView != null && restrictView !== '') fields.restrictView = restrictView === 'Y' ? 'Y' : 'N'
+            if (restrictUpdate != null && restrictUpdate !== '') fields.restrictUpdate = restrictUpdate === 'Y' ? 'Y' : 'N'
+            if (allowAnyHtml != null && allowAnyHtml !== '') {
+                const wanted = allowAnyHtml === 'Y' ? 'Y' : 'N'
+                const space = ec.entity.find('moqui.resource.wiki.WikiSpace').condition('wikiSpaceId', wikiSpaceId).one()
+                if (wanted !== (space?.allowAnyHtml === 'Y' ? 'Y' : 'N')) {
+                    if (!ec.user.isInGroup('ADMIN')) { ec.message.addError(L('Only a system administrator allows any HTML')); return }
+                    fields.allowAnyHtml = wanted
+                }
+            }
+            ec.service.sync().name('update#moqui.resource.wiki.WikiSpace').parameters(fields).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="SpaceMember">
+        <description>Adds a member to a space or changes a member's rights (WikiSpaceUser: view, edit or admin), by an
+            administrator of the space; a space keeps at least one administrator.</description>
+        <in-parameters>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="userId" required="true"/>
+            <parameter name="permission" default-value="view"><description>view, edit or admin</description></parameter>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', wikiSpaceId).call() || {}
+            if (!access.canView || String(wikiSpaceId).startsWith('NOTES_')) { ec.message.addError(L('Space not found')); return }
+            if (!access.canAdmin) { ec.message.addError(L('Only an administrator of this space may do that')); return }
+            if (!['view', 'edit', 'admin'].includes(permission)) { ec.message.addError(L('A member may read, edit or administer')); return }
+            if (ec.entity.find('moqui.security.UserAccount').condition('userId', userId).disableAuthz().one() == null) { ec.message.addError(L('No such user')); return }
+            const flags = {allowView: 'Y', allowUpdate: permission === 'view' ? 'N' : 'Y', allowAdmin: permission === 'admin' ? 'Y' : 'N'}
+            const existing = ec.entity.find('moqui.resource.wiki.WikiSpaceUser').condition({wikiSpaceId: wikiSpaceId, userId: userId}).one()
+            if (existing != null && existing.allowAdmin === 'Y' && flags.allowAdmin !== 'Y') {
+                const admins = ec.entity.find('moqui.resource.wiki.WikiSpaceUser').condition({wikiSpaceId: wikiSpaceId, allowAdmin: 'Y'}).count()
+                if (admins <= 1) { ec.message.addError(L('A space keeps at least one administrator')); return }
+            }
+            const keys = {wikiSpaceId: wikiSpaceId, userId: userId}
+            if (existing == null) ec.service.sync().name('create#moqui.resource.wiki.WikiSpaceUser').parameters(Object.assign({receiveNotifications: 'N'}, keys, flags)).call()
+            else ec.service.sync().name('update#moqui.resource.wiki.WikiSpaceUser').parameters(Object.assign({}, keys, flags)).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="remove" noun="SpaceMember">
+        <description>Takes a member out of a space, by an administrator of the space; a space keeps at least one administrator.</description>
+        <in-parameters>
+            <parameter name="wikiSpaceId" required="true"/>
+            <parameter name="userId" required="true"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const access = ec.service.sync().name('org.moqui.impl.WikiServices.get#WikiPageAccess').parameter('wikiSpaceId', wikiSpaceId).call() || {}
+            if (!access.canView || String(wikiSpaceId).startsWith('NOTES_')) { ec.message.addError(L('Space not found')); return }
+            if (!access.canAdmin) { ec.message.addError(L('Only an administrator of this space may do that')); return }
+            const existing = ec.entity.find('moqui.resource.wiki.WikiSpaceUser').condition({wikiSpaceId: wikiSpaceId, userId: userId}).one()
+            if (existing == null) return
+            if (existing.allowAdmin === 'Y' &&
+                    ec.entity.find('moqui.resource.wiki.WikiSpaceUser').condition({wikiSpaceId: wikiSpaceId, allowAdmin: 'Y'}).count() <= 1) {
+                ec.message.addError(L('A space keeps at least one administrator'))
+                return
+            }
+            existing.delete()
+        ]]></script></actions>
+    </service>
+
+    <service verb="set" noun="PageRestriction">
+        <description>Restricts who may read (restrictView) or edit (restrictUpdate) a page to its page members (WikiPageUser),
+            by an administrator of its space. A page restricted to its readers is not shown to the space's administrators
+            either (only to the ADMIN group), so the administrator who restricts it becomes a page member and it stays theirs
+            to open up; an administrator edits any page they may read, so restrictUpdate alone needs no member.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="restrictView"/>
+            <parameter name="restrictUpdate"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'admin'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            const fields = {wikiPageId: wikiPageId}
+            if (restrictView != null && restrictView !== '') fields.restrictView = restrictView === 'Y' ? 'Y' : 'N'
+            if (restrictUpdate != null && restrictUpdate !== '') fields.restrictUpdate = restrictUpdate === 'Y' ? 'Y' : 'N'
+            if (ec.user.userId && fields.restrictView === 'Y') {
+                const mine = ec.entity.find('moqui.resource.wiki.WikiPageUser').condition({wikiPageId: wikiPageId, userId: ec.user.userId}).one()
+                if (mine == null) ec.service.sync().name('create#moqui.resource.wiki.WikiPageUser').parameters({wikiPageId: wikiPageId, userId: ec.user.userId,
+                    allowView: 'Y', allowUpdate: 'Y', receiveNotifications: 'N'}).call()
+                else if (mine.allowView !== 'Y' || mine.allowUpdate !== 'Y') ec.service.sync().name('update#moqui.resource.wiki.WikiPageUser')
+                        .parameters({wikiPageId: wikiPageId, userId: ec.user.userId, allowView: 'Y', allowUpdate: 'Y'}).call()
+            }
+            ec.service.sync().name('update#moqui.resource.wiki.WikiPage').parameters(fields).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="store" noun="PageMember">
+        <description>Lets a user read (view) or edit a restricted page (WikiPageUser), by an administrator of its space.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="userId" required="true"/>
+            <parameter name="permission" default-value="view"><description>view or edit</description></parameter>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'admin'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            if (ec.entity.find('moqui.security.UserAccount').condition('userId', userId).disableAuthz().one() == null) { ec.message.addError(L('No such user')); return }
+            const flags = {allowView: 'Y', allowUpdate: permission === 'edit' ? 'Y' : 'N'}
+            const keys = {wikiPageId: wikiPageId, userId: userId}
+            if (ec.entity.find('moqui.resource.wiki.WikiPageUser').condition(keys).one() == null)
+                ec.service.sync().name('create#moqui.resource.wiki.WikiPageUser').parameters(Object.assign({receiveNotifications: 'N'}, keys, flags)).call()
+            else ec.service.sync().name('update#moqui.resource.wiki.WikiPageUser').parameters(Object.assign({}, keys, flags)).call()
+        ]]></script></actions>
+    </service>
+
+    <service verb="remove" noun="PageMember">
+        <description>Takes a user's page rights away (WikiPageUser), by an administrator of its space.</description>
+        <in-parameters>
+            <parameter name="wikiPageId" required="true"/>
+            <parameter name="userId" required="true"/>
+        </in-parameters>
+        <actions><script><![CDATA[
+            const ref = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId, need: 'admin'}).call()
+            if (ec.message.hasError() || !ref?.found) return
+            ec.entity.find('moqui.resource.wiki.WikiPageUser').condition({wikiPageId: wikiPageId, userId: userId}).deleteAll()
+        ]]></script></actions>
+    </service>
+</services>

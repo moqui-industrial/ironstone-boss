@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
         mail demo (the files load in name order, each in its own transaction). The organization's intake settings (the types
         Projects offers and triages, the public form), four requests made in the app (an accepted one on ACME with its work item,
         one to triage on ACME, one on IRON in progress with its work, one with no project), and through
-        service/ironstone/RequestDemoServices.xml load#ProjectRequestsDemo IRON's intake: its address on the Support account
+        service/ironstone/projects/RequestDemoServices.xml load#ProjectRequestsDemo IRON's intake: its address on the Support account
         (support+iron@ziziwork.example, the rule that makes requests), its public form (/r/BossDemoIronIntakeForm1), a request
         that arrived by email through the rule and one sent through the form. -->
 
@@ -61,5 +61,5 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.request.RequestParty requestId="BOSS_DEMO_PREQ_TRIAGE" partyId="ORG_ZIZI_JD" roleTypeId="Reporter" fromDate="2026-10-21 09:30:00"/>
 
     <!-- IRON's intake, a request by email and one from the form -->
-    <ironstone.RequestDemoServices.load-ProjectRequestsDemo/>
+    <ironstone.projects.RequestDemoServices.load-ProjectRequestsDemo/>
 </entity-facade-xml>

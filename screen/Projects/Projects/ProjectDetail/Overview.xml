@@ -20,13 +20,13 @@ along with this software (see the LICENSE.md file). If not, see
     the Work items tab's tree under it) and, for managers, Time and budget. Right: Description (edited in place by managers),
     Members, Repositories (with their HTTPS clone URLs, as text: a copy button wants a framework helper; empty without git
     hosting in the build) and Recent activity (status changes,
-    comments, updates and commits). Every box is read by ironstone.ProjectServices.get#ProjectOverview, each on its own. -->
+    comments, updates and commits). Every box is read by ironstone.projects.ProjectServices.get#ProjectOverview, each on its own. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Overview" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
 
     <transition name="saveDescription">
         <actions><script><![CDATA[
-            const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
+            const access = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'manage'}).call()
             if (!ec.message.hasError()) ec.service.sync().name('update#mantle.work.effort.WorkEffort').parameters({workEffortId: workEffortId,
                 description: description == null ? null : String(description)}).call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Description saved'), 'success')
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!recordFound) return
-            overview = ec.service.sync().name('ironstone.ProjectServices.get#ProjectOverview').parameters({workEffortId: workEffortId}).call()?.overview || {}
+            overview = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectOverview').parameters({workEffortId: workEffortId}).call()?.overview || {}
             const L = (text) => ec.l10n.localize(text)
             const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
             const updates = Array.from(overview.updateList || [])

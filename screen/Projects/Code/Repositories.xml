@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Repositories (design-projects.md §7 Repositories; style-guide §3.2 List): the repositories the user may view
-    (org.moqui.impl.GitServices.find#GitRepositories through ironstone.CodeServices.find#Repositories). Chips with their counts:
+    (org.moqui.impl.GitServices.find#GitRepositories through ironstone.projects.CodeServices.find#Repositories). Chips with their counts:
     Mine (of my projects, the default), All, Mirrors and Archived, an archived one left out of the others; the columns
     repository, description, projects, storage, default branch, last change, open merge requests and the clone URLs (as text: a
     copy button wants a framework helper, impl-projects.md §7). New repository (a project's, for those who manage it; any for
@@ -30,7 +30,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="repositoryDetail"><default-response url="../RepositoryDetail"/></transition>
     <transition name="createRepository">
         <actions>
-            <service-call name="ironstone.CodeServices.create#Repository" out-map="createOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
+            <service-call name="ironstone.projects.CodeServices.create#Repository" out-map="createOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
                     description:description, repositoryKind:repositoryKind, contentRepository:(contentRepository || 'N'), importUrl:importUrl}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(createOut.message, 'success'); repositoryId = createOut.repositoryId</script></if>
         </actions>
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkRepository">
         <actions>
-            <service-call name="ironstone.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."/>
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="createMirror">
         <actions>
-            <service-call name="ironstone.CodeServices.create#Mirror" out-map="mirrorOut" in-map="{repositoryId:repositoryId, remoteUrl:remoteUrl, description:description,
+            <service-call name="ironstone.projects.CodeServices.create#Mirror" out-map="mirrorOut" in-map="{repositoryId:repositoryId, remoteUrl:remoteUrl, description:description,
                     username:username, accessToken:accessToken, fetchIntervalMinutes:fetchIntervalMinutes, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(mirrorOut.message, 'success')</script></if>
         </actions>
@@ -66,7 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
             repositoryRows = []; repositoryRowsCount = 0; repositoryRowsPageIndex = 0; repositoryRowsPageSize = 25; repositoryRowsPageMaxIndex = 0
             repositoryRowsPageRangeLow = 0; repositoryRowsPageRangeHigh = 0; listChips = []; projectOptions = []; linkOptions = []
             if (!codeHosting) return
-            const out = ec.service.sync().name('ironstone.CodeServices.find#Repositories').parameters({list: list, text: text || null,
+            const out = ec.service.sync().name('ironstone.projects.CodeServices.find#Repositories').parameters({list: list, text: text || null,
                 pageIndex: Number(pageIndex || 0) || 0, pageSize: 25}).call() || {}
             repositoryRows = Array.from(out.rowList || [])
             repositoryRowsCount = out.rowCount || 0
@@ -79,7 +79,7 @@ along with this software (see the LICENSE.md file). If not, see
                 params: Object.assign({list: key}, text ? {text: text} : {})}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
             if (clientUser) { emptyText = text ? L('No repositories match') : L('No repository is shared with you'); return }
-            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            projectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             linkOptions = Array.from(ec.service.sync().name('org.moqui.impl.GitServices.find#GitRepositories').parameters({pageNoLimit: true}).call()?.repositoryList || [])
                     .map((repo) => ({key: repo.repositoryId, text: repo.repositoryId + (repo.description ? ' · ' + repo.description : '')}))
             const empty = {mine: 'No repository of your projects', all: 'No repositories yet', mirrors: 'No mirrors', archived: 'No archived repositories'}

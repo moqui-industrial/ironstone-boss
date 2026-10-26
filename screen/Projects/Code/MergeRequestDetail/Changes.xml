@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- MergeRequestChanges (design-projects.md §7 MergeRequestChanges; style-guide §3.8 Split, §4.8 .qvue): the diff of a merge request
     with its review threads. The component is Changes.qvue next to this file; every read and change goes through the JSON
-    transitions below, services of ironstone.CodeServices that check the repository's view right (get#MergeRequestChanges over
+    transitions below, services of ironstone.projects.CodeServices that check the repository's view right (get#MergeRequestChanges over
     org.moqui.impl.GitReviewServices.get#MergeRequestDiff and mantle.work.GitServices.get#ReviewThreads; comment#MergeRequest over
     create#ReviewComment; submit#Review; mantle.work.GitServices.resolve#ReviewThread). The diff's lines are data the component
     shows as text, never html, so nothing pushed to the repository runs in the app's origin (impl-projects.md F32). review=true
@@ -30,7 +30,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the files, their hunks and the threads -->
     <transition name="changes" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}
             if (!ec.message.hasError() && !out.found) ec.message.addError(ec.resource.expand('Merge request ${mergeRequestId} is not available', '', {mergeRequestId}))
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {changes: out.changes})
         ]]></script></actions>
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a comment on a line, or a reply to a thread (parentCommEventId) -->
     <transition name="comment">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CodeServices.comment#MergeRequest').parameters({mergeRequestId: mergeRequestId || '', body: body || '',
+            const out = ec.service.sync().name('ironstone.projects.CodeServices.comment#MergeRequest').parameters({mergeRequestId: mergeRequestId || '', body: body || '',
                 path: path || null, oldLine: oldLine ? Number(oldLine) : null, newLine: newLine ? Number(newLine) : null, lineText: lineText || null,
                 parentCommEventId: parentCommEventId || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId})
@@ -60,7 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="submitReview">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CodeServices.submit#Review').parameters({mergeRequestId: mergeRequestId || '', decision: decision || '',
+            const out = ec.service.sync().name('ironstone.projects.CodeServices.submit#Review').parameters({mergeRequestId: mergeRequestId || '', decision: decision || '',
                 note: note || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>

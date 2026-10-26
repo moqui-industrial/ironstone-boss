@@ -26,7 +26,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
-        const setup = ec.service.sync().name('ironstone.CalendarServices.get#CalendarSetup').call()
+        const setup = ec.service.sync().name('ironstone.commons.CalendarServices.get#CalendarSetup').call()
         const defaults = setup.defaults || {}
         const today = setup.todayText || ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')
         startDay = /^\d{4}-\d{2}-\d{2}/.test(String(date || '')) ? String(date).substring(0, 10) : today
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
         const calendars = Array.from(setup.calendarList || [])
         eventList = []
         if (!ec.message.hasError()) {
-            const out = ec.service.sync().name('ironstone.CalendarServices.get#CalendarEvents').parameters({start: startDay, end: endDay,
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.get#CalendarEvents').parameters({start: startDay, end: endDay,
                 calendarIds: calendars.filter((cal) => cal.shown !== false).map((cal) => cal.calendarId).join(','),
                 hiddenCalendarIds: calendars.filter((cal) => cal.shown === false).map((cal) => cal.calendarId).join(','),
                 showDeclined: !!defaults.showDeclined, showTasks: tasks}).call()

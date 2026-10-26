@@ -19,15 +19,15 @@ along with this software (see the LICENSE.md file). If not, see
     the settings only, enforced with impl-projects.md P10), Template and Close or delete. A value the project has not set shows
     the organization's (get#ProjectSettings). Intake (impl-projects.md P5: the mail account and plus tag whose mail makes the
     project's requests, or work items for internal senders, through the project's email rule; the public form on or off, its link
-    rotated; the triage assignee and the default request type; ironstone.ProjectRequestServices get#ProjectIntake,
-    save#ProjectIntake, change#IntakeForm). The Billing box comes with P8; components with the plan items of P4. Service: ironstone.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
+    rotated; the triage assignee and the default request type; ironstone.projects.ProjectRequestServices get#ProjectIntake,
+    save#ProjectIntake, change#IntakeForm). The Billing box comes with P8; components with the plan items of P4. Service: ironstone.projects.ProjectServices get#ProjectSettingsInfo, save#ProjectGeneral, save#ProjectSettingValues,
     set#ProjectTemplateFlag, set#ProjectStatus, delete#EmptyProject. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Settings" default-menu-index="13" menu-image="sym_o_settings" menu-image-type="icon">
 
     <transition name="saveGeneral">
         <actions>
-            <service-call name="ironstone.ProjectServices.save#ProjectGeneral" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+            <service-call name="ironstone.projects.ProjectServices.save#ProjectGeneral" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
                     purposeEnumId:purposeEnumId, priority:priority, visibilityEnumId:visibilityEnumId, colorName:colorName, clientPartyId:clientPartyId,
                     parentWorkEffortId:parentWorkEffortId, estimatedStartDate:estimatedStartDate, estimatedCompletionDate:estimatedCompletionDate,
                     description:description}"/>
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveValues">
         <actions>
-            <service-call name="ironstone.ProjectServices.save#ProjectSettingValues" out-map="saveOut" in-map="{workEffortId:workEffortId, box:box,
+            <service-call name="ironstone.projects.ProjectServices.save#ProjectSettingValues" out-map="saveOut" in-map="{workEffortId:workEffortId, box:box,
                     modules:(box == 'modules' ? (modules ?? []) : null), workItemTypes:(box == 'workItems' ? (workItemTypes ?? []) : null),
                     statusFlowId:statusFlowId, estimateUnit:estimateUnit, severalSprints:(box == 'workItems' ? (severalSprints || 'N') : null),
                     shareNewItems:(box == 'workItems' ? (shareNewItems || 'N') : null), keywordComplete:(box == 'workItems' ? (keywordComplete || 'N') : null),
@@ -52,7 +52,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="setTemplate">
         <actions>
-            <service-call name="ironstone.ProjectServices.set#ProjectTemplateFlag" out-map="flagOut" in-map="{workEffortId:workEffortId, isTemplate:isTemplate}"/>
+            <service-call name="ironstone.projects.ProjectServices.set#ProjectTemplateFlag" out-map="flagOut" in-map="{workEffortId:workEffortId, isTemplate:isTemplate}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(flagOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -60,7 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="setStatus">
         <actions>
-            <service-call name="ironstone.ProjectServices.set#ProjectStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, statusId:statusId}"/>
+            <service-call name="ironstone.projects.ProjectServices.set#ProjectStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, statusId:statusId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -68,7 +68,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteProject">
         <actions>
-            <service-call name="ironstone.ProjectServices.delete#EmptyProject" out-map="deleteOut" in-map="{workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.ProjectServices.delete#EmptyProject" out-map="deleteOut" in-map="{workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deleteOut.message, 'success')</script></if>
         </actions>
         <default-response url="//Projects/Projects/List"/>
@@ -90,7 +90,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveIntake">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.save#ProjectIntake" out-map="saveOut" in-map="{workEffortId:workEffortId,
+            <service-call name="ironstone.projects.ProjectRequestServices.save#ProjectIntake" out-map="saveOut" in-map="{workEffortId:workEffortId,
                     emailAccountId:(emailAccountId ?? ''), plusTag:(plusTag ?? ''), makes:(makes || 'requests'), triagePartyId:(triagePartyId ?? ''),
                     defaultType:(defaultType ?? ''), formOn:(formOn || 'N')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
@@ -100,7 +100,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="changeForm">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.change#IntakeForm" out-map="formOut" in-map="{workEffortId:workEffortId, change:change}"/>
+            <service-call name="ironstone.projects.ProjectRequestServices.change#IntakeForm" out-map="formOut" in-map="{workEffortId:workEffortId, change:change}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(formOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -108,7 +108,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="triageSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -117,9 +117,9 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!recordFound) return
-            info = ec.service.sync().name('ironstone.ProjectServices.get#ProjectSettingsInfo').parameters({workEffortId: workEffortId}).call()?.info || {}
+            info = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectSettingsInfo').parameters({workEffortId: workEffortId}).call()?.info || {}
             // the Intake box: the project's intake and the mail accounts the user manages
-            const intake = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectIntake').parameters({workEffortId: workEffortId}).call()?.intake || {}
+            const intake = ec.service.sync().name('ironstone.projects.ProjectRequestServices.get#ProjectIntake').parameters({workEffortId: workEffortId}).call()?.intake || {}
             intakeValue = {workEffortId: workEffortId, emailAccountId: intake.accountId || '', plusTag: intake.plusTag || '',
                 makes: intake.ruleList?.[0]?.makes || 'requests', triagePartyId: intake.triagePartyId || '', defaultType: intake.defaultType || '', formOn: intake.formOn ? 'Y' : 'N'}
             intakeTriageName = intake.triageName || ''
@@ -143,7 +143,7 @@ along with this software (see the LICENSE.md file). If not, see
             clientAccessValue = Object.assign({workEffortId: workEffortId, box: 'clientAccess'}, info.clientAccess || {})
             codeValue = Object.assign({workEffortId: workEffortId, box: 'code'}, info.code || {})
             typeOptions = info.typeOptions || []
-            programOptions = (ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []).filter((option) => option.key !== workEffortId)
+            programOptions = (ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []).filter((option) => option.key !== workEffortId)
             canManageSettings = !!info.canManage
             canDelete = !!info.canDelete
             statusId = project.statusId

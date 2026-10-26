@@ -1,4 +1,4 @@
-// Commons Files (screen/Commons/Files.xml and Files.qvue, Drives, DriveSettings, service/ironstone/DriveServices.xml,
+// Commons Files (screen/Commons/Files.xml and Files.qvue, Drives, DriveSettings, service/ironstone/commons/DriveServices.xml,
 // impl-drawers-commons.md M8): the browser's JSON transitions under the Commons app root as john.doe on the files demo
 // (data/BossFilesDemoData.xml): the rail, folders with their versions, tags and favorites; new folders and text files,
 // rename, move and copy; uploads with the replace, keep both and skip answers; versions, compare and restore; the trash;
@@ -31,7 +31,7 @@ const message = (answer) => ((answer.json.messageInfos || [])[0] || {}).message 
 
 spec({
     setupSpec() {
-        sys(() => call("ironstone.FilesDemoServices.load#FilesDemo", {}))
+        sys(() => call("ironstone.commons.FilesDemoServices.load#FilesDemo", {}))
         login("john.doe")
         personalDriveId = sys(() => call(`${FILES}.ensure#PersonalDrive`, {})).driveId
     },
@@ -368,7 +368,7 @@ feature("the drives: a new folder drive with members, its settings, a member add
             memberPermissionEnumId: "RdpView" }, "post")
         const drive = sys(() => ec.entity.find("moqui.resource.ResourceDrive").condition("driveName", "Spec drive").one())
         const added = render(commons, "Files/DriveSettings/addMember", { driveId: drive.driveId, memberValue: "user:ORG_ZIZI_BD", permissionEnumId: "RdpEdit" }, "post")
-        const settings = sys(() => call("ironstone.DriveServices.get#DriveSettings", { driveId: drive.driveId }))
+        const settings = sys(() => call("ironstone.commons.DriveServices.get#DriveSettings", { driveId: drive.driveId }))
         const archived = render(commons, "Files/DriveSettings/archiveDrive", { driveId: drive.driveId, archived: "true" }, "post")
         const rail = get("filesData")
         const back = render(commons, "Files/DriveSettings/archiveDrive", { driveId: drive.driveId, archived: "false" }, "post")
@@ -404,7 +404,7 @@ feature("Commons Home lists the recent files; the palette finds files", {
     when() {
         const home = ec.screen.makeTest().rootScreen(commons).renderMode("qvt").withStaticData().render("Home", { lastStandalone: "-2" }, null)
         ec.message.clearErrors()
-        return { home, palette: sys(() => call("ironstone.DriveServices.search#PaletteFiles", { text: "meeting", limit: 5 })) }
+        return { home, palette: sys(() => call("ironstone.commons.DriveServices.search#PaletteFiles", { text: "meeting", limit: 5 })) }
     },
     then({ home, palette }) {
         home.status == 200
@@ -427,7 +427,7 @@ feature("Compose: Attach from Files copies the file onto an email draft or an in
         const items = JSON.stringify([{ driveId: personalDriveId, path: "Documents/Budget 2027.csv" }])
         const email = render(comms, "Inbox/Compose/attachFromFiles", { emailMessageId, itemsJson: items }, "post")
         const internal = render(comms, "Inbox/Compose/attachFromFiles", { itemsJson: items }, "post")
-        const big = sys(() => call("ironstone.ComposeServices.attach#DriveFiles", { itemList: [{ driveId: personalDriveId, path: "Pictures/beach.png" }], maxAttachBytes: 10 }))
+        const big = sys(() => call("ironstone.comms.ComposeServices.attach#DriveFiles", { itemList: [{ driveId: personalDriveId, path: "Pictures/beach.png" }], maxAttachBytes: 10 }))
         const rows = sys(() => Array.from(ec.entity.find("moqui.basic.email.EmailMessageAttachment").condition("emailMessageId", emailMessageId).list()))
         const picker = render(comms, "Inbox/Compose/pickerFolder", { driveId: personalDriveId, path: "Documents" })
         capture.reset()
@@ -451,7 +451,7 @@ feature("Attach from Files refuses a file the user may not open", {
     allowMessageErrors: true,
     when() {
         login("joe.developer")
-        const out = sys(() => call("ironstone.ComposeServices.attach#DriveFiles", { itemList: [{ driveId: personalDriveId, path: "Documents/Welcome.txt" }] }))
+        const out = sys(() => call("ironstone.comms.ComposeServices.attach#DriveFiles", { itemList: [{ driveId: personalDriveId, path: "Documents/Welcome.txt" }] }))
         login("john.doe")
         return out
     },

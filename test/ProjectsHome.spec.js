@@ -1,4 +1,4 @@
-// Projects Home (screen/Projects/Home.xml, service/ironstone/ProjectServices.xml get#ProjectsHome over
+// Projects Home (screen/Projects/Home.xml, service/ironstone/projects/ProjectServices.xml get#ProjectsHome over
 // mantle.work.ProjectServices.get#ProjectHomeCounts; design-projects.md §3 Home; impl-projects.md P2) on the Projects demo
 // (data/BossProjectsDemoData.xml): a manager's counters (with the projects at risk and the milestones soon), my work items,
 // the recent changes and the projects I manage; a team member's Home without the managers' counters; the first-run card for a
@@ -27,7 +27,7 @@ spec({
 
 feature("a manager's Home: the counters with the projects at risk, my work items, the recent changes and the projects I manage", {
     when() {
-        return { home: sys(() => call("ironstone.ProjectServices.get#ProjectsHome", {})).home, page: render("apps/Projects/Home", {}) }
+        return { home: sys(() => call("ironstone.projects.ProjectServices.get#ProjectsHome", {})).home, page: render("apps/Projects/Home", {}) }
     },
     then({ home, page }) {
         home.isManager == true
@@ -59,7 +59,7 @@ feature("a manager's Home: the counters with the projects at risk, my work items
 
 feature("a team member's Home has the team's counters, the work assigned to him and the projects he is on", {
     when() {
-        return as("joe.developer", () => ({ home: sys(() => call("ironstone.ProjectServices.get#ProjectsHome", {})).home, page: render("apps/Projects/Home", {}) }))
+        return as("joe.developer", () => ({ home: sys(() => call("ironstone.projects.ProjectServices.get#ProjectsHome", {})).home, page: render("apps/Projects/Home", {}) }))
     },
     then({ home, page }) {
         home.isManager == false
@@ -84,7 +84,7 @@ feature("a user on no project sees the first-run card", {
         sys(() => call("create#moqui.security.UserGroupMember", { userGroupId: "BOSS_PROJECT_TEAM", userId: ec.entity.find("moqui.security.UserAccount")
             .condition("username", "boss.test.nora").one().userId, fromDate: ec.user.nowTimestamp }))
         login("boss.test.nora", "moqui1!!")
-        try { return { home: sys(() => call("ironstone.ProjectServices.get#ProjectsHome", {})).home, page: render("apps/Projects/Home", {}) } }
+        try { return { home: sys(() => call("ironstone.projects.ProjectServices.get#ProjectsHome", {})).home, page: render("apps/Projects/Home", {}) } }
         finally { login("john.doe") }
     },
     then({ home, page }) {

@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Commons Home (design-drawers-commons.md §5 Home; style-guide §3.1 Landing): a greeting, the first-run setup card (add a
     mail account, import contacts, connect a calendar, install on your phone; Done and Dismiss kept in the COMMONS_SETUP
-    preference), the Today strip (the TodayPanel's items, ironstone.CommonsServices.get#TodayView), five counters in a
+    preference), the Today strip (the TodayPanel's items, ironstone.commons.CommonsServices.get#TodayView), five counters in a
     dashboard (Due today, Overdue, Events today, Unread notifications, Requests assigned), the lists of my work (tasks this
     week, requests assigned, events of the next 7 days) and the shortcuts, which open the shell's quick create, and the recent pages
     (M9) and files (M8). -->
@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
         default-menu-title="Home" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
 
     <transition name="setSetup">
-        <service-call name="ironstone.CommonsServices.set#SetupItem" in-map="{item:item, state:state}"/>
+        <service-call name="ironstone.commons.CommonsServices.set#SetupItem" in-map="{item:item, state:state}"/>
         <default-response url="."/>
     </transition>
     <transition name="taskDetail"><default-response url="../Tasks/TaskDetail"/></transition>
@@ -38,8 +38,8 @@ along with this software (see the LICENSE.md file). If not, see
                 if (source && source.service && !sources.some((known) => known.service === source.service)) sources.push(source)
             sourceServiceNames = sources
         ]]></script>
-        <service-call name="ironstone.CommonsServices.get#TodayView" in-map="{sourceServiceNames:sourceServiceNames}" out-map="today"/>
-        <service-call name="ironstone.CommonsServices.get#SetupItems" out-map="setup"/>
+        <service-call name="ironstone.commons.CommonsServices.get#TodayView" in-map="{sourceServiceNames:sourceServiceNames}" out-map="today"/>
+        <service-call name="ironstone.commons.CommonsServices.get#SetupItems" out-map="setup"/>
         <service-call name="org.moqui.impl.NotificationServices.get#UserNotifications" in-map="{viewed:'N', pageSize:1}" out-map="unreadOut"/>
         <set field="partyId" from="ec.user.userAccount?.partyId"/>
         <script><![CDATA[
@@ -123,19 +123,19 @@ along with this software (see the LICENSE.md file). If not, see
                         whenText: event.allDay ? fmt(Number(event.startMillis), 'EEE MMM d') + ' · ' + ec.l10n.localize('All day') :
                             fmt(Number(event.startMillis), 'EEE MMM d h:mm a') + (event.endMillis ? ' – ' + fmt(Number(event.endMillis), 'h:mm a') : '')}))
         }]]></script>
-        <!-- M9: the pages the user opened or changed lately (ironstone.KnowledgeServices.get#RecentPages, which leaves out what the user
+        <!-- M9: the pages the user opened or changed lately (ironstone.commons.KnowledgeServices.get#RecentPages, which leaves out what the user
             may no longer read); one that cannot be read leaves the card empty -->
         <script><![CDATA[{
             recentPageList = []
-            try { recentPageList = ec.service.sync().name('ironstone.KnowledgeServices.get#RecentPages').parameter('limit', 5).call()?.pageList || [] }
+            try { recentPageList = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#RecentPages').parameter('limit', 5).call()?.pageList || [] }
             catch (err) { ec.logger.warn(`Commons Home: the recent pages not read: ${err && err.message ? err.message : err}`) }
         }]]></script>
-        <!-- M8: the files the user opened or changed lately (ironstone.DriveServices.get#RecentFiles over FileServices.find#Recent, which
+        <!-- M8: the files the user opened or changed lately (ironstone.commons.DriveServices.get#RecentFiles over FileServices.find#Recent, which
             leaves out what the user may no longer open); one that cannot be read leaves the card empty -->
         <script><![CDATA[{
             recentFileList = []
             ec.message.pushErrors()
-            try { recentFileList = Array.from(ec.service.sync().name('ironstone.DriveServices.get#RecentFiles').parameter('limit', 5).call()?.fileList || [])
+            try { recentFileList = Array.from(ec.service.sync().name('ironstone.commons.DriveServices.get#RecentFiles').parameter('limit', 5).call()?.fileList || [])
                     .map((file) => Object.assign({}, file, {placeText: [file.driveName, file.folderPath].filter((part) => part).join(' / ')})) }
             catch (err) { ec.logger.warn(`Commons Home: the recent files not read: ${err && err.message ? err.message : err}`) }
             finally { if (ec.message.hasError()) ec.logger.warn(`Commons Home: the recent files: ${ec.message.getErrorsString()}`); ec.message.clearErrors(); ec.message.popErrors() }

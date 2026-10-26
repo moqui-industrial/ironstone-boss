@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     the user's own notes, the pages of their private notes space (org.moqui.impl.WikiServices.ensure#UserNotesSpace, made on
     first use, always on database files), as a list beside the note being written. The component is Notes.qvue next to this
     file; the note open is in the URL (wikiPageId, as QuickCreate's note kind links to it). Every read and change goes through
-    the JSON transitions below, services of service/ironstone/KnowledgeServices.xml that check the wiki's access rule: the
+    the JSON transitions below, services of service/ironstone/commons/KnowledgeServices.xml that check the wiki's access rule: the
     notes space is its owner's (restrictView and restrictUpdate), so another user's note is "not found". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Notes" default-menu-index="8" render-modes="vue,qvue,tui" server-static="vue,qvue" menu-image="sym_o_sticky_note_2" menu-image-type="icon">
@@ -28,7 +28,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the list: pinned first, then by when changed; text and tag narrow it -->
     <transition name="notes" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#NotesList').parameters({text: text || null, tag: tag || null}).call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#NotesList').parameters({text: text || null, tag: tag || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiSpaceId: out.wikiSpaceId, noteList: out.noteList, tagList: out.tagList,
                 totalCount: out.totalCount})
         ]]></script></actions>
@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a note, as get#PageView answers a page; a page that is not one of the user's notes is not answered -->
     <transition name="note" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#PageView').parameter('wikiPageId', wikiPageId || '').call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageView').parameter('wikiPageId', wikiPageId || '').call()
             if (!ec.message.hasError() && !out.page?.isMyNotes) ec.message.addError(ec.l10n.localize('Note not found'))
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {page: out.page, failedParts: out.failedParts})
         ]]></script></actions>
@@ -46,28 +46,28 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the spaces a note may move to (the user may add pages there) -->
     <transition name="moveTargets" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#KnowledgeSetup').call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#KnowledgeSetup').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {spaceList: Array.from(out.spaceList || []).filter((space) => space.canUpdate)})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="pageOptions" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#SpacePageOptions').parameter('wikiSpaceId', wikiSpaceId || '').call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#SpacePageOptions').parameter('wikiSpaceId', wikiSpaceId || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {optionList: out.optionList})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="history" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#History').parameter('wikiPageId', wikiPageId || '').call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#History').parameter('wikiPageId', wikiPageId || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionList: out.versionList, canRestore: out.canRestore})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="diff" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.get#VersionDiff').parameters({wikiPageId: wikiPageId || '',
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#VersionDiff').parameters({wikiPageId: wikiPageId || '',
                 fromVersionName: fromVersionName || null, toVersionName: toVersionName || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {fromShort: out.fromShort, toShort: out.toShort, html: out.html, stats: out.stats})
         ]]></script></actions>
@@ -75,7 +75,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="searchRecords" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.search#LinkRecords').parameter('term', term || '').call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.search#LinkRecords').parameter('term', term || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
         ]]></script></actions>
         <default-response type="none"/>
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="createNote">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.create#Note').parameters({title: title || null, pageText: pageText || null}).call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.create#Note').parameters({title: title || null, pageText: pageText || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {wikiPageId: out.wikiPageId, pagePath: out.pagePath})
         ]]></script></actions>
         <default-response type="none"/>
@@ -93,10 +93,10 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a save of the editor: on idle (no note) or a named version (versionNote) -->
     <transition name="saveNote">
         <actions><script><![CDATA[
-            const page = ec.service.sync().name('ironstone.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || '', need: 'update'}).call()
+            const page = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageRef').parameters({wikiPageId: wikiPageId || '', need: 'update'}).call()
             if (!ec.message.hasError() && !page?.isMyNotes) ec.message.addError(ec.l10n.localize('Note not found'))
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.save#Page').parameters({wikiPageId: wikiPageId, pageText: pageText ?? '',
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.save#Page').parameters({wikiPageId: wikiPageId, pageText: pageText ?? '',
                 versionNote: versionNote || null, baseVersionName: baseVersionName || null, force: String(force) === 'true', collab: String(collab) === 'true'}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionName: out.versionName, currentVersionName: out.currentVersionName,
                 conflict: out.conflict, conflictText: out.conflictText, savedText: out.savedText,
@@ -106,14 +106,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="setTags">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.set#PageTags').parameters({wikiPageId: wikiPageId || '', tags: tags || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.set#PageTags').parameters({wikiPageId: wikiPageId || '', tags: tags || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {tagList: out.tagList})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="setPinned">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.set#PagePinned').parameters({wikiPageId: wikiPageId || '',
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.set#PagePinned').parameters({wikiPageId: wikiPageId || '',
                 pinned: String(pinned) === 'true'}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {pinned: out.pinned})
         ]]></script></actions>
@@ -121,7 +121,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteNote">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.KnowledgeServices.delete#Page').parameter('wikiPageId', wikiPageId || '').call()
+            ec.service.sync().name('ironstone.commons.KnowledgeServices.delete#Page').parameter('wikiPageId', wikiPageId || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Note deleted')}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -129,7 +129,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- Move to a space: the note becomes a page there, with its history (replayed into a git space) -->
     <transition name="moveNote">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.move#Page').parameters({wikiPageId: wikiPageId || '',
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.move#Page').parameters({wikiPageId: wikiPageId || '',
                 toWikiSpaceId: toWikiSpaceId || '', toParentPath: toParentPath || '', toPageName: toPageName || null, versionNote: versionNote || null}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const link = '/qapps/Commons/Knowledge?wikiPageId=' + encodeURIComponent(wikiPageId)
@@ -140,7 +140,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="restoreVersion">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.KnowledgeServices.restore#Version').parameters({wikiPageId: wikiPageId || '',
+            const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.restore#Version').parameters({wikiPageId: wikiPageId || '',
                 versionName: versionName || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newVersionName: out.newVersionName,
                 messageInfos: [{type: 'success', message: ec.l10n.localize('Restored as the newest version')}]})
@@ -154,7 +154,7 @@ along with this software (see the LICENSE.md file). If not, see
             const bar = value.indexOf('|')
             const entityName = bar > 0 ? value.substring(0, bar) : ''
             const id = bar > 0 ? value.substring(bar + 1) : ''
-            ec.service.sync().name('ironstone.KnowledgeServices.link#PageRecord').parameters({wikiPageId: wikiPageId || '',
+            ec.service.sync().name('ironstone.commons.KnowledgeServices.link#PageRecord').parameters({wikiPageId: wikiPageId || '',
                 recordEntityName: entityName || '', recordId: id || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Linked')}]})
         ]]></script></actions>
@@ -162,7 +162,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkRecord">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.KnowledgeServices.unlink#PageRecord').parameters({wikiPageId: wikiPageId || '',
+            ec.service.sync().name('ironstone.commons.KnowledgeServices.unlink#PageRecord').parameters({wikiPageId: wikiPageId || '',
                 recordEntityName: recordEntityName || '', recordId: recordId || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {})
         ]]></script></actions>

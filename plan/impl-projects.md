@@ -140,7 +140,7 @@ new ExampleDetail). moqui-core 1548 passed, moqui-tui 139, node 187, `./moq test
 - BOSS: `Shared/WorkItemDetail` (Commons mounts it at `Commons/Tasks/TaskDetail`, Projects at `WorkItems/WorkItemDetail`;
   compact with `peek=true`), `Projects/WorkItems/List` (smart lists, find, saved finds, quick add, bulk, the four views,
   peek), `Projects/QuickCreate` (QuickWorkItem; QuickTime says it comes with P6) and the managers' `Projects/QuickProject`
-  (F8, F10); `ironstone.WorkItemServices`; `ironstone.TaskServices` take an `app` (projects: the project's visibility
+  (F8, F10); `ironstone.projects.WorkItemServices`; `ironstone.commons.TaskServices` take an `app` (projects: the project's visibility
   and team); the topic's link and two seeded saved finds; ACME-6 repeats weekly in the demo; specs `WorkItems`,
   `WorkItemDetail`, AppStructure, ProjectsShell and TuiRender updated.
 
@@ -155,7 +155,7 @@ new ExampleDetail). moqui-core 1548 passed, moqui-tui 139, node 187, `./moq test
   internal members); `get#ProjectActivity` (audit-log status changes, comments and updates, commits; each source on its
   own); `get#ProjectHomeCounts` (later phases' counters null); `get#ProjectTemplates`, `create#ProjectTemplate`;
   `TaskServices` `create#`, `update#`, `delete#Label`, `merge#Labels`; `test/WorkProjectHub.spec.js`.
-- BOSS: `ironstone.ProjectServices` (access by `get#ProjectAccess` view, update or manage; the find with board, bulk and
+- BOSS: `ironstone.projects.ProjectServices` (access by `get#ProjectAccess` view, update or manage; the find with board, bulk and
   status; header, overview, team, settings, NewProject steps, rates, Home, the app settings); screens `Projects/List`,
   `ProjectDetail` (Overview, Work items mounting `WorkItems/List`, Team, Files, Settings), `NewProject` (Start, Team,
   Modules, Money, Review), `StatusReport` (print), Home, Settings Index, WorkItemTypes, Workflows, Labels, Templates;
@@ -210,7 +210,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   branches, release tags by version, `search#Code`, merge request and failed-check notices; `WorkGit.secas.xml`;
   `get#RecordLinkInfo` knows GitMergeRequest and GitRepository; topics `MergeRequestReview`, `MergeRequestUpdate`,
   `CommitStatusFailed`; `test/WorkGitReview.spec.js`.
-- BOSS: `ironstone.CodeServices` and `CodeDemoServices`; Repositories, RepositoryDetail (Files, Commits, Branches, Tags,
+- BOSS: `ironstone.projects.CodeServices` and `CodeDemoServices`; Repositories, RepositoryDetail (Files, Commits, Branches, Tags,
   a Merge requests note for P3b2, Activity, Settings), Compare, CommitDetail, GitAccess with the Commons Account box,
   Settings/Code, ProjectDetail's Code tab and Settings Code box; the `!` Code palette source; "Code hosting is not in this
   build" on the lite build; demo `BossProjectsDemoDataCode.xml` (repositories `iron` and more, merge request !1, a failed
@@ -221,7 +221,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
 
 **Built, P3b2** (Oct 22, 2026, after the framework merged the LLM/Assist work as 76cfc8c5):
 - Mantle usl: `get#ProjectHomeCounts` fills `reviewsWaiting` (null without git).
-- BOSS: `ironstone.CodeServices` merge request find (chips with counts), access, detail, changes, edits, reviewers,
+- BOSS: `ironstone.projects.CodeServices` merge request find (chips with counts), access, detail, changes, edits, reviewers,
   review, close and reopen, merge, item links, comments, and the Development tab's `get#WorkItemDevelopment` and
   `create#WorkItemBranch`; `Code/MergeRequests` (Waiting for my review, Mine, Open, Draft, Merged, Closed, All; mounted
   as RepositoryDetail's tab with the repository fixed); `MergeRequestDetail` (Overview with the merge box, items,
@@ -249,7 +249,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   next sprint, a new one or the backlog); `TaskServices` `set#TaskSprint` (scope changes of a running sprint in the
   audit log) and `set#TaskBacklogRank` (the project-wide order); new `ProjectReportServices` `get#SprintBurndown` and
   `get#SprintVelocity`; `test/WorkProjectSprints.spec.js`.
-- BOSS: `ironstone.PlanningServices`; `WorkItems/Backlog.qvue` (ranked leaf backlog and sprint lists, drag or a row menu
+- BOSS: `ironstone.projects.PlanningServices`; `WorkItems/Backlog.qvue` (ranked leaf backlog and sprint lists, drag or a row menu
   to rank and plan, sprint dialogs) with `BacklogTui.xml` (read only), `SprintDetail` (burndown, items, scope changes)
   and `SprintReport` (print, with velocity); ProjectDetail's Backlog tab; the sprint on WorkItems (find with `current`,
   column, board group, bulk, quick add), WorkItemDetail and QuickWorkItem; the Current sprint saved find; demo IRON
@@ -331,7 +331,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   timesheet and keep the lock; Home's hours, expected hours and timesheets to approve; `get#RecordLinkInfo` for
   timesheets; topics TimesheetApproval, TimesheetReturned, TimesheetApproved, TimesheetMissing; permission
   TIMESHEET_APPROVE; the hourly reminder job; `test/WorkTimesheets.spec.js`.
-- BOSS: `ironstone.TimeServices`, `TimeDemoServices`; `Time/MyTime.qvue` (the week by item and day, the timer, submit,
+- BOSS: `ironstone.projects.TimeServices`, `TimeDemoServices`; `Time/MyTime.qvue` (the week by item and day, the timer, submit,
   approve and return for approvers) with `MyTimeTui` (read only), Timesheets (chips, bulk Approve, Return, Remind),
   TimesheetDetail; QuickTime; Home's timer strip, My hours and Approve time counters and Approvals block; Start and
   Stop timer on WorkItemDetail; demo project SUPP with submitted, approved and returned weeks and a running timer;
@@ -364,7 +364,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   `find#StaffingCandidates` ranked by fit, skill, role and free hours); `get#WeekDays(partyId)` now gives capacity;
   Home's allocation requests; permission ALLOCATION_APPROVE; topics AllocationRequest and AllocationDecision;
   `test/WorkResources.spec.js`.
-- BOSS: `ironstone.ResourceServices`, `ResourceDemoServices`; Resources/TeamPlanner (`.qvue`, people by week with
+- BOSS: `ironstone.projects.ResourceServices`, `ResourceDemoServices`; Resources/TeamPlanner (`.qvue`, people by week with
   capacity against allocations, overbooked weeks marked, bars dragged by days, requests hatched; `TeamPlannerTui` read
   only), Allocations (with Edit and Staff), PersonDetail (Overview, Allocations, Work items, Time, Capacity);
   ProjectDetail Team's Allocations box; NewProject Team's hours a week; Home's counter and approvals; demo people,
@@ -387,7 +387,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   update; `create#ProjectInvoiceItems` passes them, takes expenses and settlement terms and writes `WorkEffortInvoice`;
   `delete#InvoiceItem` frees its time; `get#InvoiceTimeDetail`; `ProjectServices.get#UnbilledSummary` (money holders
   only; exact amounts per entry, totals by client) and Home's unbilled amount; `test/WorkProjectBilling.spec.js`.
-- BOSS: `ironstone.BillingServices` (`check#Money`: TIME_ENTRY_RATE or ADMIN) and `BillingDemoServices`; Billing/Unbilled
+- BOSS: `ironstone.projects.BillingServices` (`check#Money`: TIME_ENTRY_RATE or ADMIN) and `BillingDemoServices`; Billing/Unbilled
   with the invoice dialog (approved entries only, each ticked), Invoices (with To send), `Shared/InvoiceDetail`
   (approve and post, send by email with the PDF, cancel, edit, remove a line; payments read only), InvoicePrint
   (html-print and PDF), Rates (with Which rate), Settings/Billing; Home's Unbilled counter and ProjectDetail's Unbilled
@@ -425,7 +425,7 @@ tests, `GitHosting.spec.js` 3 of 3, node 191 of 191.
   F70 fixed (over the estimate only with an estimate); F86 fixed (`find#TimeEntries` amounts from the RateAmount);
   `test/WorkProjectReports.spec.js`.
 - BOSS: Reports index and Time, WorkItems, Sprints (velocity), Portfolio, Progress, Profitability and Utilization
-  (parameters, number cards, `m-chart` with a terminal twin, tables with CSV and XLSX, print); `ironstone.ReportServices`
+  (parameters, number cards, `m-chart` with a terminal twin, tables with CSV and XLSX, print); `ironstone.projects.ReportServices`
   (chart config, options); Home's Hours by project and Unbilled by client charts; TimesheetPrint and TeamTimesheet
   prints; Profitability and Utilization for managers only; demo ACME time; `test/Reports.spec.js` (every report on the
   demo in qvt, html-print and tui, measures recomputed, joe sees no money).
@@ -528,7 +528,7 @@ Made during the build; each one that changes the design is also written into des
 | Oct 21, 2026 | Merge requests: added `get#MergeRequest` (what blocks the merge, what the user may do), `check#MergeRequest`, `queue#MergeRequestEvent`; a draft cannot merge, an author cannot approve their own, one open request per source and target, numbers max+1 under a unique index | P3a |
 | Oct 21, 2026 | `code-view` takes `file-name` for the language by extension; the language is never guessed | P3a |
 | Oct 21, 2026 | "May open Projects" for links reads `ArtifactAuthzCheckView` (allow and no deny on the root), since `isPermitted` under the Commons root's inheritable ALWAYS answers true for everyone | P1 |
-| Oct 22, 2026 | The shared WorkItemDetail picks its context by the app root's `appRoot`; `ironstone.TaskServices` take `app` (commons or projects): in Projects an item of a project the user sees is visible and the project's team changes it, in Commons the owner and assignees as before | P2 |
+| Oct 22, 2026 | The shared WorkItemDetail picks its context by the app root's `appRoot`; `ironstone.commons.TaskServices` take `app` (commons or projects): in Projects an item of a project the user sees is visible and the project's team changes it, in Commons the owner and assignees as before | P2 |
 | Oct 22, 2026 | `set#TaskRank` and `move#Task` take `previousSiblingId` (the tree's name, P1) rather than the design's `afterWorkEffortId` | P2 |
 | Oct 22, 2026 | The + menu's Project kind is a screen of its own, `Projects/QuickProject`, in `BOSS_PROJECTS_MANAGERS`, so the team is not offered it (F8) | P2 |
 | Oct 22, 2026 | ProjectDetail's later tabs (Backlog, Plan, Roadmap, Requests, Code, Docs, Time, Money) are added by their phases; the Modules box already stores which are on | P2 |

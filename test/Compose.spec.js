@@ -1,4 +1,4 @@
-// The composer (screen/Comms/Inbox/Compose.xml and Compose.qvue, service/ironstone/ComposeServices.xml, impl-drawers-commons.md
+// The composer (screen/Comms/Inbox/Compose.xml and Compose.qvue, service/ironstone/comms/ComposeServices.xml, impl-drawers-commons.md
 // M5b, M5c), its JSON transitions under the Comms app root as john.doe, with the framework's mail capture so a send goes with
 // no mail server (docs/Testing.md "Mail"): what a new message, a reply, a reply all, a forward with its files and a draft start
 // with; the recipient search for email and for internal messages; drafts saved and opened again; a send now, a send held for
@@ -34,7 +34,7 @@ const settle = () => ec.factory.waitWorkerPoolEmpty(100)
 
 spec({
     setupSpec() {
-        sys(() => call("ironstone.MailDemoServices.load#MailDemo", {}))
+        sys(() => call("ironstone.comms.MailDemoServices.load#MailDemo", {}))
         login("john.doe")
         capture.enable()
         // an account with an SMTP host, which the capture never connects to

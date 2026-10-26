@@ -1,4 +1,4 @@
-// Commons Tasks and TaskDetail (screen/Commons/Tasks/List.xml and TaskDetail.xml, service/ironstone/TaskServices.xml,
+// Commons Tasks and TaskDetail (screen/Commons/Tasks/List.xml and TaskDetail.xml, service/ironstone/commons/TaskServices.xml,
 // template/StatusBar.xml; impl-drawers-commons.md M6, design-drawers-commons.md §8): john.doe's smart lists on the demo
 // (data/BossDemoData.xml, DemoServices.load#TasksDemo with the Today demo of load#CommonsDemo); the list with its chips, the
 // quick-add row, the done checks, the in-place due and priority, the bulk actions and the row actions; TaskDetail with its
@@ -46,7 +46,7 @@ const all = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityNa
 const current = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields)
         .condition(ec.entity.conditionFactory.makeConditionDate("fromDate", "thruDate", null)).list()))
 // a smart list as the screen asks for it, every row on one page
-const rows = (list, parameters) => sys(() => call("ironstone.TaskServices.find#TaskRows", Object.assign({ list, pageSize: 200 }, parameters || {})))
+const rows = (list, parameters) => sys(() => call("ironstone.commons.TaskServices.find#TaskRows", Object.assign({ list, pageSize: 200 }, parameters || {})))
 const idsOf = (out) => (out.rowList || []).map((row) => row.workEffortId)
 const dayOf = (value) => value == null || value === "" ? "" : ec.l10n.format(value, "yyyy-MM-dd")
 const keep = (map) => JSON.stringify(map || { list: "all" })
@@ -65,7 +65,7 @@ spec({
         tomorrowText = ec.l10n.format(String(start + 30 * 3600000), "yyyy-MM-dd")
         inThreeText = ec.l10n.format(String(start + 78 * 3600000), "yyyy-MM-dd")
         // the demo again, so this spec sees its records as loaded whatever ran before
-        sys(() => call("ironstone.DemoServices.load#TasksDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#TasksDemo", {}))
     },
 })
 

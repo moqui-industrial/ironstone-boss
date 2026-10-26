@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The project status report (design-projects.md §14; style-guide §8 Print documents), ProjectDetail's Print status report:
     with renderMode=html-print a printed page of the project's health and latest update, its next milestones, its work items by
-    status, its top-level items, and for those who manage it the hours and budget (ironstone.ProjectServices get#ProjectHeader and
+    status, its top-level items, and for those who manage it the hours and budget (ironstone.projects.ProjectServices get#ProjectHeader and
     get#ProjectOverview), every value escaped. A sibling of ProjectDetail, so the page has none of the detail's header and tabs;
     in another render mode it links to the printed page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -23,7 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="workEffortId" required="true"/>
 
     <actions>
-        <service-call name="ironstone.ProjectServices.get#ProjectHeader" in-map="{workEffortId:workEffortId}" out-map="headerOut"/>
+        <service-call name="ironstone.projects.ProjectServices.get#ProjectHeader" in-map="{workEffortId:workEffortId}" out-map="headerOut"/>
         <script><![CDATA[
             recordFound = !!headerOut.visible
             const L = (text) => ec.l10n.localize(text)
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
             printUrl = '/apps/Projects/Projects/StatusReport?renderMode=html-print&workEffortId=' + encodeURIComponent(workEffortId)
             if (!recordFound) { printHtml = '<p>' + enc(L('This project is not available')) + '</p>'; return }
             const header = headerOut.header
-            const overview = ec.service.sync().name('ironstone.ProjectServices.get#ProjectOverview').parameters({workEffortId: workEffortId}).call()?.overview || {}
+            const overview = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectOverview').parameters({workEffortId: workEffortId}).call()?.overview || {}
             const row = (label, value) => value ? '<tr><td class="field-title">' + enc(L(label)) + '</td><td class="field-value">' + value + '</td></tr>' : ''
             const lines = (text) => enc(text).replace(/\n/g, '<br>')
             const table = (heads, rows) => rows.length ? '<table class="list"><tr>' + heads.map((head) => '<th>' + enc(L(head)) + '</th>').join('') + '</tr>'

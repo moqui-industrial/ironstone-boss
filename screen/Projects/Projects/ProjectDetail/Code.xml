@@ -19,14 +19,14 @@ along with this software (see the LICENSE.md file). If not, see
     so with the Code module off it says so and, for managers, points to Settings. Without git hosting in the build it says so.
     A client contact (clientUser; impl-projects.md P10b) sees the repositories the project shares with it (WstShareRepositories:
     check#GitRepositoryAuthz gives it the view right), their HTTPS clone URLs, recent commits, open merge requests and tags, read
-    only, and when the project shares none, that its code is not shared. Services: ironstone.CodeServices get#ProjectCode, create#Repository, link#Repository,
+    only, and when the project shares none, that its code is not shared. Services: ironstone.projects.CodeServices get#ProjectCode, create#Repository, link#Repository,
     unlink#Repository, unlink#RefWorkEffort. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Code" default-menu-index="7" menu-image="sym_o_code" menu-image-type="icon">
 
     <transition name="createRepository">
         <actions>
-            <service-call name="ironstone.CodeServices.create#Repository" out-map="createOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
+            <service-call name="ironstone.projects.CodeServices.create#Repository" out-map="createOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
                     description:description, repositoryKind:repositoryKind, contentRepository:(contentRepository || 'N'), importUrl:importUrl}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(createOut.message, 'success')</script></if>
         </actions>
@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkRepository">
         <actions>
-            <service-call name="ironstone.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkRepository">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -51,7 +51,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkTag">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:tagWorkEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:tagWorkEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -62,12 +62,12 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             if (!recordFound) return
             pageWorkEffortId = workEffortId
-            codeHosting = !!ec.service.sync().name('ironstone.CodeServices.get#CodeHosting').call()?.available
+            codeHosting = !!ec.service.sync().name('ironstone.projects.CodeServices.get#CodeHosting').call()?.available
             const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
             codeOn = String(settings.WstModules || '').split(',').includes('code')
             repositoryList = []; mergeRequestList = []; commitList = []; tagList = []; linkOptions = []
             if (!codeHosting) return
-            const code = ec.service.sync().name('ironstone.CodeServices.get#ProjectCode').parameters({workEffortId: workEffortId}).call()?.code || {}
+            const code = ec.service.sync().name('ironstone.projects.CodeServices.get#ProjectCode').parameters({workEffortId: workEffortId}).call()?.code || {}
             repositoryList = Array.from(code.repositoryList || [])
             mergeRequestList = Array.from(code.mergeRequestList || [])
             commitList = Array.from(code.commitList || [])

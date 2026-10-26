@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     dialog the dock pops out to, a page at Comms/Inbox/Compose (a draft by emailMessageId; mailto-style to, cc, bcc, subject
     and body; a reply or forward), and the composer of quick create and of Chatter's "Email…" (recordEntity and recordId give
     the "File on" chip). Quick create's dialog loads it in its best client mode (qvue), and the component reads its query
-    from mScreen wherever it is. The JSON transitions below are service/ironstone/ComposeServices.xml: the sender is always the
+    from mScreen wherever it is. The JSON transitions below are service/ironstone/comms/ComposeServices.xml: the sender is always the
     user, from an account the user may send from, and a file is one these services stored. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Compose" default-menu-include="false" render-modes="vue,qvue,tui" server-static="vue,qvue">
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- what the composer starts with: identities, recipients, subject, body, quote, attachments, the record chip -->
     <transition name="composeData" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.get#ComposeData').parameters({emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.get#ComposeData').parameters({emailMessageId: emailMessageId || null,
                 replyToEmailMessageId: replyToEmailMessageId || null, forwardEmailMessageId: forwardEmailMessageId || null,
                 replyAll: String(replyAll) === 'true', replyToCommEventId: replyToCommEventId || null, replyToSender: String(replyToSender) === 'true',
                 contactListId: contactListId || null, to: to || null, cc: cc || null, bcc: bcc || null, subject: subject || null, body: body || null,
@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the recipient chips' search: addresses for email, users and mailboxes for an internal message -->
     <transition name="recipients" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.search#Recipients').parameters({term: term || '', mode: mode || 'email'}).call()
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.search#Recipients').parameters({term: term || '', mode: mode || 'email'}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
         ]]></script></actions>
         <default-response type="none"/>
@@ -57,7 +57,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveDraft">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.save#ComposeDraft').parameters({emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.save#ComposeDraft').parameters({emailMessageId: emailMessageId || null,
                 fromValue: fromValue || '', toJson: toJson || '[]', ccJson: ccJson || '[]', bccJson: bccJson || '[]', subject: subject ?? '', body: body ?? '',
                 bodyText: bodyText || null, quoteHtml: quoteHtml || null, parentEmailMessageId: parentEmailMessageId || null,
                 isForward: String(isForward) === 'true'}).call()
@@ -67,7 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="upload">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.upload#ComposeAttachment').parameters({emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.upload#ComposeAttachment').parameters({emailMessageId: emailMessageId || null,
                 contentFile: contentFile || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {attachmentList: out.attachmentList, uploadList: out.uploadList})
         ]]></script></actions>
@@ -78,7 +78,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             let items = []
             try { items = JSON.parse(itemsJson || '[]') } catch (err) { items = [] }
-            const out = ec.service.sync().name('ironstone.ComposeServices.attach#DriveFiles').parameters({emailMessageId: emailMessageId || null, itemList: items}).call()
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.attach#DriveFiles').parameters({emailMessageId: emailMessageId || null, itemList: items}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const infos = []
             for (const failed of Array.from(out.failedList || [])) infos.push({type: 'warning', message: failed.name + ': ' + failed.error})
@@ -92,7 +92,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition-include name="pickerSearch" location="component://mr-boss/template/FilePickerTransitions.xml"/>
     <transition name="removeAttachment">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.remove#ComposeAttachment').parameters({emailMessageId: emailMessageId || '',
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.remove#ComposeAttachment').parameters({emailMessageId: emailMessageId || '',
                 emailMessageAttachmentId: emailMessageAttachmentId || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {attachmentList: out.attachmentList})
         ]]></script></actions>
@@ -101,7 +101,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the send: the user's own party and accounts only, whatever the request carries (no fromPartyId is read) -->
     <transition name="send">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.send#Compose').parameters({fromValue: fromValue || '', emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.send#Compose').parameters({fromValue: fromValue || '', emailMessageId: emailMessageId || null,
                 toJson: toJson || '[]', ccJson: ccJson || '[]', bccJson: bccJson || '[]', subject: subject ?? '', body: body ?? '', bodyText: bodyText || null,
                 quoteHtml: quoteHtml || null, parentEmailMessageId: parentEmailMessageId || null, isForward: String(isForward) === 'true',
                 parentCommEventId: parentCommEventId || null, replyToSenderOnly: String(replyToSenderOnly) === 'true', uploadsJson: uploadsJson || null,
@@ -115,7 +115,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cancelSend">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ComposeServices.cancel#ComposeSend').parameters({emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.ComposeServices.cancel#ComposeSend').parameters({emailMessageId: emailMessageId || null,
                 communicationEventIdsJson: communicationEventIdsJson || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {statusId: out.statusId})
         ]]></script></actions>
@@ -131,7 +131,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="discard">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.ComposeServices.discard#ComposeDraft').parameter('emailMessageId', emailMessageId || '').call()
+            ec.service.sync().name('ironstone.comms.ComposeServices.discard#ComposeDraft').parameter('emailMessageId', emailMessageId || '').call()
             ec.web.sendJsonResponse({})
         ]]></script></actions>
         <default-response type="none"/>

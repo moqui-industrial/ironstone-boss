@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     Detail): one task or work item, mounted by Commons at Commons/Tasks/TaskDetail and by Projects at
     Projects/WorkItems/WorkItemDetail; the app root's appRoot chooses the context (design §5 "Per-app context").
 
-    Commons (design-drawers-commons.md §8 TaskDetail, service/ironstone/TaskServices.xml get#TaskDetail): the name, the status as
+    Commons (design-drawers-commons.md §8 TaskDetail, service/ironstone/commons/TaskServices.xml get#TaskDetail): the name, the status as
     a row of stage chips with the next status as the primary action and Hold and Cancel beside it (the framework's status-bar),
     the due date, the priority and the assignees, and the actions Reassign, Set due, Add to Today, and in More Clone, Convert to
     request and Delete (own, with no time logged). The tabs: Overview (description, purpose, project, the records the task is
@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     files) and Chatter, which is the right column of the overview from 1440 px and a tab below (opening on Log note). The
     planning fields are left out. The changes are for the task's owner and assignees.
 
-    Projects (service/ironstone/WorkItemServices.xml get#WorkItemDetail): above the title the item's path (the project, then
+    Projects (service/ironstone/projects/WorkItemServices.xml get#WorkItemDetail): above the title the item's path (the project, then
     each ancestor); the type icon, the key and the title; the status-bar of the item's flow (the development flow's In Review
     and In Testing too); the facts (assignees, due, priority, its estimate and the one with sub-items, milestone, release,
     sprint (a link to its SprintDetail), labels) and the repeat rule in words. Actions: Assign to me, Reassign, Set due, Edit
@@ -34,10 +34,10 @@ along with this software (see the LICENSE.md file). If not, see
     (description, details, labels, requests, linked records, people; Chatter beside it from 1440 px), Sub-items (the subtree
     as a view-tree, one level per open, with roll-ups, drag and Tab to move within it, and a quick-add row), Links (relations
     by kind, a dependency with its lag), Time (the user's own entries, as Commons; in Projects also everyone's time on the item, with
-    the amounts for the Projects managers, ironstone.TimeServices.get#ItemTime, impl-projects.md P6b), Development (when the item's project has the Code module on or a repository linked: its branches with
+    the amounts for the Projects managers, ironstone.projects.TimeServices.get#ItemTime, impl-projects.md P6b), Development (when the item's project has the Code module on or a repository linked: its branches with
     ahead and behind, merge request and checks, Create branch and New merge request; its merge requests, commits and tags;
-    ironstone.CodeServices get#WorkItemDevelopment, read only when the tab is open), Files and Chatter.
-    The team of the item's project, its owner and assignees may change it (ironstone.TaskServices.get#TaskAccess app
+    ironstone.projects.CodeServices get#WorkItemDevelopment, read only when the tab is open), Files and Chatter.
+    The team of the item's project, its owner and assignees may change it (ironstone.commons.TaskServices.get#TaskAccess app
     projects). The timer (impl-projects.md P6a): Start timer beside Assign to me, or Stop timer with the elapsed time while the
     user's timer runs on the item; one timer runs per person, so a start stops a timer on another item
     (mantle.work.TimesheetServices.start#Timer); the Time tab's Clock in and Clock out are the same timer (Start and Stop timer in
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== changes, each showing the item again on its tab ========== -->
     <transition name="changeStatus">
         <actions>
-            <service-call name="ironstone.TaskServices.set#TaskStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, toStatusId:toStatusId,
+            <service-call name="ironstone.commons.TaskServices.set#TaskStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, toStatusId:toStatusId,
                     resolutionEnumId:(resolutionEnumId || null), stopRepeating:(stopRepeating || null), app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
         </actions>
@@ -67,7 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="updateTask">
         <actions>
-            <service-call name="ironstone.TaskServices.update#TaskInfo" out-map="updateOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+            <service-call name="ironstone.commons.TaskServices.update#TaskInfo" out-map="updateOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
                     purposeEnumId:purposeEnumId, description:description, priority:priority, dueDate:dueDate, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
         </actions>
@@ -76,7 +76,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="setDue">
         <actions>
-            <service-call name="ironstone.TaskServices.update#TaskField" out-map="dueOut" in-map="{workEffortId:workEffortId, field:'due', value:(dueDate || ''),
+            <service-call name="ironstone.commons.TaskServices.update#TaskField" out-map="dueOut" in-map="{workEffortId:workEffortId, field:'due', value:(dueDate || ''),
                     app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(dueOut.message, 'success')</script></if>
         </actions>
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="reassign">
         <actions>
-            <service-call name="ironstone.TaskServices.reassign#Task" out-map="reassignOut" in-map="{workEffortId:workEffortId, assignToPartyId:assignToPartyId,
+            <service-call name="ironstone.commons.TaskServices.reassign#Task" out-map="reassignOut" in-map="{workEffortId:workEffortId, assignToPartyId:assignToPartyId,
                     app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reassignOut.message, 'success')</script></if>
         </actions>
@@ -94,7 +94,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addToToday">
         <actions>
-            <service-call name="ironstone.TaskServices.add#TaskToToday" out-map="todayOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.add#TaskToToday" out-map="todayOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(todayOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
@@ -102,7 +102,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cloneTask">
         <actions>
-            <service-call name="ironstone.TaskServices.clone#Task" out-map="cloneOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.clone#Task" out-map="cloneOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cloneOut.message, 'success')</script></if>
         </actions>
         <conditional-response url="." condition="cloneOut?.newWorkEffortId"><parameter name="workEffortId" from="cloneOut.newWorkEffortId"/></conditional-response>
@@ -111,7 +111,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="convertToRequest">
         <actions>
-            <service-call name="ironstone.TaskServices.convert#TaskToRequest" out-map="convertOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.convert#TaskToRequest" out-map="convertOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(convertOut.message, 'success')</script></if>
         </actions>
         <conditional-response url="//Commons/Requests/RequestDetail" condition="convertOut?.requestId">
@@ -121,7 +121,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteTask">
         <actions>
-            <service-call name="ironstone.TaskServices.delete#OwnTask" out-map="deleteOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.delete#OwnTask" out-map="deleteOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deleteOut.message, 'success')</script></if>
         </actions>
         <conditional-response url="../List" condition="deleteOut?.message"/>
@@ -131,7 +131,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- sub-tasks (Commons): subTaskId is the sub-task, workEffortId stays the task shown -->
     <transition name="addSubTask">
         <actions>
-            <service-call name="ironstone.TaskServices.add#SubTask" out-map="subOut" in-map="{workEffortId:workEffortId, workEffortName:(workEffortName || ''),
+            <service-call name="ironstone.commons.TaskServices.add#SubTask" out-map="subOut" in-map="{workEffortId:workEffortId, workEffortName:(workEffortName || ''),
                     dueDate:(dueDate || null), app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(subOut.message, 'success')</script></if>
         </actions>
@@ -140,7 +140,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="toggleSubTask">
         <actions>
-            <service-call name="ironstone.TaskServices.toggle#TaskDone" out-map="doneOut" in-map="{workEffortId:subTaskId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.toggle#TaskDone" out-map="doneOut" in-map="{workEffortId:subTaskId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(doneOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="subtasks"/></default-response>
@@ -149,7 +149,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- time -->
     <transition name="clockIn">
         <actions>
-            <service-call name="ironstone.TaskServices.clockIn#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, comments:comments, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.clockIn#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, comments:comments, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
@@ -157,7 +157,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="clockOut">
         <actions>
-            <service-call name="ironstone.TaskServices.clockOut#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.clockOut#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="time"/></default-response>
@@ -166,7 +166,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the header's timer, back on the same tab -->
     <transition name="startTimer">
         <actions>
-            <service-call name="ironstone.TaskServices.clockIn#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.clockIn#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
@@ -174,7 +174,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="stopTimer">
         <actions>
-            <service-call name="ironstone.TaskServices.clockOut#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
+            <service-call name="ironstone.commons.TaskServices.clockOut#Task" out-map="timeOut" in-map="{workEffortId:workEffortId, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
@@ -182,7 +182,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addTime">
         <actions>
-            <service-call name="ironstone.TaskServices.add#TimeOnTask" out-map="timeOut" in-map="{workEffortId:workEffortId, hours:hours,
+            <service-call name="ironstone.commons.TaskServices.add#TimeOnTask" out-map="timeOut" in-map="{workEffortId:workEffortId, hours:hours,
                     fromDate:(fromDate || null), comments:comments, app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
         </actions>
@@ -191,7 +191,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteTime">
         <actions>
-            <service-call name="ironstone.TaskServices.delete#MyTimeEntry" out-map="timeOut" in-map="{workEffortId:workEffortId, timeEntryId:timeEntryId,
+            <service-call name="ironstone.commons.TaskServices.delete#MyTimeEntry" out-map="timeOut" in-map="{workEffortId:workEffortId, timeEntryId:timeEntryId,
                     app:(appRoot == 'Projects' ? 'projects' : 'commons')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timeOut.message, 'success')</script></if>
         </actions>
@@ -201,7 +201,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people of the reassign drop-down -->
     <transition name="assigneeSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -211,7 +211,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Edit dialog: each field that changed, through update#WorkItemField; the first refused stops it -->
     <transition name="saveWorkItem">
         <actions><script><![CDATA[
-            const detail = ec.service.sync().name('ironstone.WorkItemServices.get#WorkItemDetail').parameters({workEffortId: workEffortId}).call() || {}
+            const detail = ec.service.sync().name('ironstone.projects.WorkItemServices.get#WorkItemDetail').parameters({workEffortId: workEffortId}).call() || {}
             if (!ec.message.hasError() && detail.detail?.visible) {
                 const task = detail.detail.task || {}
                 const item = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', workEffortId).one()
@@ -236,7 +236,7 @@ along with this software (see the LICENSE.md file). If not, see
                     const same = ['estimate', 'remaining', 'points', 'budget'].includes(field) ? (value === '' ? before === '' : before !== '' && Number(value) === Number(before))
                             : value === before
                     if (same) continue
-                    ec.service.sync().name('ironstone.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: field === 'resolution' ? 'resolution' : field,
+                    ec.service.sync().name('ironstone.projects.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: field === 'resolution' ? 'resolution' : field,
                         value: value}).call()
                     if (ec.message.hasError()) break
                     changed++
@@ -249,7 +249,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="assignToMe">
         <actions>
-            <service-call name="ironstone.WorkItemServices.update#WorkItemField" out-map="fieldOut"
+            <service-call name="ironstone.projects.WorkItemServices.update#WorkItemField" out-map="fieldOut"
                     in-map="{workEffortId:workEffortId, field:'assignee', value:ec.user.userAccount?.partyId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fieldOut.message, 'success')</script></if>
         </actions>
@@ -258,7 +258,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addLabel">
         <actions>
-            <service-call name="ironstone.WorkItemServices.update#WorkItemField" out-map="fieldOut" in-map="{workEffortId:workEffortId, field:'label', value:labelId}"/>
+            <service-call name="ironstone.projects.WorkItemServices.update#WorkItemField" out-map="fieldOut" in-map="{workEffortId:workEffortId, field:'label', value:labelId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fieldOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
@@ -266,7 +266,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeLabel">
         <actions>
-            <service-call name="ironstone.WorkItemServices.update#WorkItemField" out-map="fieldOut" in-map="{workEffortId:workEffortId, field:'unlabel', value:labelId}"/>
+            <service-call name="ironstone.projects.WorkItemServices.update#WorkItemField" out-map="fieldOut" in-map="{workEffortId:workEffortId, field:'unlabel', value:labelId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fieldOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
@@ -274,7 +274,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="setRepeat">
         <actions>
-            <service-call name="ironstone.WorkItemServices.set#WorkItemRecurrence" out-map="repeatOut" in-map="{workEffortId:workEffortId, frequency:(frequency || null),
+            <service-call name="ironstone.projects.WorkItemServices.set#WorkItemRecurrence" out-map="repeatOut" in-map="{workEffortId:workEffortId, frequency:(frequency || null),
                     interval:(interval || 1), byDay:(byDay || null), byMonthDay:(byMonthDay || null), count:(count || null), until:(until || null),
                     fromCompletion:(fromCompletion || 'N')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(repeatOut.message, 'success')</script></if>
@@ -284,7 +284,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="watch">
         <actions>
-            <service-call name="ironstone.ChatterServices.follow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <service-call name="ironstone.shared.ChatterServices.follow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
@@ -292,7 +292,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unwatch">
         <actions>
-            <service-call name="ironstone.ChatterServices.unfollow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <service-call name="ironstone.shared.ChatterServices.unfollow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab"/></default-response>
@@ -300,7 +300,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="moveToProject">
         <actions>
-            <service-call name="ironstone.WorkItemServices.bulk#WorkItems" out-map="moveOut" in-map="{action:'moveToProject', workEffortIds:[workEffortId], value:rootWorkEffortId}"/>
+            <service-call name="ironstone.projects.WorkItemServices.bulk#WorkItems" out-map="moveOut" in-map="{action:'moveToProject', workEffortIds:[workEffortId], value:rootWorkEffortId}"/>
             <script><![CDATA[
                 if (!ec.message.hasError()) {
                     if (moveOut.failedCount) ec.message.addError(moveOut.failures[0].reason)
@@ -313,7 +313,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addLink">
         <actions>
-            <service-call name="ironstone.WorkItemServices.add#WorkItemLink" out-map="linkOut" in-map="{workEffortId:workEffortId, kind:kind,
+            <service-call name="ironstone.projects.WorkItemServices.add#WorkItemLink" out-map="linkOut" in-map="{workEffortId:workEffortId, kind:kind,
                     otherWorkEffortId:otherWorkEffortId, lagDays:(lagDays || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
@@ -322,7 +322,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeLink">
         <actions>
-            <service-call name="ironstone.WorkItemServices.remove#WorkItemLink" out-map="linkOut" in-map="{workEffortId:workEffortId, fromWorkEffortId:fromWorkEffortId,
+            <service-call name="ironstone.projects.WorkItemServices.remove#WorkItemLink" out-map="linkOut" in-map="{workEffortId:workEffortId, fromWorkEffortId:fromWorkEffortId,
                     toWorkEffortId:toWorkEffortId, workEffortAssocTypeEnumId:workEffortAssocTypeEnumId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
@@ -331,7 +331,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addSubItem">
         <actions>
-            <service-call name="ironstone.WorkItemServices.quickAdd#WorkItem" out-map="addOut" in-map="{parentWorkEffortId:(underId || workEffortId),
+            <service-call name="ironstone.projects.WorkItemServices.quickAdd#WorkItem" out-map="addOut" in-map="{parentWorkEffortId:(underId || workEffortId),
                     workEffortName:(workEffortName || ''), purposeEnumId:(purposeEnumId || null), assignToPartyId:(assignToPartyId || null),
                     estimatedWorkTime:(estimatedWorkTime || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
@@ -345,7 +345,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const level = ec.service.sync().name('mantle.work.ProjectServices.get#WorkItemTree').parameters({parentWorkEffortId: parentWorkEffortId || workEffortId}).call() || {}
             const rows = Array.from(level.workItemList || [])
-            const decorated = rows.length ? (ec.service.sync().name('ironstone.WorkItemServices.decorate#WorkItemRows').parameters({taskList: rows}).call()?.rowList || []) : []
+            const decorated = rows.length ? (ec.service.sync().name('ironstone.projects.WorkItemServices.decorate#WorkItemRows').parameters({taskList: rows}).call()?.rowList || []) : []
             ec.web.sendJsonResponse({subItemList: decorated.map((row) => Object.assign(row, {subItemId: row.workEffortId,
                 parentWorkEffortId: row.parentWorkEffortId === workEffortId ? '' : row.parentWorkEffortId}))})
         ]]></script></actions>
@@ -354,7 +354,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="moveSubItem" method="post">
         <parameter name="workEffortId"/>
         <actions><script><![CDATA[
-            const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: subItemId, need: 'update', app: 'projects'}).call()
+            const access = ec.service.sync().name('ironstone.commons.TaskServices.get#TaskAccess').parameters({workEffortId: subItemId, need: 'update', app: 'projects'}).call()
             let out = null
             if (!ec.message.hasError()) out = ec.service.sync().name('mantle.work.TaskServices.move#Task').parameters({workEffortId: subItemId,
                 parentWorkEffortId: parentWorkEffortId || workEffortId, previousSiblingId: previousSiblingId || null}).call()
@@ -365,7 +365,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Development tab: a branch for the item, and a branch's or a commit's link taken off -->
     <transition name="createBranch">
         <actions>
-            <service-call name="ironstone.CodeServices.create#WorkItemBranch" out-map="branchOut" in-map="{workEffortId:workEffortId, repositoryId:(repositoryId || null),
+            <service-call name="ironstone.projects.CodeServices.create#WorkItemBranch" out-map="branchOut" in-map="{workEffortId:workEffortId, repositoryId:(repositoryId || null),
                     fromRef:(fromRef || null), branchName:(branchName || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(branchOut.message, 'success')</script></if>
         </actions>
@@ -374,7 +374,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkBranch">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#RefWorkEffort" out-map="unlinkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#RefWorkEffort" out-map="unlinkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="development"/></default-response>
@@ -382,7 +382,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkCommit">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#CommitItem" out-map="unlinkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#CommitItem" out-map="unlinkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="tab" value="development"/></default-response>
@@ -390,7 +390,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="parentSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.WorkItemServices.search#ParentOptions" in-map="{workEffortId:workEffortId, term:term}" out-map="found"/>
+            <service-call name="ironstone.projects.WorkItemServices.search#ParentOptions" in-map="{workEffortId:workEffortId, term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse([{value: '', label: ec.l10n.localize('None (a top-level item)')}].concat(found.optionList || []))</script>
         </actions>
         <default-response type="none"/>
@@ -422,10 +422,10 @@ along with this software (see the LICENSE.md file). If not, see
             tab = tabKeys.includes(tab) ? tab : 'overview'
             let extra = {}
             if (projects) {
-                extra = ec.service.sync().name('ironstone.WorkItemServices.get#WorkItemDetail').parameters({workEffortId: workEffortId}).call() || {}
+                extra = ec.service.sync().name('ironstone.projects.WorkItemServices.get#WorkItemDetail').parameters({workEffortId: workEffortId}).call() || {}
                 detail = extra.detail || {}
             } else {
-                detail = ec.service.sync().name('ironstone.TaskServices.get#TaskDetail').parameters({workEffortId: workEffortId}).call() || {}
+                detail = ec.service.sync().name('ironstone.commons.TaskServices.get#TaskDetail').parameters({workEffortId: workEffortId}).call() || {}
             }
             recordFound = !!detail.visible
             if (!recordFound) return
@@ -450,7 +450,7 @@ along with this software (see the LICENSE.md file). If not, see
             itemTime = null
             if (projects && tab == 'time') {
                 ec.message.pushErrors()
-                try { itemTime = ec.service.sync().name('ironstone.TimeServices.get#ItemTime').parameters({workEffortId: workEffortId}).call()?.itemTime || null }
+                try { itemTime = ec.service.sync().name('ironstone.projects.TimeServices.get#ItemTime').parameters({workEffortId: workEffortId}).call()?.itemTime || null }
                 finally { ec.message.clearErrors(); ec.message.popErrors() }
             }
             itemTimeRows = Array.from(itemTime?.rowList || [])
@@ -549,15 +549,15 @@ along with this software (see the LICENSE.md file). If not, see
                         .filter((entry) => entry[1] != null && entry[1] !== '').map(([label, value]) => ({label: L(label), value: String(value)}))
                 // the drop-downs of the Edit dialog
                 const options = (service, parameters) => ec.service.sync().name(service).parameters(parameters).call()?.optionList || []
-                milestoneOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetMilestone'})
-                releaseOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetRelease'})
-                componentOptions = options('ironstone.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetComponent'})
+                milestoneOptions = options('ironstone.projects.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetMilestone'})
+                releaseOptions = options('ironstone.projects.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetRelease'})
+                componentOptions = options('ironstone.projects.WorkItemServices.get#PlanItemOptions', {rootWorkEffortId: item.rootWorkEffortId, workEffortTypeEnumId: 'WetComponent'})
                 // the open sprints, and the item's own when it is complete (so an edit keeps it)
-                sprintOptions = options('ironstone.PlanningServices.get#SprintOptions', {rootWorkEffortId: item.rootWorkEffortId})
+                sprintOptions = options('ironstone.projects.PlanningServices.get#SprintOptions', {rootWorkEffortId: item.rootWorkEffortId})
                 if (planItems.sprint && !sprintOptions.some((option) => option.key === planItems.sprint.workEffortId))
                     sprintOptions.push({key: planItems.sprint.workEffortId, text: planItems.sprint.name})
-                labelOptions = options('ironstone.WorkItemServices.get#LabelOptions', {}).filter((option) => !labelList.some((label) => label.labelId === option.key))
-                projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+                labelOptions = options('ironstone.projects.WorkItemServices.get#LabelOptions', {}).filter((option) => !labelList.some((label) => label.labelId === option.key))
+                projectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
                 parentText = item.parentWorkEffortId ? item.parentWorkEffortId + ' ' + (task.parentName || '') : ''
                 keyChipHtml = '<q-chip dense square class="q-ma-none q-mr-sm text-mono m-workitem-key">' + enc(workEffortId) + '</q-chip>'
                 repeatParts = {}
@@ -565,7 +565,7 @@ along with this software (see the LICENSE.md file). If not, see
                 // the Development tab's records, read only when it is open
                 development = {hosting: false, branchList: [], mergeRequestList: [], commitList: [], tagList: [], pushRepositoryOptions: [], repositoryList: []}
                 if (tab === 'development') {
-                    development = ec.service.sync().name('ironstone.CodeServices.get#WorkItemDevelopment').parameters({workEffortId: workEffortId}).call()?.development || development
+                    development = ec.service.sync().name('ironstone.projects.CodeServices.get#WorkItemDevelopment').parameters({workEffortId: workEffortId}).call()?.development || development
                     ec.message.clearErrors()
                     devRepositoryId = development.pushRepositoryOptions?.length === 1 ? development.pushRepositoryOptions[0].key : ''
                     devBranchList = development.branchList || []; devMergeRequestList = development.mergeRequestList || []

@@ -1,5 +1,5 @@
 // NotificationsPanel and the Notifications center (screen/Commons/Panel/Notifications.xml, screen/Commons/Notifications.xml;
-// impl-drawers-commons.md M2 as changed Oct 19): john.doe's demo notifications (service/ironstone/DemoServices.xml) in the
+// impl-drawers-commons.md M2 as changed Oct 19): john.doe's demo notifications (service/ironstone/commons/DemoServices.xml) in the
 // Notifications inbox with the approval waiting, and in the automatic Updates inbox; the reason chips; opening a row marks it
 // read and answers its record's screen; mark all read leaves the approval waiting; approve and refuse (with the reason the
 // demo topic requires) go through the framework's services to the demo topic's, which note the decision on the record.
@@ -32,7 +32,7 @@ const notes = () => sys(() => ec.entity.find("mantle.request.RequestCommEvent").
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.DemoServices.load#CommonsDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#CommonsDemo", {}))
     },
 })
 
@@ -177,7 +177,7 @@ feature("Approve in the tab calls the demo topic's approve service, which notes 
 feature("Refuse with a reason in the center notes the decision and its reason", {
     when() {
         // a second approval, from the demo again
-        sys(() => call("ironstone.DemoServices.load#CommonsDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#CommonsDemo", {}))
         const refused = post("Notifications/refuse", { notificationMessageId: "BOSS_DEMO_NM_APPROVAL", reason: "Not this year" })
         return { refused, notes: notes() }
     },

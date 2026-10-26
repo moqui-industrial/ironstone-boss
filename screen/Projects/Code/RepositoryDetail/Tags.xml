@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- RepositoryTags (design-projects.md §7 RepositoryTags): the tags, newest first, with the commit, the date, the tagger and
     message of an annotated tag, and the project, milestone, release or work item each is linked to (by name, a release's
     version, or by hand); Link (to a key) and Remove a link for those who may push, Delete for those with the delete right, and
-    New tag (annotated when given a message). Services: ironstone.CodeServices get#RepositoryTags, link#RefWorkEffort,
+    New tag (annotated when given a message). Services: ironstone.projects.CodeServices get#RepositoryTags, link#RefWorkEffort,
     unlink#RefWorkEffort; org.moqui.impl.GitServices create#GitRef, delete#GitRef. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Tags" default-menu-index="4" menu-image="sym_o_tag" menu-image-type="icon">
@@ -40,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkTag">
         <actions>
-            <service-call name="ironstone.CodeServices.link#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.link#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="repositoryId"/></default-response>
@@ -48,7 +48,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkTag">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="repositoryId"/></default-response>
@@ -58,9 +58,9 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!recordFound) return
-            tagList = Array.from(ec.service.sync().name('ironstone.CodeServices.get#RepositoryTags').parameters({repositoryId: repositoryId}).call()?.tagList || [])
+            tagList = Array.from(ec.service.sync().name('ironstone.projects.CodeServices.get#RepositoryTags').parameters({repositoryId: repositoryId}).call()?.tagList || [])
                     .map((tag) => Object.assign(tag, {mayDelete: canDelete && !isArchived}))
-            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+            refOptions = ec.service.sync().name('ironstone.projects.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
         ]]></script>
     </actions>
 

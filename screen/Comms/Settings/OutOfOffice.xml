@@ -20,14 +20,14 @@ along with this software (see the LICENSE.md file). If not, see
     the owner's own or shared contact books, or in the directory, as mantle.party.ContactBookServices.filter#ContactAddresses
     answers, the STRT_EMAIL_CONTACT_SERVICE theme value data/BossSetupData.xml sets); and the same reply on every account at
     once. The framework sends it from the sync (send#OutOfOfficeReplies: never to lists, bulk mail, other
-    automatic replies or spam). ironstone.MailSettingsServices get and store#OutOfOffice; the access is the framework's. -->
+    automatic replies or spam). ironstone.comms.MailSettingsServices get and store#OutOfOffice; the access is the framework's. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Out of office" default-menu-index="4" server-static="qvt" menu-image="sym_o_do_not_disturb_on" menu-image-type="icon">
 
     <parameter name="emailAccountId"/>
 
     <transition name="storeReply">
-        <service-call name="ironstone.MailSettingsServices.store#OutOfOffice" out-map="storeOut" in-map="{emailAccountId:emailAccountId, enabled:(enabled == 'Y' ? 'Y' : 'N'),
+        <service-call name="ironstone.comms.MailSettingsServices.store#OutOfOffice" out-map="storeOut" in-map="{emailAccountId:emailAccountId, enabled:(enabled == 'Y' ? 'Y' : 'N'),
                 fromDate:(fromDate || null), thruDate:(thruDate || null), subject:subject, bodyHtml:bodyHtml, internalBodyHtml:internalBodyHtml,
                 replyOncePerDays:replyOncePerDays, replyAudienceEnumId:(replyAudienceEnumId || null), internalDomains:internalDomains, applyToAll:applyToAll}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">${enabled == 'Y' ? (storeOut.storedCount &gt; 1 ? 'Automatic reply saved on ' + storeOut.storedCount + ' accounts' : 'Automatic reply saved') : 'Automatic reply off'}</message></if></actions>
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.MailSettingsServices.get#OutOfOfficeSettings" in-map="{emailAccountId:emailAccountId}" out-map="oooOut"/>
+        <service-call name="ironstone.comms.MailSettingsServices.get#OutOfOfficeSettings" in-map="{emailAccountId:emailAccountId}" out-map="oooOut"/>
         <script><![CDATA[
             oooAccounts = Array.from(oooOut?.accountList || [])
             hasAccounts = oooAccounts.length > 0

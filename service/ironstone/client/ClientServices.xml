@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The client contact's own writes in Projects (design-projects.md §1.1, §15 Client access and Chatter for client users;
     impl-projects.md P10b). A client (the Mantle permission PROJECT_CLIENT) is denied every other IronStone write service
-    (BOSS_PROJECTS_INTERNAL's service pattern, which names ironstone.<Class>.<verb>#..., one package level, so this file's
+    (BOSS_PROJECTS_INTERNAL's service pattern names the app packages commons, comms, projects and shared, and not client, so this file's
     ironstone.client.ClientServices is not in it) and every create, update and delete of a Mantle entity
     (BOSS_PROJECTS_CLIENT_WRITES). These services are the only ways through, each the narrowest that works:
     - send#ChatterMessage and reply#ChatterMessage: a Message from the client to the record's internal people, on a record the
@@ -301,10 +301,10 @@ along with this software (see the LICENSE.md file). If not, see
                 home.counts.milestones30 = home.milestoneList.length
             })
             part('invoices', () => {
-                // the client's invoices (ironstone.BillingServices.get#ClientInvoices: to its parties on its sign-in projects, sent, never a
+                // the client's invoices (ironstone.projects.BillingServices.get#ClientInvoices: to its parties on its sign-in projects, sent, never a
                 // draft or an approved one not sent), the unpaid ones
                 let due = 0
-                const ids = Object.keys(ec.service.sync().name('ironstone.BillingServices.get#ClientInvoices').call()?.invoiceMap || {})
+                const ids = Object.keys(ec.service.sync().name('ironstone.projects.BillingServices.get#ClientInvoices').call()?.invoiceMap || {})
                 if (ec.message.hasError()) return
                 if (ids.length) for (const row of ec.entity.find('mantle.account.invoice.Invoice').condition('invoiceId', 'in', ids)
                         .condition('statusId', 'in', ['InvoiceSent', 'InvoiceAcked']).orderBy('dueDate').limit(50).list()) {
@@ -390,7 +390,7 @@ along with this software (see the LICENSE.md file). If not, see
             <service-call name="mantle.party.CommunicationServices.get#RecordLinkInfo" out-map="linkInfo"
                     in-map="{recordEntityName:recordEntityName, recordId:recordId, checkRecord:false}"/>
             <if condition="ec.message.hasError()"><return/></if>
-            <service-call name="ironstone.ChatterServices.check#CommEventOnRecord" out-map="parentOut"
+            <service-call name="ironstone.shared.ChatterServices.check#CommEventOnRecord" out-map="parentOut"
                     in-map="{info:linkInfo, recordId:recordId, communicationEventId:parentCommEventId}"/>
             <if condition="ec.message.hasError()"><return/></if>
             <service-call name="ironstone.client.ClientServices.check#ClientRecordUrl" in-map="{recordUrl:recordUrl}" out-map="urlOut"/>

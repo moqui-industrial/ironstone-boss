@@ -25,13 +25,13 @@ along with this software (see the LICENSE.md file). If not, see
         oooText = null
         ec.message.pushErrors()
         try {
-            const list = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountList').call()
+            const list = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#MailAccountList').call()
             if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
             const count = list?.mailAccountCount || 0, problems = list?.problemCount || 0
             accountsText = count === 0 ? L('No mail account yet') : (count === 1 ? L('1 account') : ec.resource.expand('${n} accounts', '', {n: count}))
                 + (problems ? ' · ' + (problems === 1 ? L('1 needs your attention') : ec.resource.expand('${n} need your attention', '', {n: problems})) : '')
             accountsProblem = problems > 0
-            const ooo = ec.service.sync().name('ironstone.MailSettingsServices.get#OutOfOfficeSettings').call()
+            const ooo = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#OutOfOfficeSettings').call()
             if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
             const on = Array.from(ooo?.accountList || []).filter((account) => account.isOn).length
             oooText = on ? L('On now') : L('Off')

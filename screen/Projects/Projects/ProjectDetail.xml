@@ -13,14 +13,14 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- ProjectDetail (design-projects.md §4 ProjectDetail; style-guide §3.3 Detail): the project hub, which the palette and
-    notification links of a project open (ironstone.PaletteServices.get#RecordLink). The title row: the key as a mono chip, the
+    notification links of a project open (ironstone.commons.PaletteServices.get#RecordLink). The title row: the key as a mono chip, the
     name, the stages of the Default flow (read only: the moves are the actions), the health chip with the date of the latest
     update, the client and the manager; the number cards (open items, overdue, the next milestone, the hours of the budget or
     the estimate, and for managers the client budget used); the primary action by status (Approve, Begin, Resume, Close,
     Re-open), Post update beside it (the primary in progress), and the More menu (the other moves of the flow, Follow, Clone,
     Save as template, Print status report). New work item is the Work items tab's and the shell's +, which takes the project
     from the screen context. A template shows its banner, a closed or cancelled project is read only but for
-    Re-open (service/ironstone/ProjectServices.xml get#ProjectHeader).
+    Re-open (service/ironstone/projects/ProjectServices.xml get#ProjectHeader).
 
     The tabs are subscreens, each with the project as its context: Overview (1), Work items (2, WorkItems/List with the project
     fixed), Backlog (3, WorkItems/Backlog with the project fixed), Plan (4, ProjectDetail/Plan: WorkItems/Timeline with the project
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the project for the tabs, which the client loads on their own (their actions run without this screen's): visible and
         managed by the user, cheap enough for every transition (a task's id in a Work items transition is not a project) -->
     <always-actions><script><![CDATA[
-        const projectAccess = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId || '', need: 'none'}).call() || {}
+        const projectAccess = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId || '', need: 'none'}).call() || {}
         recordFound = !!projectAccess.canView
         project = projectAccess.project || null
         projectTabId = recordFound ? workEffortId : null
@@ -72,7 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="projects"><default-response url="../List"/></transition>
     <transition name="changeStatus">
         <actions>
-            <service-call name="ironstone.ProjectServices.set#ProjectStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, statusId:statusId}"/>
+            <service-call name="ironstone.projects.ProjectServices.set#ProjectStatus" out-map="statusOut" in-map="{workEffortId:workEffortId, statusId:statusId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -80,7 +80,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="postUpdate">
         <actions>
-            <service-call name="ironstone.ProjectServices.post#ProjectUpdate" out-map="updateOut" in-map="{workEffortId:workEffortId, healthEnumId:healthEnumId,
+            <service-call name="ironstone.projects.ProjectServices.post#ProjectUpdate" out-map="updateOut" in-map="{workEffortId:workEffortId, healthEnumId:healthEnumId,
                     percentComplete:percentComplete, body:body, clientVisible:clientVisible}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
         </actions>
@@ -89,7 +89,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="follow">
         <actions>
-            <service-call name="ironstone.ChatterServices.follow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <service-call name="ironstone.shared.ChatterServices.follow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -97,7 +97,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unfollow">
         <actions>
-            <service-call name="ironstone.ChatterServices.unfollow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
+            <service-call name="ironstone.shared.ChatterServices.unfollow#Record" out-map="followOut" in-map="{recordEntityName:'mantle.work.effort.WorkEffort', recordId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(followOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -105,7 +105,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cloneProject">
         <actions>
-            <service-call name="ironstone.ProjectServices.create#NewProject" out-map="cloneOut" in-map="{workEffortId:newWorkEffortId, workEffortName:newWorkEffortName,
+            <service-call name="ironstone.projects.ProjectServices.create#NewProject" out-map="cloneOut" in-map="{workEffortId:newWorkEffortId, workEffortName:newWorkEffortName,
                     templateWorkEffortId:(isTemplate == 'Y' ? workEffortId : null), cloneFromWorkEffortId:(isTemplate == 'Y' ? null : workEffortId),
                     clientPartyId:null}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cloneOut.message, 'success'); workEffortId = cloneOut.projectId</script></if>
@@ -115,7 +115,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveAsTemplate">
         <actions>
-            <service-call name="ironstone.ProjectServices.save#ProjectAsTemplate" out-map="templateOut" in-map="{baseWorkEffortId:workEffortId,
+            <service-call name="ironstone.projects.ProjectServices.save#ProjectAsTemplate" out-map="templateOut" in-map="{baseWorkEffortId:workEffortId,
                     workEffortId:templateWorkEffortId, workEffortName:templateName}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(templateOut.message, 'success'); workEffortId = templateOut.templateId</script></if>
         </actions>
@@ -124,7 +124,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.ProjectServices.get#ProjectHeader" in-map="{workEffortId:workEffortId}" out-map="headerOut"/>
+        <service-call name="ironstone.projects.ProjectServices.get#ProjectHeader" in-map="{workEffortId:workEffortId}" out-map="headerOut"/>
         <script><![CDATA[
             if (!recordFound || !headerOut.visible) return
             const L = (text) => ec.l10n.localize(text)

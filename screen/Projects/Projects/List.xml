@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Projects (design-projects.md §4 Projects; style-guide §3.2 List, §3.6 Board): the projects the user sees, not templates
-    (service/ironstone/ProjectServices.xml find#Projects, impl-projects.md F1). A chip row with the counts (Active, Mine,
+    (service/ironstone/projects/ProjectServices.xml find#Projects, impl-projects.md F1). A chip row with the counts (Active, Mine,
     Planned, On hold, At risk, Completed, Closed, All) and Show sub-projects (each program's sub-projects indented under it, its
     numbers summing theirs); the find in the list's dialog (text or key, status, health, client, manager, purpose, program, due
     period), with saved finds; the columns key, name, client, manager, status and health chips, progress (items done), next
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the bulk changes: selectedIds (a comma list), the change and its value -->
     <transition name="bulkAction">
         <actions>
-            <service-call name="ironstone.ProjectServices.bulk#Projects" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedIds || ''), value:(value || null)}"/>
+            <service-call name="ironstone.projects.ProjectServices.bulk#Projects" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedIds || ''), value:(value || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
             <script><![CDATA[
                 let kept = {}
@@ -66,7 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the board: a card moved to another status column -->
     <transition name="moveCard">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ProjectServices.set#ProjectStatus').parameters({workEffortId: workEffortId, statusId: statusId || ''}).call()
+            const out = ec.service.sync().name('ironstone.projects.ProjectServices.set#ProjectStatus').parameters({workEffortId: workEffortId, statusId: statusId || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -86,7 +86,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="peopleSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -111,7 +111,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (ctx('due_thru')) dueThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('due_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
             const noLimit = param('pageNoLimit') === 'true'
-            const out = ec.service.sync().name('ironstone.ProjectServices.find#Projects').parameters({list: list, text: text || null, statusId: statusId || null,
+            const out = ec.service.sync().name('ironstone.projects.ProjectServices.find#Projects').parameters({list: list, text: text || null, statusId: statusId || null,
                 healthEnumId: healthEnumId || null, clientPartyId: clientPartyId || null, managerPartyId: managerPartyId || null, purposeEnumId: purposeEnumId || null,
                 parentWorkEffortId: parentWorkEffortId || null, subProjects: subProjects || null, dueFrom: dueFrom, dueThru: dueThru, orderByField: orderByField || null,
                 pageIndex: Number(pageIndex || 0) || 0, pageSize: 25, pageNoLimit: noLimit, withCounts: !noLimit}).call() || {}
@@ -138,7 +138,7 @@ along with this software (see the LICENSE.md file). If not, see
             subProjectsOn = subProjects === 'Y'
             subProjectsParams = Object.assign({list: list}, find, subProjectsOn ? {} : {subProjects: 'Y'})
             isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
-            programOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            programOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             const empty = {active: 'No active projects', mine: 'You are on no open project', planned: 'No projects in planning', onHold: 'No projects on hold',
                 atRisk: 'No projects at risk', completed: 'No completed projects', closed: 'No closed projects', all: 'No projects yet'}
             emptyText = filtered ? L('No projects match') : L(empty[list])

@@ -17,25 +17,25 @@ along with this software (see the LICENSE.md file). If not, see
     or off; the rule editor (match all or any of the conditions on from, to, cc, subject, the text, a file attached, the
     mailing list, the size or any header; the actions move, label, mark read, flag, forward, delete, Spam and stop) with its
     Test, which lists the messages of the newest 50 of a folder the rule as edited matches, without acting on them, each
-    opening its thread in the Inbox (ironstone.MailSettingsServices.test#Rule over the framework's test#EmailRule, whose
+    opening its thread in the Inbox (ironstone.comms.MailSettingsServices.test#Rule over the framework's test#EmailRule, whose
     matches carry the thread); Run now over a folder; and the blocked
     senders (block#Sender's rules) with Unblock and Block an address. Rules run on the server as the sync stores new Inbox
     mail. The component is Rules.qvue next to this file (qvue render mode); its JSON transitions below are
-    ironstone.MailSettingsServices get#RulesView, store#Rule and test#Rule and the framework's rule services, which check that
+    ironstone.comms.MailSettingsServices get#RulesView, store#Rule and test#Rule and the framework's rule services, which check that
     the user may change each rule (its owner, or a manager of its account) and normalize them. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Rules" default-menu-index="3" render-modes="vue,qvue,tui" server-static="vue,qvue" menu-image="sym_o_rule" menu-image-type="icon">
 
     <transition name="rulesData" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.MailSettingsServices.get#RulesView').call()
+            const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#RulesView').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {ruleList: out.ruleList, blockedList: out.blockedList, accountList: out.accountList})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="saveRule">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.MailSettingsServices.store#Rule').parameters({emailRuleId: emailRuleId || null, ruleName: ruleName || '',
+            const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.store#Rule').parameters({emailRuleId: emailRuleId || null, ruleName: ruleName || '',
                 emailAccountId: emailAccountId || null, matchAllEnumId: matchAllEnumId || 'ErmAll', conditionsJson: conditionsJson || '[]',
                 actionsJson: actionsJson || '[]', enabled: enabled || null, stopProcessing: stopProcessing || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {emailRuleId: out.emailRuleId,
@@ -46,7 +46,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the rule as it is in the editor, tried on the newest mail of a folder: what it matches, nothing done to it -->
     <transition name="testRule">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.MailSettingsServices.test#Rule').parameters({emailRuleId: emailRuleId || null,
+            const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.test#Rule').parameters({emailRuleId: emailRuleId || null,
                 emailAccountId: emailAccountId || null, emailFolderId: emailFolderId || null, conditionsJson: conditionsJson || '[]',
                 matchAllEnumId: matchAllEnumId || 'ErmAll', limit: 50}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {matchList: out.matchList || [], matchedCount: out.matchedCount || 0,

@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The terminal twin of Backlog (style-guide §4.8): Backlog.xml's tui text is a dynamic container of this screen. The project's open
     sprints, each with its dates, goal, total against capacity and items (a link to SprintDetail), then the ranked backlog, from the
-    same service as Backlog.qvue (ironstone.PlanningServices.get#Backlog). The terminal's changes (impl-projects.md P11), for the
+    same service as Backlog.qvue (ironstone.projects.PlanningServices.get#Backlog). The terminal's changes (impl-projects.md P11), for the
     project's team, over the services of Backlog.qvue's transitions: Move (a work item to the backlog or a sprint, at the top,
     the bottom or after an item there: rank#BacklogItems; the transition takes several, comma separated), New sprint, Start sprint and Complete sprint (its open
     items carried to the next sprint, a new one or the backlog), and for a manager Plan in sprints. Each dialog reloads this
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
             const ids = (workEffortIds == null ? [] : typeof workEffortIds === 'string' ? workEffortIds.split(',') : Array.from(workEffortIds)).map((id) => String(id).trim()).filter((id) => id)
             const sprint = sprintWorkEffortId && sprintWorkEffortId !== 'BACKLOG' ? sprintWorkEffortId : null
             let previous = null, next = null
-            const got = ec.service.sync().name('ironstone.PlanningServices.get#Backlog').parameters({rootWorkEffortId: rootWorkEffortId || ''}).call()?.backlog
+            const got = ec.service.sync().name('ironstone.projects.PlanningServices.get#Backlog').parameters({rootWorkEffortId: rootWorkEffortId || ''}).call()?.backlog
             if (got) {
                 const list = (sprint ? Array.from(Array.from(got.sprintList || []).find((one) => one.workEffortId === sprint)?.rowList || []) : Array.from(got.backlogList || []))
                         .map((row) => row.workEffortId).filter((id) => !ids.includes(id))
@@ -41,7 +41,7 @@ along with this software (see the LICENSE.md file). If not, see
                 else if (place === 'bottom') previous = list.length ? list[list.length - 1] : null
                 else next = list.length ? list[0] : null
             }
-            const out = ec.service.sync().name('ironstone.PlanningServices.rank#BacklogItems').parameters({rootWorkEffortId: rootWorkEffortId || '', workEffortIds: ids,
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.rank#BacklogItems').parameters({rootWorkEffortId: rootWorkEffortId || '', workEffortIds: ids,
                 sprintWorkEffortId: sprint, previousWorkEffortId: previous, nextWorkEffortId: next}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, out.failedCount ? 'warning' : 'success')
         ]]></script></actions>
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveSprint">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.save#Sprint').parameters({rootWorkEffortId: rootWorkEffortId || null,
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.save#Sprint').parameters({rootWorkEffortId: rootWorkEffortId || null,
                 workEffortName: workEffortName || null, description: description || null, startDay: startDay || null, endDay: endDay || null,
                 capacity: capacity ?? ''}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
@@ -60,7 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="startSprint">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.start#Sprint').parameters({workEffortId: sprintWorkEffortId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.start#Sprint').parameters({workEffortId: sprintWorkEffortId || '',
                 description: description || null, startDay: startDay || null, endDay: endDay || null}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="completeSprint">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.complete#Sprint').parameters({workEffortId: sprintWorkEffortId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.complete#Sprint').parameters({workEffortId: sprintWorkEffortId || '',
                 carryTo: carryTo || 'next', newSprintName: newSprintName || null}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -78,7 +78,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="turnOnSprints">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.turnOn#Sprints').parameters({rootWorkEffortId: rootWorkEffortId || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.turnOn#Sprints').parameters({rootWorkEffortId: rootWorkEffortId || ''}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
         <default-response url="../Backlog"><parameter name="rootWorkEffortId"/></default-response>
@@ -89,9 +89,9 @@ along with this software (see the LICENSE.md file). If not, see
         backlogFound = false; backlogRows = []; sprintList = []
         const L = (text) => ec.l10n.localize(text)
         let project = rootWorkEffortId || null
-        if (!project) project = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])[0]?.key || null
+        if (!project) project = Array.from(ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])[0]?.key || null
         if (!project) return
-        const out = ec.service.sync().name('ironstone.PlanningServices.get#Backlog').parameters({rootWorkEffortId: project}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#Backlog').parameters({rootWorkEffortId: project}).call() || {}
         ec.message.clearErrors()
         if (!out.backlog) return
         backlogFound = true

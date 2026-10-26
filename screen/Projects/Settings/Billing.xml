@@ -14,14 +14,14 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- BillingSettings (design-projects.md §12 BillingSettings; style-guide §3.9 Settings; impl-projects.md P8a), for the Projects managers
     who manage money: the organization's billing defaults for its projects (PartySetting ProjBillingDefaults through
-    service/ironstone/BillingServices.xml get# and store#BillingSettings): the billing basis of a new project, the grouping of invoice
+    service/ironstone/projects/BillingServices.xml get# and store#BillingSettings): the billing basis of a new project, the grouping of invoice
     lines (per entry, per worker, one line), the time detail on invoices, hours shared with clients, the payment terms of a new invoice
     and how contractors bill their time. A project's own settings (WorkEffortSetting) win over these. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Billing" default-menu-index="6" server-static="qvt" menu-image="sym_o_receipt_long" menu-image-type="icon">
 
     <transition name="saveDefaults">
-        <service-call name="ironstone.BillingServices.store#BillingSettings" out-map="saveOut" in-map="{billingBasis:billingBasis, invoiceGrouping:invoiceGrouping,
+        <service-call name="ironstone.projects.BillingServices.store#BillingSettings" out-map="saveOut" in-map="{billingBasis:billingBasis, invoiceGrouping:invoiceGrouping,
                 timeDetail:(timeDetail || 'N'), shareHours:(shareHours || 'N'), settlementTermId:(settlementTermId || null), workerInvoicing:(workerInvoicing || 'Monthly')}"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if></actions>
         <default-response url="."/>
@@ -30,12 +30,12 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const info = ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call() || {}
+            const info = ec.service.sync().name('ironstone.projects.BillingServices.get#BillingSettings').call() || {}
             hasOrganization = !!info.organizationPartyId
             organizationName = info.organizationName || ''
             defaultsValue = Object.assign({}, info.defaults || {})
             termOptions = Array.from(info.termOptions || [])
-            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            managesMoney = !!ec.service.sync().name('ironstone.projects.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
         ]]></script>
     </actions>
 

@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <!-- What Projects offers the suite shell (design-projects.md §1.4): the + menu kinds (Projects/QuickCreate by kind, and the
         managers' Projects/QuickProject for a project, impl-projects.md F8; Commons keeps its Task kind for a personal task), the palette's actions and the document types of its records, whose palette
-        and notification links open here for its users (ironstone.PaletteServices.get#RecordLink), and the go-to keys of the
+        and notification links open here for its users (ironstone.commons.PaletteServices.get#RecordLink), and the go-to keys of the
         projects scope, on only in this app (the global c creates the first kind here, a work item); the Code palette group and
         the notification topics of the phases built (impl-projects.md P3b). The Today source: mantle.work.ProjectServices.get#ProjectTodayItems. -->
     <shell-providers>
@@ -58,8 +58,8 @@ along with this software (see the LICENSE.md file). If not, see
         <palette-action label="Team planner" icon="sym_o_group_work" screen="Projects/Resources/TeamPlanner" sequence="14"/>
 
         <!-- the Code group (design-projects.md §1.4): repositories by name and merge requests by number (!12) or title, among those
-            the user may view (ironstone.CodeServices.search#CodePalette over mantle.work.GitServices.search#Code) -->
-        <palette-source group="Code" label="Code" icon="sym_o_code" prefix="!" service="ironstone.CodeServices.search#CodePalette" sequence="40"/>
+            the user may view (ironstone.projects.CodeServices.search#CodePalette over mantle.work.GitServices.search#Code) -->
+        <palette-source group="Code" label="Code" icon="sym_o_code" prefix="!" service="ironstone.projects.CodeServices.search#CodePalette" sequence="40"/>
 
         <!-- Today (design-projects.md §1.4): the running timer with Stop, merge requests waiting for my review, my timesheets to
             submit, and the new requests of the projects I triage (impl-projects.md P6b); work items due reach Today as tasks -->

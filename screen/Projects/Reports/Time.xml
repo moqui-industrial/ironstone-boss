@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
         const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
-        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        const options = ec.service.sync().name('ironstone.projects.ReportServices.get#ReportOptions').call() || {}
         ec.message.clearErrors()
         projectOptions = Array.from(options.projectOptions || [])
         personOptions = Array.from(options.personOptions || [])
@@ -95,7 +95,7 @@ along with this software (see the LICENSE.md file). If not, see
         chartTitle = ec.resource.expand('Hours by ${criterion}', '', {criterion: (critTitles[0] || '').toLowerCase()})
         const series = Array.from(out.chart?.series || [])
         hasChart = rowsFound && series.length > 0
-        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'TimeReportChart', type: 'bar',
+        const chart = hasChart ? ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'TimeReportChart', type: 'bar',
             labels: Array.from(out.chart.labels || []), series: series.map((one) => ({name: one.name, data: Array.from(one.data || [])})), stacked: true,
             yTitle: L('Hours')}).call() || {} : {}
         ec.message.clearErrors()

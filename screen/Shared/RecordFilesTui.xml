@@ -34,12 +34,12 @@ along with this software (see the LICENSE.md file). If not, see
         fileCount = 0
         listedCount = 0
         if (asked) {
-            const recordOut = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity,
+            const recordOut = ec.service.sync().name('ironstone.shared.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity,
                 recordId: recordId}).call()
             visible = !ec.message.hasError() && recordOut.visible === true
             if (visible) {
                 recordTitle = [recordOut.typeLabel, recordOut.title].filter((part) => part).join(': ')
-                const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
+                const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
                     recordId: recordId}).call()
                 if (!ec.message.hasError()) {
                     hasContent = out.hasContent === true

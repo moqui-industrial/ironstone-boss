@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkProject">
         <actions>
-            <service-call name="ironstone.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.link#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="repositoryId"/></default-response>
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkProject">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#Repository" out-map="linkOut" in-map="{repositoryId:repositoryId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="repositoryId"/></default-response>
@@ -196,7 +196,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!recordFound) return
-            const info = ec.service.sync().name('ironstone.CodeServices.get#RepositorySettings').parameters({repositoryId: repositoryId}).call() || {}
+            const info = ec.service.sync().name('ironstone.projects.CodeServices.get#RepositorySettings').parameters({repositoryId: repositoryId}).call() || {}
             canChange = !!info.canChange
             ruleList = Array.from(info.ruleList || [])
             const deliveries = (webhookId) => {
@@ -216,7 +216,7 @@ along with this software (see the LICENSE.md file). If not, see
             mirrorValue = {repositoryId: repositoryId, remoteUrl: repo.remoteUrl, fetchIntervalMinutes: repo.fetchIntervalMinutes,
                 username: ec.entity.find('moqui.resource.GitRepository').condition('repositoryId', repositoryId).one()?.username || ''}
             projectList = Array.from(repoAccess.projectList || []).map((project) => Object.assign({}, project, {sinceText: project.fromDate ? ec.l10n.format(project.fromDate, 'MMM d, yyyy') : ''}))
-            projectOptions = (ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
+            projectOptions = (ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
                     .filter((option) => !projectList.some((project) => project.workEffortId === option.key))
             isRemote = repo.repositoryKind === 'remote'
             isDb = repo.repositoryKind === 'db'

@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The files demo of IronStone Commons M8 (data/BossFilesDemoData.xml calls load#FilesDemo as the element
+    ironstone.commons.FilesDemoServices.load-FilesDemo): john.doe's own drive, a shared team drive, a version-controlled drive, shares
+    and links, the trash and the record files' versions, written through org.moqui.impl.FileServices as the demo users so the
+    versions, their notes and authors are real, dated over the weeks before the load. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="FilesDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>Stores, each part once (a part whose drive or file is there already is left as it is):
+            - john.doe's My files: Documents (Welcome.txt, Budget 2027.csv, Meeting notes.md in three versions with their
+              notes), Pictures (four pictures), Projects/Office move (Plan.md in two versions, Checklist.txt, the folder Quotes);
+              favorites (the budget and the office move), the tags Work, Home and Important, and the trash (Old draft.txt and
+              the folder Scratch);
+            - BOSS_DEMO_TEAM "Team": a folder drive of john.doe with joe.developer (edit) and bob.developer (view), a 50 MB
+              quota, Handbook.md, Logo.png and Rotas/October.csv (by joe.developer, then john.doe);
+            - BOSS_DEMO_WEB "Website": a version-controlled drive in the database (DRIVE_BOSS_DEMO_WEB), two commits;
+            - shares: the budget to joe.developer (waiting for his answer), the office move folder to joe.developer (edit,
+              accepted), joe.developer's Ideas.md to john.doe (waiting); links with known demo tokens: BossDemoPhotosLink2026
+              (Pictures, password "family", 30 days), BossDemoQuoteDrop2026 (the Quotes folder, a file drop) and
+              BossDemoOfficePlan2026 (Plan.md);
+            - the records drive: a second version of the demo request's calendar-options.txt and a file in its folder with no
+              content row (signed-quote.txt).
+            No notification is sent. A part that fails is logged by name and the others are still loaded.</description>
+        <actions><script><![CDATA[
+            const account = (userId) => ec.entity.find('moqui.security.UserAccount').condition('userId', userId).disableAuthz().one()
+            if (account('EX_JOHN_DOE') == null) { ec.logger.warn('The files demo needs the user john.doe (mr-mantle demo data); nothing loaded'); return }
+            const startUser = ec.user.username || null
+            for (const part of ['personal', 'team', 'website', 'shares', 'records']) {
+                ec.message.pushErrors()
+                try {
+                    ec.service.sync().name('ironstone.commons.FilesDemoServices.load#FilesDemoPart').parameter('part', part).requireNewTransaction(true).call()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    ec.logger.error(`Files demo: the ${part} part not loaded: ${err && err.message ? err.message : err}`)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                    if (ec.user.username !== startUser) {
+                        if (ec.user.username) ec.user.logoutUser()
+                        if (startUser) ec.user.internalLoginUser(startUser)
+                    }
+                    ec.user.setEffectiveTime(null)
+                }
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="load" noun="FilesDemoPart" authenticate="anonymous-all" allow-remote="false">
+        <description>One part of load#FilesDemo, in its own transaction.</description>
+        <in-parameters><parameter name="part" required="true"/></in-parameters>
+        <actions><script><![CDATA[
+            const FILES = 'org.moqui.impl.FileServices'
+            const users = {john: 'john.doe', joe: 'joe.developer', bob: 'bob.developer'}
+            const ids = {john: 'EX_JOHN_DOE', joe: 'ORG_ZIZI_JD', bob: 'ORG_ZIZI_BD'}
+            const haveUser = (who) => ec.entity.find('moqui.security.UserAccount').condition('userId', ids[who]).disableAuthz().one() != null
+            const nowMs = Date.now()
+            const day = 86400000
+            const call = (name, parameters) => {
+                const out = ec.service.sync().name(name).parameters(parameters || {}).call()
+                if (ec.message.hasError()) throw new Error(`${name}: ${ec.message.getErrorsString()}`)
+                return out || {}
+            }
+            // as a demo user at a time before now: the versions, their authors and dates are theirs
+            // (a spec that loads the demo keeps its own user: the one signed in at the start is signed in again after)
+            const startUser = ec.user.username || null
+            const as = (who, daysAgo, run) => {
+                if (who !== 'john' && !haveUser(who)) who = 'john'
+                ec.user.internalLoginUser(users[who])
+                ec.user.setEffectiveTime(nowMs - Math.round(daysAgo * day))
+                try { return run() } finally {
+                    ec.user.setEffectiveTime(null)
+                    ec.user.logoutUser()
+                    if (startUser) ec.user.internalLoginUser(startUser)
+                }
+            }
+            // whether the demo wrote a path already (the demo's own check, under the drive's root)
+            const exists = (driveId, path) => {
+                const drive = ec.entity.find('moqui.resource.ResourceDrive').condition('driveId', driveId).one()
+                return drive != null && ec.resource.getLastChange(`${String(drive.rootLocation).replace(/\/+$/, '')}/${path}`) != null
+            }
+            const folder = (driveId, path, name) => { if (!exists(driveId, path ? `${path}/${name}` : name)) call(`${FILES}.create#Folder`, {driveId: driveId, path: path, name: name}) }
+            const text = (driveId, path, body, note) => call(`${FILES}.save#Text`, {driveId: driveId, path: path, text: body, versionNote: note || null})
+            // a picture's bytes (a stream does not pass a service call's parameters; its bytes do)
+            const picture = (driveId, path, source, note) => {
+                const stream = ec.resource.getLocationReference(source).openStream()
+                let bytes
+                try { bytes = stream.readAllBytes() } finally { if (stream && stream.close) stream.close() }
+                const slash = path.lastIndexOf('/')
+                return call(`${FILES}.upload#Resource`, {driveId: driveId, path: slash > 0 ? path.slice(0, slash) : '', fileList: [bytes],
+                    relativePathList: [path.slice(slash + 1)], conflictPolicy: 'replace', versionNote: note || null})
+            }
+            const personalDrive = () => as('john', 45, () => call(`${FILES}.ensure#PersonalDrive`).driveId)
+            const make = (entityName, fields) => {
+                const row = ec.entity.makeValue(entityName)
+                row.setFields(fields, true, null, null)
+                row.create()
+                return row
+            }
+            const DEMO = 'component://mr-boss/data/demo'
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (part === 'personal') {
+                    const driveId = personalDrive()
+                    if (exists(driveId, 'Documents/Welcome.txt')) return
+                    as('john', 40, () => {
+                        for (const name of ['Documents', 'Pictures', 'Projects']) folder(driveId, '', name)
+                        folder(driveId, 'Projects', 'Office move')
+                        folder(driveId, 'Projects/Office move', 'Quotes')
+                        text(driveId, 'Documents/Welcome.txt', 'Welcome to My files.\n\nKeep your documents and pictures here: they are kept with every version, ' +
+                            'and you can share a file or a folder with the team or by a link.\n', 'First version')
+                        text(driveId, 'Projects/Office move/Checklist.txt', 'Office move checklist\n\n[ ] Book the movers\n[ ] Order boxes\n[ ] Tell the post office\n' +
+                            '[ ] Move the printer last\n', null)
+                    })
+                    as('john', 38, () => {
+                        picture(driveId, 'Pictures/beach.png', `${DEMO}/files/beach.png`, 'Holiday picture')
+                        picture(driveId, 'Pictures/garden.png', `${DEMO}/files/garden.png`, null)
+                        picture(driveId, 'Pictures/team-calendar.png', `${DEMO}/team-calendar.png`, null)
+                        picture(driveId, 'Pictures/floor-plan.png', `${DEMO}/floor-plan.png`, 'The new office')
+                    })
+                    as('john', 30, () => text(driveId, 'Documents/Meeting notes.md', '# Weekly team meeting\n\n- The calendar rollout\n- The open requests\n', 'First notes'))
+                    as('john', 21, () => text(driveId, 'Documents/Meeting notes.md', '# Weekly team meeting\n\n- The calendar rollout\n- The open requests\n\n' +
+                        '## Action items\n\n- John: book the meeting rooms\n- Joe: answer the support requests\n', 'Added the action items'))
+                    as('john', 6, () => text(driveId, 'Documents/Meeting notes.md', '# Weekly team meeting\n\n- The calendar rollout, on the 3rd\n- The open requests\n\n' +
+                        '## Action items\n\n- John: book the meeting rooms\n- Joe: answer the support requests by Friday\n', 'Dates confirmed with Bob'))
+                    as('john', 25, () => text(driveId, 'Projects/Office move/Plan.md', '# Office move\n\nThe move is in November.\n\n1. Choose the movers\n2. Pack\n3. Move\n',
+                        'First plan'))
+                    as('john', 4, () => text(driveId, 'Projects/Office move/Plan.md', '# Office move\n\nThe move is on Saturday, November 14.\n\n1. Movers booked: Acme Moving\n' +
+                        '2. Pack on Friday afternoon\n3. Move on Saturday from 8:00\n', 'Movers booked'))
+                    as('john', 2, () => {
+                        text(driveId, 'Documents/Budget 2027.csv', 'month,income,expenses\nJanuary,12000,9400\nFebruary,11800,9100\nMarch,13200,9800\n', 'Draft budget')
+                        call(`${FILES}.set#Favorite`, {driveId: driveId, path: 'Documents/Budget 2027.csv', favorite: true})
+                        call(`${FILES}.set#Favorite`, {driveId: driveId, path: 'Projects/Office move', favorite: true})
+                        call(`${FILES}.set#Tags`, {driveId: driveId, path: 'Documents/Budget 2027.csv', tagNameList: ['Work']})
+                        call(`${FILES}.set#Tags`, {driveId: driveId, path: 'Projects/Office move/Plan.md', tagNameList: ['Work']})
+                        call(`${FILES}.set#Tags`, {driveId: driveId, path: 'Documents/Meeting notes.md', tagNameList: ['Work', 'Important']})
+                        call(`${FILES}.set#Tags`, {driveId: driveId, path: 'Pictures/beach.png', tagNameList: ['Home']})
+                    })
+                    as('john', 1, () => {
+                        text(driveId, 'Documents/Old draft.txt', 'An old draft, no longer needed.\n', null)
+                        folder(driveId, '', 'Scratch')
+                        text(driveId, 'Scratch/test.txt', 'scratch\n', null)
+                        call(`${FILES}.trash#Resource`, {driveId: driveId, pathList: ['Documents/Old draft.txt', 'Scratch']})
+                        // what john opened lately
+                        for (const path of ['Documents/Meeting notes.md', 'Pictures/beach.png', 'Projects/Office move/Plan.md'])
+                            call(`${FILES}.get#ResourceInfo`, {driveId: driveId, path: path, opened: true})
+                    })
+                } else if (part === 'team') {
+                    if (ec.entity.find('moqui.resource.ResourceDrive').condition('driveId', 'BOSS_DEMO_TEAM').one() != null) return
+                    const root = String(ec.user.getPreference('moqui.drive.root') || 'dbresource://drive').replace(/\/+$/, '')
+                    make('moqui.resource.ResourceDrive', {driveId: 'BOSS_DEMO_TEAM', driveName: 'Team', description: 'The team\'s shared files: handbook, rotas, logos',
+                        driveKindEnumId: 'RdkShared', rootLocation: `${root}/shared/BOSS_DEMO_TEAM`, ownerUserId: ids.john, quotaBytes: 50 * 1048576,
+                        createdDate: new Date(nowMs - 35 * day)})
+                    if (haveUser('joe')) make('moqui.resource.ResourceDriveMember', {driveMemberId: 'BOSS_DEMO_TEAM_JOE', driveId: 'BOSS_DEMO_TEAM', userId: ids.joe,
+                        permissionEnumId: 'RdpEdit', fromDate: new Date(nowMs - 35 * day)})
+                    if (haveUser('bob')) make('moqui.resource.ResourceDriveMember', {driveMemberId: 'BOSS_DEMO_TEAM_BOB', driveId: 'BOSS_DEMO_TEAM', userId: ids.bob,
+                        permissionEnumId: 'RdpView', fromDate: new Date(nowMs - 35 * day)})
+                    ec.resource.makeChangeSet(`${root}/shared`).mkdir('BOSS_DEMO_TEAM').commit(null)
+                    as('john', 34, () => {
+                        text('BOSS_DEMO_TEAM', 'Handbook.md', '# Team handbook\n\nHow we work: the weekly meeting is on Monday at 10:00, requests are answered within a day, ' +
+                            'and the rota is in Rotas.\n', 'The first handbook')
+                        picture('BOSS_DEMO_TEAM', 'Logo.png', `${DEMO}/files/logo.png`, 'The new logo')
+                        folder('BOSS_DEMO_TEAM', '', 'Rotas')
+                    })
+                    as('joe', 12, () => text('BOSS_DEMO_TEAM', 'Rotas/October.csv', 'week,support,office\n1,Joe,John\n2,Bob,Joe\n', 'October rota'))
+                    as('john', 9, () => text('BOSS_DEMO_TEAM', 'Rotas/October.csv', 'week,support,office\n1,Joe,John\n2,Bob,Joe\n3,John,Bob\n4,Joe,John\n',
+                        'Weeks 3 and 4 added'))
+                } else if (part === 'website') {
+                    // a git drive: not in a build without git hosting
+                    if (!ec.factory.hasFeature('git')) return
+                    if (ec.entity.find('moqui.resource.ResourceDrive').condition('driveId', 'BOSS_DEMO_WEB').one() != null) return
+                    make('moqui.resource.GitRepository', {repositoryId: 'DRIVE_BOSS_DEMO_WEB', description: 'Website', branch: 'main', repositoryKind: 'db'})
+                    call('org.moqui.impl.GitServices.init#GitRepository', {repositoryId: 'DRIVE_BOSS_DEMO_WEB'})
+                    make('moqui.resource.ResourceDrive', {driveId: 'BOSS_DEMO_WEB', driveName: 'Website', description: 'The website\'s pages, every change a commit',
+                        driveKindEnumId: 'RdkShared', rootLocation: 'git://DRIVE_BOSS_DEMO_WEB/', repositoryId: 'DRIVE_BOSS_DEMO_WEB', ownerUserId: ids.john,
+                        createdDate: new Date(nowMs - 20 * day)})
+                    if (haveUser('joe')) make('moqui.resource.ResourceDriveMember', {driveMemberId: 'BOSS_DEMO_WEB_JOE', driveId: 'BOSS_DEMO_WEB', userId: ids.joe,
+                        permissionEnumId: 'RdpEdit', fromDate: new Date(nowMs - 20 * day)})
+                    as('john', 19, () => text('BOSS_DEMO_WEB', 'README.md', '# Website\n\nThe pages of ziziwork.example, one file per page.\n', 'Start the website notes'))
+                    as('joe', 8, () => text('BOSS_DEMO_WEB', 'pages/about.md', '# About us\n\nZiziwork Services helps small teams run their office.\n', 'About page draft'))
+                } else if (part === 'shares') {
+                    const driveId = personalDrive()
+                    if (ec.entity.find('moqui.resource.ResourceShare').condition('shareId', 'BOSS_DEMO_LINK_PHOTOS').one() != null) return
+                    if (haveUser('joe')) {
+                        as('john', 3, () => {
+                            call(`${FILES}.share#Resource`, {driveId: driveId, path: 'Documents/Budget 2027.csv', sharedWithUserId: ids.joe, permissionEnumId: 'RspView',
+                                note: 'The draft budget, for your comments'})
+                            call(`${FILES}.share#Resource`, {driveId: driveId, path: 'Projects/Office move', sharedWithUserId: ids.joe, permissionEnumId: 'RspEdit'})
+                        })
+                        as('joe', 2, () => {
+                            const share = ec.entity.find('moqui.resource.ResourceShare').condition('driveId', driveId).condition('path', 'Projects/Office move')
+                                    .condition('sharedWithUserId', ids.joe).one()
+                            if (share) call(`${FILES}.accept#Share`, {shareId: share.shareId})
+                            const joeDrive = call(`${FILES}.ensure#PersonalDrive`).driveId
+                            folder(joeDrive, '', 'Notes')
+                            text(joeDrive, 'Notes/Ideas.md', '# Ideas\n\n- A shared calendar for the rooms\n- Move the printer next to the kitchen\n', 'First ideas')
+                            call(`${FILES}.share#Resource`, {driveId: joeDrive, path: 'Notes/Ideas.md', sharedWithUserId: ids.john, permissionEnumId: 'RspView',
+                                note: 'Some ideas for the office move'})
+                        })
+                    }
+                    // the links, with tokens the demo knows (only their hashes are kept, as for any link)
+                    const link = (shareId, path, isDirectory, permissionEnumId, token, label, password, expireDays, opened) =>
+                        make('moqui.resource.ResourceShare', {shareId: shareId, driveId: driveId, path: path, isDirectory: isDirectory ? 'Y' : 'N', isLink: 'Y',
+                            linkTokenHash: ec.user.singleUseCodeHash(token), linkLabel: label, permissionEnumId: permissionEnumId,
+                            passwordHash: password ? ec.user.hashPassword(password) : null, expireDate: expireDays ? new Date(nowMs + expireDays * day) : null,
+                            createdByUserId: ids.john, createdDate: new Date(nowMs - 2 * day), openedCount: opened, lastOpenedDate: opened ? new Date(nowMs - day) : null})
+                    link('BOSS_DEMO_LINK_PHOTOS', 'Pictures', true, 'RspView', 'BossDemoPhotosLink2026', 'Photos for the family', 'family', 30, 3)
+                    link('BOSS_DEMO_LINK_DROP', 'Projects/Office move/Quotes', true, 'RspUpload', 'BossDemoQuoteDrop2026', 'Quotes from movers', null, null, 0)
+                    link('BOSS_DEMO_LINK_PLAN', 'Projects/Office move/Plan.md', false, 'RspView', 'BossDemoOfficePlan2026', 'The move plan', null, 14, 1)
+                } else if (part === 'records') {
+                    // the records drive's tree (mantle.content.root), written as the user: the drive's own row may load after
+                    // this demo (data files load by name), so the files go straight into the tree the drive shows
+                    const root = String(ec.user.getPreference('mantle.content.root') || 'dbresource://mantle/content').replace(/\/+$/, '')
+                    const options = 'request/BOSS_DEMO_REQUEST/content_BOSS_DEMO_RC_OPTIONS/calendar-options.txt'
+                    if (ec.resource.getLastChange(`${root}/${options}`) == null) return
+                    if (ec.resource.getLastChange(`${root}/request/BOSS_DEMO_REQUEST/signed-quote.txt`) != null) return
+                    as('john', 5, () => {
+                        const done = ec.resource.makeChangeSet(root).write(options, 'Calendar options for the team\n\n' +
+                            '1. Shared calendar in Commons: free, room booking, view-only sharing for contractors (chosen)\n' +
+                            '2. Hosted calendar service: USD 120.00 a year, room booking\n3. Paper wall planner: no sharing\n').commit('Marked the option we chose')
+                        if (done.failures.length) throw new Error(`${options}: ${done.failures[0].error}`)
+                        const quote = ec.resource.makeChangeSet(root).write('request/BOSS_DEMO_REQUEST/signed-quote.txt',
+                            'Quote 2026-118, signed by Bob Acme on October 4.\n').commit('The signed quote')
+                        if (quote.failures.length) throw new Error(`signed-quote.txt: ${quote.failures[0].error}`)
+                    })
+                }
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
+        ]]></script></actions>
+    </service>
+</services>

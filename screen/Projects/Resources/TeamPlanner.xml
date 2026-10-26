@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     TeamPlanner.qvue next to this file. Each person's weeks show their capacity against the allocations stacked by project, the
     assigned work and their leave and holidays, an overbooked week in warning; under each person their allocations as bars a
     manager drags and stretches; the placeholders to staff on top; By project turns the rows into projects with their people. Every
-    read and change is a JSON transition below over service/ironstone/ResourceServices.xml (get#Planner over
+    read and change is a JSON transition below over service/ironstone/projects/ResourceServices.xml (get#Planner over
     mantle.work.ResourceServices.get#TeamPlan, save#, move#, decide#Allocation, get#StaffCandidates, search#AllocationPeople): every
     internal user sees the plan of the projects they see; the Projects managers (ALLOCATION_APPROVE) change, approve, reject and
     staff, a project's own managers request. The find: fromDate (a day of the first week), weeks (8, 12 or 26), rootWorkEffortId,
@@ -36,7 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the plan -->
     <transition name="plan" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.get#Planner').parameters({fromDate: fromDate || null, weeks: Number(weeks) || 12,
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.get#Planner').parameters({fromDate: fromDate || null, weeks: Number(weeks) || 12,
                 rootWorkEffortId: rootWorkEffortId || null, roleTypeId: roleTypeId || null, skillTypeEnumId: skillTypeEnumId || null,
                 teamPartyId: teamPartyId || null}).call() || {}
             if (ec.message.hasError() || !out.planner) { ec.message.clearErrors(); ec.web.sendJsonResponse({notAvailable: true}); return }
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- AllocationForm: a new allocation, or the changes to one -->
     <transition name="saveAllocation">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.save#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || null,
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.save#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || null,
                 workEffortId: allocWorkEffortId || null, partyId: partyId || null, roleTypeId: allocRoleTypeId ?? null, skillTypeEnumId: allocSkillTypeEnumId ?? null,
                 fromDate: allocFromDate || null, thruDate: allocThruDate || null, amount: amount ?? null, unit: unit || 'h', comments: comments ?? null,
                 request: request || null}).call() || {}
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a drag: an allocation moved (shiftDays) or an end stretched (allocFromDate, allocThruDate) -->
     <transition name="moveAllocation">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.move#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.move#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
                 shiftDays: shiftDays ? Number(shiftDays) : null, fromDate: allocFromDate || null, thruDate: allocThruDate || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {moved: true, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -67,7 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- approve, reject (reason), cancel, staff (partyId) -->
     <transition name="decideAllocation">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.decide#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.decide#Allocation').parameters({workEffortAllocationId: workEffortAllocationId || '',
                 action: action || '', reason: reason || null, partyId: partyId || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {decided: true, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -76,7 +76,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- StaffAllocation: the candidates of a placeholder -->
     <transition name="candidates" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.get#StaffCandidates').parameters({workEffortAllocationId: workEffortAllocationId || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.get#StaffCandidates').parameters({workEffortAllocationId: workEffortAllocationId || ''}).call() || {}
             if (ec.message.hasError()) { ec.message.clearErrors(); ec.web.sendJsonResponse({notAvailable: true}); return }
             ec.web.sendJsonResponse({allocation: out.allocation, candidateList: out.candidateList || [], canStaff: !!out.canStaff, ratesShown: !!out.ratesShown})
         ]]></script></actions>
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- AllocationForm's person, with their hours free in the period -->
     <transition name="people" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ResourceServices.search#AllocationPeople').parameters({term: term || null, fromDate: allocFromDate || null,
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.search#AllocationPeople').parameters({term: term || null, fromDate: allocFromDate || null,
                 thruDate: allocThruDate || null, amount: amount || null, unit: unit || null}).call() || {}
             ec.message.clearErrors()
             ec.web.sendJsonResponse(out.optionList || [])

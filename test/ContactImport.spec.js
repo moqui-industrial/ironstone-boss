@@ -300,7 +300,7 @@ feature("a large import runs as a job: the draft runs, progress every 25 rows an
             const ran = post("Contacts/Import/Result/runImport", { importId: id, background: "Y" })
             ec.factory.waitWorkerPoolEmpty(600)
             const messages = capture.getMessages("contactImportProgress").filter((row) => row.message && row.message.progressKey === id)
-            return { ran, messages, draft: draftOf("EX_JOHN_DOE", id), again: sys(() => call("ironstone.ContactServices.run#Import", { importId: id, background: true })),
+            return { ran, messages, draft: draftOf("EX_JOHN_DOE", id), again: sys(() => call("ironstone.commons.ContactServices.run#Import", { importId: id, background: true })),
                 people: sys(() => ec.entity.find("mantle.party.PartyDetail").condition("lastName", "Jobspec").count()) }
         } finally {
             capture.disable()
@@ -333,19 +333,19 @@ feature("while an import runs the step shows its progress; one that stopped says
         const id = newestImport("EX_JOHN_DOE")
         post("Contacts/Import/Mapping/saveMapping", mappingFields(id))
         post("Contacts/Import/Options/saveOptions", { importId: id, asPersonal: "Y", duplicatePolicy: "skip" })
-        sys(() => call("ironstone.ContactServices.store#ImportDraft", { importId: id, fields: { status: "running" } }))
+        sys(() => call("ironstone.commons.ContactServices.store#ImportDraft", { importId: id, fields: { status: "running" } }))
         const running = render("apps/Commons/Contacts/Import/Result", { importId: id })
         // the progress screen is a qvue component, loaded by the step's dynamic-container
         const progress = ec.screen.makeTest().rootScreen(webroot).renderMode("qvue").render("apps/Commons/Contacts/ImportProgress", { importId: id, total: "1" }, null)
-        const notAgain = sys(() => call("ironstone.ContactServices.run#Import", { importId: id }))
+        const notAgain = sys(() => call("ironstone.commons.ContactServices.run#Import", { importId: id }))
         // the source file gone: the run stops before the rows, and the draft says why rather than running
-        sys(() => call("ironstone.ContactServices.store#ImportDraft", { importId: id, fields: { status: "options" } }))
+        sys(() => call("ironstone.commons.ContactServices.store#ImportDraft", { importId: id, fields: { status: "options" } }))
         sys(() => ec.resource.getLocationReference(`dbresource://ironstone/ContactImport/EX_JOHN_DOE/${id}/source.csv`).delete())
         let errors = ""
-        try { sys(() => call("ironstone.ContactServices.run#ImportNow", { importId: id })) } catch (err) { errors = String(err && err.message ? err.message : err) }
+        try { sys(() => call("ironstone.commons.ContactServices.run#ImportNow", { importId: id })) } catch (err) { errors = String(err && err.message ? err.message : err) }
         ec.message.clearErrors()
         const draft = draftOf("EX_JOHN_DOE", id)
-        sys(() => call("ironstone.ContactServices.store#ImportDraft", { importId: id, fields: { status: "failed" } }))
+        sys(() => call("ironstone.commons.ContactServices.store#ImportDraft", { importId: id, fields: { status: "failed" } }))
         const stopped = render("apps/Commons/Contacts/Import/Result", { importId: id })
         return { running, progress, notAgain, errors, draft, stopped }
     },

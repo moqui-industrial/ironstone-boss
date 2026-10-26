@@ -1,5 +1,5 @@
-// Code in IronStone Projects (screen/Projects/Code/, Projects/ProjectDetail/Code.xml, Settings/Code.xml; service/ironstone/CodeServices.xml;
-// design-projects.md §7, §4 ProjectCode, §12 CodeSettings; impl-projects.md P3b) on the code demo (service/ironstone/CodeDemoServices.xml:
+// Code in IronStone Projects (screen/Projects/Code/, Projects/ProjectDetail/Code.xml, Settings/Code.xml; service/ironstone/projects/CodeServices.xml;
+// design-projects.md §7, §4 ProjectCode, §12 CodeSettings; impl-projects.md P3b) on the code demo (service/ironstone/projects/CodeDemoServices.xml:
 // the repositories iron of IRON and acme-portal of ACME): the repository list by chip and by who may view what, the repository's
 // header and tabs (files, a file, commits, branches, tags, the push log, the settings for its maintainers only), a branch and a tag
 // made and deleted, Compare with a merge request opened from it and its work items linked, a commit with a work item linked and
@@ -75,13 +75,13 @@ spec({
 
 feature("Repositories: the demo's repositories by chip, each user seeing those of their projects", {
     when() {
-        const john = sys(() => call("ironstone.CodeServices.find#Repositories", { list: "all" }))
+        const john = sys(() => call("ironstone.projects.CodeServices.find#Repositories", { list: "all" }))
         const page = render("apps/Projects/Code/Repositories", { list: "all" })
         const bob = as("bob.developer", () => render("apps/Projects/Code/Repositories", { list: "all" }))
         const joeMine = as("joe.developer", () => render("apps/Projects/Code/Repositories"))
         // the mr-mantle specs that run first can put joe on their own projects with a repository: the chip counts those too, and
         // of the demo's repositories (iron and acme-portal, both on projects joe is on) none is left out
-        const joeRepos = as("joe.developer", () => sys(() => call("ironstone.CodeServices.find#Repositories", {})))
+        const joeRepos = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.find#Repositories", {})))
         const joeDemo = joeRepos.rowList.map((row) => row.repositoryId).filter((id) => id == "iron" || id == "acme-portal")
         return { page, john, bob, joeMine, joeRepos, joeDemo }
     },
@@ -195,7 +195,7 @@ feature("Compare: the demo's merge request branch, and a new branch's merge requ
         })
         settle()
         const fresh = as("joe.developer", () => render("apps/Projects/Code/Compare", { repositoryId: "iron", head: "IRON-4-bt-drag" }))
-        const info = as("joe.developer", () => sys(() => call("ironstone.CodeServices.get#CompareInfo", { repositoryId: "iron", head: "IRON-4-bt-drag" })))
+        const info = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.get#CompareInfo", { repositoryId: "iron", head: "IRON-4-bt-drag" })))
         const opened = as("joe.developer", () => post("Code/Compare/openMergeRequest", { repositoryId: "iron", sourceRef: "IRON-4-bt-drag", targetRef: "main",
             title: "BT Drag to re-parent (IRON-4)", description: "Closes IRON-4", reviewerUserIds: "EX_JOHN_DOE", completeItems: "Y" }))
         const again = as("joe.developer", () => post("Code/Compare/openMergeRequest", { repositoryId: "iron", sourceRef: "IRON-4-bt-drag", targetRef: "main",
@@ -298,7 +298,7 @@ feature("Code settings: the repository defaults and conventions saved by a manag
         const conventions = post("Settings/Code/saveConventions", { keywordComplete: "Y", branchPattern: "<KEY>-<n>-<words>", mergeRequestMoves: "Y" })
         const badPattern = post("Settings/Code/saveConventions", { branchPattern: "feature-<words>" })
         const teamRefused = as("bob.developer", () => sys(() => {
-            const out = ec.service.sync().name("ironstone.CodeServices.store#RepositoryDefaults").parameters({ storage: "local" }).call()
+            const out = ec.service.sync().name("ironstone.projects.CodeServices.store#RepositoryDefaults").parameters({ storage: "local" }).call()
             const errors = ec.message.getErrorsString(); ec.message.clearErrors(); return errors
         }))
         const granted = post("Settings/Code/setSsh", { userGroupId: "BOSS_PROJECT_CLIENT", grant: "Y" })
@@ -337,8 +337,8 @@ feature("ProjectCode: IRON's repositories, open merge request, recent commits an
     when() {
         const tab = render("apps/Projects/Projects/ProjectDetail/Code", { workEffortId: "IRON" })
         const hire = render("apps/Projects/Projects/ProjectDetail/Code", { workEffortId: "HIRE" })
-        const palette = sys(() => call("ironstone.CodeServices.search#CodePalette", { text: "iron" }).rows)
-        const byNumber = sys(() => call("ironstone.CodeServices.search#CodePalette", { text: "!1" }).rows)
+        const palette = sys(() => call("ironstone.projects.CodeServices.search#CodePalette", { text: "iron" }).rows)
+        const byNumber = sys(() => call("ironstone.projects.CodeServices.search#CodePalette", { text: "!1" }).rows)
         const raw = ec.screen.makeTest().rootScreen(webroot).render("apps/Projects/Code/RepositoryDetail/Files/raw", { repositoryId: "iron", path: "README.md" }, null)
         const rawBob = as("bob.developer", () => ec.screen.makeTest().rootScreen(webroot).render("apps/Projects/Code/RepositoryDetail/Files/raw",
             { repositoryId: "acme-portal", path: "README.md" }, null))

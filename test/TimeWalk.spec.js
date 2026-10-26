@@ -156,7 +156,7 @@ feature("joe submits the week: it is locked; john.doe finds it in To approve and
         const submitted = as("joe.developer", () => post("Time/MyTime/decide", { action: "submit", weekDate: "2026-12-09" }))
         const locked = as("joe.developer", () => post("Time/MyTime/saveCell", { workEffortId: "TWK-1", day: "2026-12-11", hours: "4" }))
         const list = render("apps/Projects/Time/Timesheets", { list: "toApprove" })
-        const rows = sys(() => call("ironstone.TimeServices.find#TimesheetRows", { list: "toApprove" })).rowList
+        const rows = sys(() => call("ironstone.projects.TimeServices.find#TimesheetRows", { list: "toApprove" })).rowList
         const detail = render("apps/Projects/Time/TimesheetDetail", { timesheetId: sheetId() })
         const bobDetail = as("bob.developer", () => render("apps/Projects/Time/TimesheetDetail", { timesheetId: sheetId() }))
         return { submitted, locked, list, rows, detail, bobDetail, week: weekOf("joe.developer").week }
@@ -230,7 +230,7 @@ feature("the other screens: MyTime's component, QuickTime, WorkItemDetail's time
         const itemStart = as("joe.developer", () => post("WorkItems/WorkItemDetail/startTimer", { workEffortId: "TWK-1", tab: "overview" }))
         const itemPage = as("joe.developer", () => render("apps/Projects/WorkItems/WorkItemDetail", { workEffortId: "TWK-1" }))
         const home = as("joe.developer", () => render("apps/Projects/Home", {}))
-        const homeTime = as("joe.developer", () => sys(() => call("ironstone.ProjectServices.get#ProjectsHome", {})).home)
+        const homeTime = as("joe.developer", () => sys(() => call("ironstone.projects.ProjectServices.get#ProjectsHome", {})).home)
         const itemStop = as("joe.developer", () => post("WorkItems/WorkItemDetail/stopTimer", { workEffortId: "TWK-1", tab: "overview" }))
         const managerHome = render("apps/Projects/Home", {})
         return { component, quick, logged, itemStart, itemPage, home, homeTime, itemStop, managerHome }

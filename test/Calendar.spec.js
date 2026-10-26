@@ -1,4 +1,4 @@
-// Commons Calendar (screen/Commons/Calendar.xml and Calendar.qvue, service/ironstone/CalendarServices.xml; impl-drawers-commons.md
+// Commons Calendar (screen/Commons/Calendar.xml and Calendar.qvue, service/ironstone/commons/CalendarServices.xml; impl-drawers-commons.md
 // M7, design-drawers-commons.md §7): the JSON transitions the calendar calls under the Commons app root, as john.doe, on the
 // calendar demo (data/BossCalendarDemoData.xml, CalendarDemoServices.load#CalendarDemo, loaded again here so the dates are
 // from today in john.doe's time zone). The rail's calendars and defaults; the events of a day, a week, a month and the
@@ -51,7 +51,7 @@ const notices = (userId, topic) => sys(() => Array.from(ec.entity.find("moqui.se
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.CalendarDemoServices.load#CalendarDemo", {}))
+        sys(() => call("ironstone.commons.CalendarDemoServices.load#CalendarDemo", {}))
         D = ec.l10n.format(ec.user.nowTimestamp, "yyyy-MM-dd")
         weekStart = D
         weekEnd = addDays(D, 6)
@@ -62,14 +62,14 @@ spec({
         // off and load the demo again, so a spec after this one (EventDetail) finds the planning not answered
         sys(() => {
             ec.entity.find("mantle.work.effort.WorkEffortParty").condition({ workEffortId: "BOSS_DEMO_EV_PLANNING", partyId: "EX_JOHN_DOE" }).deleteAll()
-            call("ironstone.CalendarDemoServices.load#CalendarDemo", {})
+            call("ironstone.commons.CalendarDemoServices.load#CalendarDemo", {})
         })
     },
 })
 
 feature("the rail has john.doe's calendars: his own, the subscription with its failed fetch, the Team, Joe's and Bob's; the defaults and his time zone", {
     when() {
-        sys(() => call("ironstone.CalendarServices.save#CalendarRailState", { hiddenCalendarIds: "", showTasks: "N", showDeclined: "N" }))
+        sys(() => call("ironstone.commons.CalendarServices.save#CalendarRailState", { hiddenCalendarIds: "", showTasks: "N", showDeclined: "N" }))
         const setup = get("calendarSetup")
         const of = (id) => (setup.json.calendarList || []).find((cal) => cal.calendarId === id) || {}
         const demoIds = ["BOSS_DEMO_CAL_JD", "BOSS_DEMO_CAL_FAMILY", "BOSS_DEMO_CAL_TEAM", "BOSS_DEMO_CAL_JOE", "BOSS_DEMO_CAL_BOB", "BOSS_DEMO_CAL_FEED"]
@@ -192,7 +192,7 @@ feature("a calendar turned off leaves the grid, and stays off; an invitation in 
 
 feature("with showTasks (the Tasks list's Calendar link) john.doe's tasks come at their due time", {
     when() {
-        sys(() => call("ironstone.DemoServices.load#TasksDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#TasksDemo", {}))
         const withTasks = events(day(-1), day(8), { showTasks: "Y" })
         const without = events(day(-1), day(8))
         const tasks = (withTasks.json.eventList || []).filter((event) => event.kind === "task")

@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Add account step 2, connect (design-drawers-commons.md §17 AccountCredentials): for mail at Google or Microsoft where this
-    server is set up for it (ironstone.MailSettingsServices.get#OAuthChoice; mr-moqui docs/Mail-OAuth.md), "Sign in with Google"
+    server is set up for it (ironstone.comms.MailSettingsServices.get#OAuthChoice; mr-moqui docs/Mail-OAuth.md), "Sign in with Google"
     or "Sign in with Microsoft" first: the SignIn screen's button in a dynamic-container, with the choice of IMAP or POP when
     the provider has a POP server here (POP reads it, and the sign-in asks to allow POP too), whose popup makes the account (paused until
     Finish, as with a password) and signs it in, then goes on to Test; where the provider has a sign-in this server is not set
@@ -21,7 +21,7 @@ along with this software (see the LICENSE.md file). If not, see
     for, with the provider's help and the link where to make one; where the server settings came from, and the settings
     themselves to change (IMAP or POP, hosts, ports, SSL or STARTTLS, the user name) with the outgoing server's own sign-in
     for a provider whose SMTP takes another user (prefilled when the lookup found one; tried before it is saved). Next saves
-    them (ironstone.MailSettingsServices.save#AccountConnection): the first time it makes the account, paused until Finish,
+    them (ironstone.comms.MailSettingsServices.save#AccountConnection): the first time it makes the account, paused until Finish,
     and answers its emailAccountId; later it changes it (an empty password keeps the one saved; an account signed in with its
     provider keeps that sign-in and asks no password). delivery=gateway (hosted, or shared and delivered here) asks for no
     password and no server: the address, the plus-tag note, and that the gateway delivers the mail. The settings shown are
@@ -41,7 +41,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="delivery"/>
 
     <transition name="saveConnection">
-        <service-call name="ironstone.MailSettingsServices.save#AccountConnection" out-map="saveOut" in-map="{emailAccountId:emailAccountId,
+        <service-call name="ironstone.comms.MailSettingsServices.save#AccountConnection" out-map="saveOut" in-map="{emailAccountId:emailAccountId,
                 emailAddress:emailAddress, displayName:displayName, accountKindEnumId:accountKindEnumId, storeKind:storeKind, storeSecurity:storeSecurity,
                 storeHost:storeHost, storePort:storePort, smtpHost:smtpHost, smtpPort:smtpPort, smtpSecurity:smtpSecurity, mailUsername:mailUsername,
                 mailPassword:mailPassword, smtpUsername:(smtpUsername ?? null), smtpPassword:(smtpPassword ?? null),
@@ -75,7 +75,7 @@ along with this software (see the LICENSE.md file). If not, see
         let accountProvider = null
         let opened = false
         if (emailAccountId) {
-            const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
+            const detail = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
             if (!ec.message.hasError() && detail?.found) {
                 opened = true
                 hasPassword = detail.server?.hasPassword === true
@@ -103,16 +103,16 @@ along with this software (see the LICENSE.md file). If not, see
             return
         }
         if (!settings && address) {
-            suggestion = ec.service.sync().name('ironstone.MailSettingsServices.suggest#MailServer').parameter('emailAddress', address).call()?.suggestion || null
+            suggestion = ec.service.sync().name('ironstone.comms.MailSettingsServices.suggest#MailServer').parameter('emailAddress', address).call()?.suggestion || null
             if (suggestion) settings = suggestion
         }
         hasAddress = !!address
         if (!hasAddress) return
         settings = settings || {}
-        const provider = ec.service.sync().name('ironstone.MailSettingsServices.get#MailProvider').parameters({emailAddress: address,
+        const provider = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#MailProvider').parameters({emailAddress: address,
             storeHost: settings.storeHost || null}).call()?.provider || null
         // the sign-in with Google or Microsoft, where this server is set up for the provider the mail is at
-        oauthChoice = ec.service.sync().name('ironstone.MailSettingsServices.get#OAuthChoice').parameters({emailAddress: address,
+        oauthChoice = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#OAuthChoice').parameters({emailAddress: address,
             storeHost: settings.storeHost || null, oauthProviderEnumId: oauthProvider || accountProvider || null}).call()?.choice || null
         oauthConfigured = oauthChoice?.configured === true
         providerLabel = oauthChoice?.providerLabel || null

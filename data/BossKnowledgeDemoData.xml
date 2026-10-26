@@ -13,10 +13,10 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <entity-facade-xml type="demo">
-    <!-- M9: knowledge and notes (design-drawers-commons.md §10; service/ironstone/KnowledgeDemoServices.xml load#KnowledgeDemo),
+    <!-- M9: knowledge and notes (design-drawers-commons.md §10; service/ironstone/commons/KnowledgeDemoServices.xml load#KnowledgeDemo),
         written through the wiki services as john.doe, joe.developer and bob.developer, dated over the weeks before the load:
         the Team handbook space (a page tree with links between its pages, a restricted page, history with notes, a review
         waiting on john.doe, a comment and a file), the members-only Leadership space, the Engineering notes space in a git
         repository, and john.doe's notes (pinned and tagged) with one of joe.developer's. -->
-    <ironstone.KnowledgeDemoServices.load-KnowledgeDemo/>
+    <ironstone.commons.KnowledgeDemoServices.load-KnowledgeDemo/>
 </entity-facade-xml>

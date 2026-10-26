@@ -20,15 +20,15 @@ along with this software (see the LICENSE.md file). If not, see
     of the estimate) and Remaining hours. The boxes: Work items, by state with the chips Not started, In progress and Done, as
     WorkItems shows them (only those the user may see), Add items (a search of the project's items) and Remove for the team;
     Chatter as the right column from 1440 px.
-    The gate, billing share and deliverables (impl-projects.md P8b; ironstone.PlanningServices get#MilestoneExtras): a Gate chip in the
+    The gate, billing share and deliverables (impl-projects.md P8b; ironstone.projects.PlanningServices get#MilestoneExtras): a Gate chip in the
     title row; the Gate box (whether reaching it needs approval and who approves, a manager or a client contact; the latest request
     and the ones before it); a gated milestone not approved is not reached by Reach: its primary action is Ask for approval, and while
     the request waits the approver (or one who manages the project, recording it for them until client users sign in in
     impl-projects.md P10) has Approve, which reaches it, and Refuse with the reason. The Billing box (those who manage money): the order
     line shares it releases (percent or a fixed amount), billed or due, Add share and Invoice milestone when due. The Deliverables box:
-    what it hands over, added by the team, accepted by the approver. Services: ironstone.PlanningServices get#PlanItemDetail,
+    what it hands over, added by the team, accepted by the approver. Services: ironstone.projects.PlanningServices get#PlanItemDetail,
     save#PlanItem, set#PlanItemItems, move#UnfinishedItems, search#PlanItemCandidates, get#MilestoneExtras, decide#MilestoneGate,
-    save#Deliverable, update#DeliverableState; ironstone.BillingServices save#MilestoneShare, invoice#Milestone. A milestone of a project
+    save#Deliverable, update#DeliverableState; ironstone.projects.BillingServices save#MilestoneShare, invoice#Milestone. A milestone of a project
     the user does not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Milestone" default-menu-include="false">
@@ -40,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="roadmap"><default-response url="../Roadmap"/></transition>
     <transition name="savePlanItem">
         <actions>
-            <service-call name="ironstone.PlanningServices.save#PlanItem" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+            <service-call name="ironstone.projects.PlanningServices.save#PlanItem" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
                     description:(description ?? ''), startDay:(startDay ?? ''), dueDay:(dueDay ?? '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
         </actions>
@@ -49,7 +49,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="changeStatus">
         <actions>
-            <service-call name="ironstone.PlanningServices.update#PlanItemField" out-map="statusOut" in-map="{workEffortId:workEffortId, field:'status', value:statusId}"/>
+            <service-call name="ironstone.projects.PlanningServices.update#PlanItemField" out-map="statusOut" in-map="{workEffortId:workEffortId, field:'status', value:statusId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -57,7 +57,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addItems">
         <actions>
-            <service-call name="ironstone.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortIds}"/>
+            <service-call name="ironstone.projects.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortIds}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(itemsOut.message, itemsOut.failedCount ? 'warning' : 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -65,7 +65,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeItem">
         <actions>
-            <service-call name="ironstone.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortId, remove:true}"/>
+            <service-call name="ironstone.projects.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortId, remove:true}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(itemsOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -73,7 +73,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="moveUnfinished">
         <actions>
-            <service-call name="ironstone.PlanningServices.move#UnfinishedItems" out-map="moveOut" in-map="{workEffortId:workEffortId, toWorkEffortId:toWorkEffortId}"/>
+            <service-call name="ironstone.projects.PlanningServices.move#UnfinishedItems" out-map="moveOut" in-map="{workEffortId:workEffortId, toWorkEffortId:toWorkEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(moveOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -87,7 +87,7 @@ along with this software (see the LICENSE.md file). If not, see
                 <service-call name="ironstone.client.ClientServices.decide#ClientGate" out-map="gateOut" in-map="{workEffortId:workEffortId, decision:action,
                         comments:comments}"/>
             </then><else>
-            <service-call name="ironstone.PlanningServices.decide#MilestoneGate" out-map="gateOut" in-map="{workEffortId:workEffortId, action:action,
+            <service-call name="ironstone.projects.PlanningServices.decide#MilestoneGate" out-map="gateOut" in-map="{workEffortId:workEffortId, action:action,
                     approvalRequired:approvalRequired, approverPartyId:approverPartyId, comments:comments}"/>
             </else></if>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(gateOut.message, 'success')</script></if>
@@ -97,7 +97,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveShare">
         <actions>
-            <service-call name="ironstone.BillingServices.save#MilestoneShare" out-map="shareOut" in-map="{workEffortId:workEffortId, orderLine:orderLine, kind:shareKind,
+            <service-call name="ironstone.projects.BillingServices.save#MilestoneShare" out-map="shareOut" in-map="{workEffortId:workEffortId, orderLine:orderLine, kind:shareKind,
                     value:shareValue, remove:(remove == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(shareOut.message, 'success')</script></if>
         </actions>
@@ -106,7 +106,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="invoiceMilestone">
         <actions>
-            <service-call name="ironstone.BillingServices.invoice#Milestone" out-map="invoiceOut" in-map="{workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.BillingServices.invoice#Milestone" out-map="invoiceOut" in-map="{workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(invoiceOut.message, 'success')</script></if>
         </actions>
         <conditional-response url="//Projects/Billing/InvoiceDetail" condition="invoiceOut?.invoiceId"><parameter name="invoiceId" from="invoiceOut.invoiceId"/></conditional-response>
@@ -115,7 +115,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveDeliverable">
         <actions>
-            <service-call name="ironstone.PlanningServices.save#Deliverable" out-map="deliverableOut" in-map="{workEffortId:workEffortId, deliverableId:(deliverableId || null),
+            <service-call name="ironstone.projects.PlanningServices.save#Deliverable" out-map="deliverableOut" in-map="{workEffortId:workEffortId, deliverableId:(deliverableId || null),
                     deliverableName:deliverableName, deliverableTypeEnumId:deliverableTypeEnumId, description:description}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deliverableOut.message, 'success')</script></if>
         </actions>
@@ -124,7 +124,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deliverableState">
         <actions>
-            <service-call name="ironstone.PlanningServices.update#DeliverableState" out-map="stateOut" in-map="{workEffortId:workEffortId, deliverableId:deliverableId, action:action}"/>
+            <service-call name="ironstone.projects.PlanningServices.update#DeliverableState" out-map="stateOut" in-map="{workEffortId:workEffortId, deliverableId:deliverableId, action:action}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(stateOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -134,7 +134,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="estimateFile" read-only="true">
         <actions><script><![CDATA[
             const gate = ec.service.sync().name('mantle.work.ProjectServices.get#MilestoneApprovalAccess').parameters({workEffortId: workEffortId || '', need: 'none'}).call() || {}
-            const money = ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            const money = ec.service.sync().name('ironstone.projects.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
             const content = gate.canView && (money || gate.isApprover) ? ec.entity.find('mantle.work.effort.WorkEffortContent').condition('workEffortContentId', workEffortContentId || '')
                     .condition('workEffortId', workEffortId || '').disableAuthz().one() : null
             ec.message.clearErrors()
@@ -146,7 +146,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- Add items: the project's work items not in it, by key or words -->
     <transition name="searchItems" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.search#PlanItemCandidates').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.search#PlanItemCandidates').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
             ec.message.clearErrors()
             ec.web.sendJsonResponse(out.optionList || [])
         ]]></script></actions>
@@ -154,7 +154,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemDetail').parameters({workEffortId: workEffortId || '', kind: 'milestone'}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#PlanItemDetail').parameters({workEffortId: workEffortId || '', kind: 'milestone'}).call() || {}
         ec.message.clearErrors()
         recordFound = !!out.detail
         if (!recordFound) return
@@ -192,7 +192,7 @@ along with this software (see the LICENSE.md file). If not, see
         unfinishedCount = milestone.rowList.filter((row) => row.state === 'notStarted' || row.state === 'inProgress').length
         moveOptions = [{key: '', text: L('Out of any milestone')}].concat(milestone.otherOptions)
         // the gate, the billing share and the deliverables (impl-projects.md P8b)
-        extras = ec.service.sync().name('ironstone.PlanningServices.get#MilestoneExtras').parameters({workEffortId: workEffortId}).call()?.extras || {required: false,
+        extras = ec.service.sync().name('ironstone.projects.PlanningServices.get#MilestoneExtras').parameters({workEffortId: workEffortId}).call()?.extras || {required: false,
             requestRows: [], shareRows: [], deliverables: [], approverOptions: [], lineOptions: []}
         ec.message.clearErrors()
         // a gated milestone not approved is reached by its approval, not by Reach

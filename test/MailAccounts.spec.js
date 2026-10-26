@@ -1,5 +1,5 @@
 // The mail accounts of Comms Settings (screen/Comms/Settings/MailAccounts: List, the Add wizard and Account;
-// service/ironstone/MailSettingsServices.xml; design-drawers-commons.md §17 MailAccounts; impl-drawers-commons.md M5c): the wizard
+// service/ironstone/comms/MailSettingsServices.xml; design-drawers-commons.md §17 MailAccounts; impl-drawers-commons.md M5c): the wizard
 // step by step as its Next posts each step's form, with no network: the providers IronStone knows (Gmail, Outlook.com, iCloud,
 // Proton) and a reserved domain (acme.example) are answered without a lookup, and the servers are 127.0.0.1 port 1, where
 // nothing listens, so the test fails at once with what to try. Then the list (status, Fix, Continue setup), the account's page
@@ -11,7 +11,7 @@
 // Run: ./moq test mr-boss --spec MailAccounts
 const webroot = "component://webroot/screen/webroot.xml"
 const comms = "component://mr-boss/screen/Comms.xml"
-const SETTINGS = "ironstone.MailSettingsServices"
+const SETTINGS = "ironstone.comms.MailSettingsServices"
 const BASE = "Settings/MailAccounts"
 const PASSWORD = "s3cret-app-pass"
 

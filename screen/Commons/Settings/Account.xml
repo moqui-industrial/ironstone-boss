@@ -21,7 +21,7 @@ along with this software (see the LICENSE.md file). If not, see
     who has Projects, else the access tokens here, org.moqui.impl.UserServices create#UserAccessToken and revoke#UserAccessToken).
     Every form is the current user's own: the user and party come from ec.user, never the request. The
     photo is the face image of the user's party (PartyContent PcntFaceImage, mantle.party.PartyServices.create#PartyContent
-    through ironstone.CommonsServices.upload#MyPhoto; Remove takes it away), shown here and by m-avatar wherever BOSS passes a
+    through ironstone.commons.CommonsServices.upload#MyPhoto; Remove takes it away), shown here and by m-avatar wherever BOSS passes a
     party's face image (Contacts, Chatter). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Account" default-menu-index="1" menu-image="sym_o_manage_accounts" menu-image-type="icon">
@@ -58,12 +58,12 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <!-- the photo: a new one takes the place of the one before; remove leaves the initials -->
     <transition name="uploadPhoto">
-        <service-call name="ironstone.CommonsServices.upload#MyPhoto" in-map="{contentFile:contentFile}"/>
+        <service-call name="ironstone.commons.CommonsServices.upload#MyPhoto" in-map="{contentFile:contentFile}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Photo saved</message></if></actions>
         <default-response url="."/><error-response url="."/>
     </transition>
     <transition name="removePhoto">
-        <service-call name="ironstone.CommonsServices.remove#MyPhoto" out-map="removeOut"/>
+        <service-call name="ironstone.commons.CommonsServices.remove#MyPhoto" out-map="removeOut"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Photo removed</message></if></actions>
         <default-response url="."/><error-response url="."/>
     </transition>
@@ -72,7 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="userPhoto" method="get" read-only="true">
         <actions><script><![CDATA[
             const wanted = ec.web?.requestParameters?.userId
-            const out = wanted ? ec.service.sync().name('ironstone.CommonsServices.get#UserAvatar').parameters({userId: String(wanted)}).call() : null
+            const out = wanted ? ec.service.sync().name('ironstone.commons.CommonsServices.get#UserAvatar').parameters({userId: String(wanted)}).call() : null
             if (out?.contentLocation) ec.web.sendResourceResponse(out.contentLocation, true)
             else ec.web.sendJsonError(404, ec.l10n.localize('No photo'))
         ]]></script></actions>
@@ -81,7 +81,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the user's own photo, inline; 404 without one, so m-avatar shows the initials -->
     <transition name="myPhoto" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CommonsServices.get#MyPhoto').call()
+            const out = ec.service.sync().name('ironstone.commons.CommonsServices.get#MyPhoto').call()
             if (out?.contentLocation) ec.web.sendResourceResponse(out.contentLocation, true)
             else ec.web.sendJsonError(404, ec.l10n.localize('No photo'))
         ]]></script></actions>
@@ -150,7 +150,7 @@ along with this software (see the LICENSE.md file). If not, see
         </then><else><set field="contactInfo" from="null"/></else></if>
 
         <!-- the photo: its avatar, with the photo's id in the address so a new one is not the browser's cached one -->
-        <service-call name="ironstone.CommonsServices.get#MyPhoto" out-map="photoOut"/>
+        <service-call name="ironstone.commons.CommonsServices.get#MyPhoto" out-map="photoOut"/>
         <script><![CDATA[
             hasPhoto = !!photoOut?.contentLocation
             const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
@@ -193,7 +193,7 @@ along with this software (see the LICENSE.md file). If not, see
             singleUseCodeText = singleUseCodes && singleUseCodes.length ? Array.from(singleUseCodes).join('   ') : null
             thruDefault = String(Number(String(ec.user.nowTimestamp)) + 365 * 86400000)
             // git and API access: a user who has Projects keeps SSH keys and tokens in its Git access page, any other has the tokens here
-            hasProjects = !!ec.service.sync().name('ironstone.PaletteServices.get#RecordLink').parameters({recordEntityName: 'moqui.resource.GitRepository', id: '_NA_'}).call()?.url
+            hasProjects = !!ec.service.sync().name('ironstone.commons.PaletteServices.get#RecordLink').parameters({recordEntityName: 'moqui.resource.GitRepository', id: '_NA_'}).call()?.url
             newAccessToken = !hasProjects && ec.web?.sessionAttributes?.remove ? (ec.web.sessionAttributes.remove('newAccessToken') || null) : null
             tokenList = hasProjects ? [] : Array.from(ec.entity.find('moqui.security.UserLoginKey').condition('userId', ec.user.userId).condition('description', 'is-not-null', null)
                     .conditionDate('fromDate', 'thruDate', null).orderBy('-fromDate').disableAuthz().list()).map((row) => ({loginKey: row.loginKey, description: row.description || '',

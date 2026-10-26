@@ -19,10 +19,10 @@ along with this software (see the LICENSE.md file). If not, see
     the screen it is on and its answer (url=".") shows that screen again. The including screen sets recordPartyId (the
     party shown), inSplit (in the split's main pane) and recordBase (the screen's link, for the tabs).
 
-    The party is found under the user's filters (ironstone.ContactServices.check#ContactAccess): another user's personal
+    The party is found under the user's filters (ironstone.commons.ContactServices.check#ContactAccess): another user's personal
     contact is "not available". The parts: the header (avatar, name, organization and title, the "Private · in
     <book>" banner of a personal contact, star), the actions (email, new event, new task, add to a book or group, merge
-    with, add, change or remove the photo (create#PartyContent PcntFaceImage, through ironstone.ContactServices
+    with, add, change or remove the photo (create#PartyContent PcntFaceImage, through ironstone.commons.ContactServices
     upload#ContactAvatar and remove#ContactAvatar), export vCard, link to a directory party, delete), and the tabs Overview (names, contact information with purposes
     and the Expired toggle, addresses, organization and title, relationships, books and groups, notes, an employee's
     directory card), Activity (Chatter, opening on Send message), Calendar, Tasks, Requests, Files (record files) and Consent
@@ -35,18 +35,18 @@ along with this software (see the LICENSE.md file). If not, see
 
     <!-- ========== Edits: each checks the party (check#ContactAccess) and shows the screen again ========== -->
     <transition name="contactUpdate">
-        <service-call name="ironstone.ContactServices.update#Contact"/>
+        <service-call name="ironstone.commons.ContactServices.update#Contact"/>
         <default-response url="."/>
     </transition>
     <transition name="contactOrganization">
-        <service-call name="ironstone.ContactServices.store#ContactOrganization"/>
+        <service-call name="ironstone.commons.ContactServices.store#ContactOrganization"/>
         <default-response url="."/>
     </transition>
     <transition name="contactInfoStore">
         <actions><script><![CDATA[
             // the add form names its purpose field by kind
             const purposeId = contactMechPurposeId || (kind === 'email' ? emailPurposeId : kind === 'phone' ? phonePurposeId : kind === 'web' ? webPurposeId : null) || null
-            ec.service.sync().name('ironstone.ContactServices.store#ContactInfo').parameters({partyId: partyId, kind: kind, contactMechId: contactMechId || null,
+            ec.service.sync().name('ironstone.commons.ContactServices.store#ContactInfo').parameters({partyId: partyId, kind: kind, contactMechId: contactMechId || null,
                 contactMechPurposeId: purposeId, emailAddress: emailAddress || null, webAddress: webAddress || null, phone: phone || null,
                 address1: address1 || null, address2: address2 || null, unitNumber: unitNumber || null, city: city || null,
                 stateProvinceGeoId: stateProvinceGeoId || null, postalCode: postalCode || null, countryGeoId: countryGeoId || null}).call()
@@ -54,32 +54,32 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."/>
     </transition>
     <transition name="contactInfoPurpose">
-        <service-call name="ironstone.ContactServices.store#ContactInfoPurpose"/>
+        <service-call name="ironstone.commons.ContactServices.store#ContactInfoPurpose"/>
         <default-response url="."/>
     </transition>
     <transition name="contactRelationshipAdd">
-        <service-call name="ironstone.ContactServices.add#ContactRelationship" in-map="{partyId:partyId, otherPartyId:otherPartyId,
+        <service-call name="ironstone.commons.ContactServices.add#ContactRelationship" in-map="{partyId:partyId, otherPartyId:otherPartyId,
                 relationshipTypeEnumId:relationshipTypeEnumId, relationshipName:relationshipName, reverse:(direction == 'from')}"/>
         <default-response url="."/>
     </transition>
     <transition name="contactNote">
-        <service-call name="ironstone.ContactServices.store#ContactNote"/>
+        <service-call name="ironstone.commons.ContactServices.store#ContactNote"/>
         <default-response url="."/>
     </transition>
     <!-- the photo (the header's avatar): a new one takes the place of the one before; remove leaves the initials -->
     <transition name="contactAvatarUpload">
-        <service-call name="ironstone.ContactServices.upload#ContactAvatar" in-map="{partyId:partyId, contentFile:contentFile}"/>
+        <service-call name="ironstone.commons.ContactServices.upload#ContactAvatar" in-map="{partyId:partyId, contentFile:contentFile}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Photo saved</message></if></actions>
         <default-response url="."/><error-response url="."/>
     </transition>
     <transition name="contactAvatarRemove">
-        <service-call name="ironstone.ContactServices.remove#ContactAvatar" in-map="{partyId:partyId}"/>
+        <service-call name="ironstone.commons.ContactServices.remove#ContactAvatar" in-map="{partyId:partyId}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Photo removed</message></if></actions>
         <default-response url="."/><error-response url="."/>
     </transition>
     <transition name="contactFavorite">
         <actions>
-            <service-call name="ironstone.ContactServices.check#ContactAccess" in-map="{partyId:partyId, need:'view'}"/>
+            <service-call name="ironstone.commons.ContactServices.check#ContactAccess" in-map="{partyId:partyId, need:'view'}"/>
             <if condition="!ec.message.hasError()">
                 <service-call name="mantle.party.ContactBookServices.set#ContactFavorite" in-map="{partyId:partyId, contactBookId:contactBookId,
                         isFavorite:(isFavorite == 'Y' ? 'Y' : 'N')}"/>
@@ -88,13 +88,13 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."/>
     </transition>
     <transition name="contactBooks">
-        <service-call name="ironstone.ContactServices.set#ContactBooks" in-map="{partyId:partyId, contactBookId:contactBookId,
+        <service-call name="ironstone.commons.ContactServices.set#ContactBooks" in-map="{partyId:partyId, contactBookId:contactBookId,
                 contactBookGroupIdList:contactBookGroupIdList, remove:(remove == 'Y')}"/>
         <default-response url="."/>
     </transition>
     <transition name="contactLink">
         <actions>
-            <service-call name="ironstone.ContactServices.check#ContactAccess" in-map="{partyId:partyId}" out-map="linkAccess"/>
+            <service-call name="ironstone.commons.ContactServices.check#ContactAccess" in-map="{partyId:partyId}" out-map="linkAccess"/>
             <if condition="!linkAccess.isMine"><then><message error="true">Only your own personal contact can be linked to the directory</message></then><else>
                 <service-call name="mantle.party.ContactBookServices.link#PersonalContactToDirectory" out-map="linkOut"
                         in-map="{partyId:partyId, targetPartyId:(targetPartyId || null), roleTypeId:(targetPartyId ? null : 'Contact')}"/>
@@ -121,7 +121,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a vCard of the contact, as a download -->
     <transition name="contactExport">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ContactServices.export#ContactFile').parameters({partyId: partyId, format: format || 'vcard'}).call()
+            const out = ec.service.sync().name('ironstone.commons.ContactServices.export#ContactFile').parameters({partyId: partyId, format: format || 'vcard'}).call()
             if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>
@@ -131,7 +131,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="contactAvatar" method="get" read-only="true">
         <parameter name="partyId" required="true"/>
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ContactServices.get#ContactAvatar').parameters({partyId: partyId}).call()
+            const out = ec.service.sync().name('ironstone.commons.ContactServices.get#ContactAvatar').parameters({partyId: partyId}).call()
             if (out?.contentLocation) ec.web.sendResourceResponse(out.contentLocation, true)
             else ec.web.sendJsonError(404, ec.l10n.localize('No picture'))
         ]]></script></actions>
@@ -151,7 +151,7 @@ along with this software (see the LICENSE.md file). If not, see
                 const params = Object.assign({anyField: words, leadingWildcard: words.includes('@')}, base)
                 const found = ec.service.sync().name('mantle.party.PartyServices.find#Party').parameters(params).call()
                 const ids = Array.from(found?.partyIdList || []).filter((id) => id !== excludePartyId)
-                const rows = ec.service.sync().name('ironstone.ContactServices.get#ContactRows').parameters({partyIdList: ids}).call()?.rowList || []
+                const rows = ec.service.sync().name('ironstone.commons.ContactServices.get#ContactRows').parameters({partyIdList: ids}).call()?.rowList || []
                 for (const row of rows) out.push({value: row.partyId, label: row.name + (row.subtitle ? ' · ' + row.subtitle : '') +
                     (row.emailAddress ? ' · ' + row.emailAddress : '') + (row.isPersonal ? ' · ' + ec.l10n.localize('personal') : '')})
             }
@@ -187,12 +187,12 @@ along with this software (see the LICENSE.md file). If not, see
                 <set field="tab" from="['overview', 'activity', 'calendar', 'tasks', 'requests', 'files', 'consent'].includes(tab) ? tab : 'overview'"/>
                 <set field="rec" from="{found: false}"/>
                 <if condition="recordPartyId">
-                    <service-call name="ironstone.ContactServices.get#ContactRecord" out-map="rec"
+                    <service-call name="ironstone.commons.ContactServices.get#ContactRecord" out-map="rec"
                             in-map="{partyId:recordPartyId, showExpired:(showExpired == 'Y')}"/>
                 </if>
                 <set field="act" from="{}"/>
                 <if condition="rec.found &amp;&amp; ['calendar', 'tasks', 'requests'].includes(tab)">
-                    <service-call name="ironstone.ContactServices.get#ContactActivity" in-map="{partyId:recordPartyId, tab:tab}" out-map="act"/>
+                    <service-call name="ironstone.commons.ContactServices.get#ContactActivity" in-map="{partyId:recordPartyId, tab:tab}" out-map="act"/>
                 </if>
                 <script><![CDATA[
                     const L = (text) => ec.l10n.localize(text)
@@ -453,7 +453,7 @@ along with this software (see the LICENSE.md file). If not, see
                                         </container-box>
 
                                         <!-- emails, phones, websites, other: one row per address with its purposes, each kind's primary one first
-                                            (ironstone.ContactServices.get#ContactRecord over mantle.party.ContactServices.get#PartyContactInfo) -->
+                                            (ironstone.commons.ContactServices.get#ContactRecord over mantle.party.ContactServices.get#PartyContactInfo) -->
                                         <container-box><box-header title="Contact info"/>
                                             <box-toolbar>
                                                 <render-mode><text type="qvt"><![CDATA[<m-link href="${showExpiredUrl}" class="q-mr-sm text-caption">${showExpired == 'Y' || rec.expiredCount ? expiredText : ''}</m-link>]]></text></render-mode>

@@ -56,7 +56,7 @@ along with this software (see the LICENSE.md file). If not, see
             // the printed card (design §18 Print documents), every value escaped
             const L = (text) => ec.l10n.localize(text)
             const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-            const rec = ec.service.sync().name('ironstone.ContactServices.get#ContactRecord').parameters({partyId: partyId}).call() || {}
+            const rec = ec.service.sync().name('ironstone.commons.ContactServices.get#ContactRecord').parameters({partyId: partyId}).call() || {}
             if (!rec.found) { printHtml = '<p>' + enc(L('This contact is not available')) + '</p>'; return }
             const record = rec.record
             const row = (label, value) => value ? '<tr><td class="field-title">' + enc(L(label)) + '</td><td class="field-value">' + value + '</td></tr>' : ''

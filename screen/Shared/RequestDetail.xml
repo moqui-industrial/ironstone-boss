@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     Detail): one request, mounted by Commons at Commons/Requests/RequestDetail and by Projects at Projects/Requests/RequestDetail;
     the app root's appRoot chooses the context (design §6 "Per-app context").
 
-    Commons (design-drawers-commons.md §8 RequestDetail, service/ironstone/RequestServices.xml get#RequestDetail): the name, the
+    Commons (design-drawers-commons.md §8 RequestDetail, service/ironstone/commons/RequestServices.xml get#RequestDetail): the name, the
     status as a row of stage chips (the framework's status-bar) with the requester's next action (Submit a draft; Cancel one's
     own), Comment, Reassign for the assignee, Edit of one's own draft and Attach. The tabs: Overview (name, type, priority,
     customer, description, dates, people), Conversation (Chatter: notes, messages and the comments of add#RequestComment, which
@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     Tasks (the work efforts of RequestWorkEffort, add a task), the other records it is on (link#RequestRecord) and Files (record
     files). No queue, SLA or category widgets: those are Customer Service's.
 
-    Projects (service/ironstone/ProjectRequestServices.xml get#ProjectRequestDetail): the id, the name, the type chip and the
+    Projects (service/ironstone/projects/ProjectRequestServices.xml get#ProjectRequestDetail): the id, the name, the type chip and the
     status-bar of the request flow with the triage moves (Accept, Start, Complete, Cancel; Submit of one's own draft), the facts
     (customer, project, priority, due, assignee, filed by, date, channel), and the actions Comment, Edit (the request's fields),
     Make work item, Link work item and in More Assign, Set project, Resolve (a resolution and a note), Convert to project
@@ -44,7 +44,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="requests"><default-response url="../List"/></transition>
 
-    <!-- a move of the status-bar: in Projects a triage move by one who may triage it (ironstone.ProjectRequestServices triage#Request),
+    <!-- a move of the status-bar: in Projects a triage move by one who may triage it (ironstone.projects.ProjectRequestServices triage#Request),
         else the requester's Submit and Cancel (Commons' set#RequestStatus) -->
     <transition name="changeStatus">
         <actions><script><![CDATA[
@@ -57,12 +57,12 @@ along with this software (see the LICENSE.md file). If not, see
             }
             let triager = false
             if (appRoot === 'Projects') {
-                const access = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectRequestAccess').parameters({requestId: requestId, need: 'check'}).call() || {}
+                const access = ec.service.sync().name('ironstone.projects.ProjectRequestServices.get#ProjectRequestAccess').parameters({requestId: requestId, need: 'check'}).call() || {}
                 triager = !!access.canTriage && access.request?.statusId !== 'ReqDraft'
             }
             const out = triager
-                ? ec.service.sync().name('ironstone.ProjectRequestServices.triage#Request').parameters({requestId: requestId, action: 'status', value: toStatusId}).call()
-                : ec.service.sync().name('ironstone.RequestServices.set#RequestStatus').parameters({requestId: requestId, toStatusId: toStatusId}).call()
+                ? ec.service.sync().name('ironstone.projects.ProjectRequestServices.triage#Request').parameters({requestId: requestId, action: 'status', value: toStatusId}).call()
+                : ec.service.sync().name('ironstone.commons.RequestServices.set#RequestStatus').parameters({requestId: requestId, toStatusId: toStatusId}).call()
             if (!ec.message.hasError()) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
         <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
@@ -70,7 +70,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="updateRequest">
         <actions>
-            <service-call name="ironstone.RequestServices.update#MyRequest" out-map="updateOut" in-map="{requestId:requestId, requestName:requestName,
+            <service-call name="ironstone.commons.RequestServices.update#MyRequest" out-map="updateOut" in-map="{requestId:requestId, requestName:requestName,
                     requestTypeEnumId:requestTypeEnumId, priority:(priority || null), customerPartyId:(customerPartyId || null), description:description,
                     responseRequiredDate:(responseRequiredDate || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
@@ -80,7 +80,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="reassign">
         <actions>
-            <service-call name="ironstone.RequestServices.reassign#Request" out-map="reassignOut" in-map="{requestId:requestId, assignToPartyId:assignToPartyId}"/>
+            <service-call name="ironstone.commons.RequestServices.reassign#Request" out-map="reassignOut" in-map="{requestId:requestId, assignToPartyId:assignToPartyId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reassignOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
@@ -88,7 +88,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addComment">
         <actions>
-            <service-call name="ironstone.RequestServices.comment#Request" out-map="commentOut" in-map="{requestId:requestId, body:(body || '')}"/>
+            <service-call name="ironstone.commons.RequestServices.comment#Request" out-map="commentOut" in-map="{requestId:requestId, body:(body || '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(commentOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
@@ -96,7 +96,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addTask">
         <actions>
-            <service-call name="ironstone.RequestServices.add#RequestTask" out-map="taskOut" in-map="{requestId:requestId, workEffortName:(workEffortName || ''),
+            <service-call name="ironstone.commons.RequestServices.add#RequestTask" out-map="taskOut" in-map="{requestId:requestId, workEffortName:(workEffortName || ''),
                     dueDate:(dueDate || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(taskOut.message, 'success')</script></if>
         </actions>
@@ -105,7 +105,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkRecord">
         <actions>
-            <service-call name="ironstone.RequestServices.link#RequestRecord" out-map="linkOut" in-map="{requestId:requestId, record:record,
+            <service-call name="ironstone.commons.RequestServices.link#RequestRecord" out-map="linkOut" in-map="{requestId:requestId, record:record,
                     recordEntityName:recordEntityName, recordId:recordId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
@@ -114,7 +114,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkRecord">
         <actions>
-            <service-call name="ironstone.RequestServices.unlink#RequestRecord" out-map="unlinkOut" in-map="{requestId:requestId,
+            <service-call name="ironstone.commons.RequestServices.unlink#RequestRecord" out-map="unlinkOut" in-map="{requestId:requestId,
                     recordEntityName:recordEntityName, recordId:recordId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
         </actions>
@@ -123,14 +123,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="searchRecords" read-only="true">
         <actions>
-            <service-call name="ironstone.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.comms.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.optionList || []).map((option) =&gt; ({value: option.value, label: option.label})))</script>
         </actions>
         <default-response type="none"/>
     </transition>
     <transition name="assigneeSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -160,7 +160,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== Projects: triage and work ========== -->
     <transition name="resolve">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.triage#Request" out-map="triageOut" in-map="{requestId:requestId, action:'status',
+            <service-call name="ironstone.projects.ProjectRequestServices.triage#Request" out-map="triageOut" in-map="{requestId:requestId, action:'status',
                     value:(toStatusId || 'ReqCompleted'), resolutionEnumId:(resolutionEnumId || null), comment:(comment || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(triageOut.message, 'success')</script></if>
         </actions>
@@ -169,7 +169,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="triage">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.triage#Request" out-map="triageOut" in-map="{requestId:requestId, action:triageAction, value:(value ?? '')}"/>
+            <service-call name="ironstone.projects.ProjectRequestServices.triage#Request" out-map="triageOut" in-map="{requestId:requestId, action:triageAction, value:(value ?? '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(triageOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="requestId"/><parameter name="tab"/></default-response>
@@ -177,7 +177,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveRequest">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.update#ProjectRequest" out-map="saveOut" in-map="{requestId:requestId, requestName:requestName,
+            <service-call name="ironstone.projects.ProjectRequestServices.update#ProjectRequest" out-map="saveOut" in-map="{requestId:requestId, requestName:requestName,
                     requestTypeEnumId:requestTypeEnumId, priority:priority, customerPartyId:(customerPartyId || null), rootWorkEffortId:(rootWorkEffortId || null),
                     assigneePartyId:(assigneePartyId || null), responseRequiredDate:(responseRequiredDate ?? ''), description:(description ?? '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
@@ -187,7 +187,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="makeWorkItem">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.make#WorkItemFromRequest" out-map="makeOut" in-map="{requestId:requestId,
+            <service-call name="ironstone.projects.ProjectRequestServices.make#WorkItemFromRequest" out-map="makeOut" in-map="{requestId:requestId,
                     rootWorkEffortId:(rootWorkEffortId || null), parentWorkEffortId:(parentWorkEffortId || null), workEffortName:workEffortName,
                     purposeEnumId:(purposeEnumId || null), priority:(priority || null), estimatedCompletionDate:(estimatedCompletionDate || null),
                     estimatedWorkTime:(estimatedWorkTime || null), assignToPartyId:(assignToPartyId || null), description:(description || null)}"/>
@@ -198,7 +198,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkWorkItem">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.link#RequestWorkItem" out-map="linkOut" in-map="{requestId:requestId, workEffortId:(workEffortId || '')}"/>
+            <service-call name="ironstone.projects.ProjectRequestServices.link#RequestWorkItem" out-map="linkOut" in-map="{requestId:requestId, workEffortId:(workEffortId || '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="requestId"/><parameter name="tab" value="work"/></default-response>
@@ -206,7 +206,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkWorkItem">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.unlink#RequestWorkItem" out-map="unlinkOut" in-map="{requestId:requestId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.ProjectRequestServices.unlink#RequestWorkItem" out-map="unlinkOut" in-map="{requestId:requestId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="requestId"/><parameter name="tab" value="work"/></default-response>
@@ -214,7 +214,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="convertToProject">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.convert#RequestToNewProject" out-map="convertOut" in-map="{requestId:requestId,
+            <service-call name="ironstone.projects.ProjectRequestServices.convert#RequestToNewProject" out-map="convertOut" in-map="{requestId:requestId,
                     workEffortId:(newProjectId || ''), workEffortName:(newProjectName || null), templateWorkEffortId:(templateWorkEffortId || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(convertOut.message, 'success')</script></if>
         </actions>
@@ -223,7 +223,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="workItemSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.search#WorkItemOptions" in-map="{term:term, rootWorkEffortId:(rootWorkEffortId || null)}" out-map="found"/>
+            <service-call name="ironstone.projects.ProjectRequestServices.search#WorkItemOptions" in-map="{term:term, rootWorkEffortId:(rootWorkEffortId || null)}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -237,12 +237,12 @@ along with this software (see the LICENSE.md file). If not, see
             detailPath = projects ? '/qapps/Projects/Requests/RequestDetail' : '/qapps/Commons/Requests/RequestDetail'
             let pd = {}
             if (projects) {
-                const out = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectRequestDetail').parameters({requestId: requestId}).call() || {}
+                const out = ec.service.sync().name('ironstone.projects.ProjectRequestServices.get#ProjectRequestDetail').parameters({requestId: requestId}).call() || {}
                 recordFound = !!out.visible
                 pd = out.detail || {}
                 detail = pd.base || {}
             } else {
-                detail = ec.service.sync().name('ironstone.RequestServices.get#RequestDetail').parameters({requestId: requestId}).call() || {}
+                detail = ec.service.sync().name('ironstone.commons.RequestServices.get#RequestDetail').parameters({requestId: requestId}).call() || {}
                 recordFound = !!detail.visible
             }
             const tabKeys = projects ? ['overview', 'conversation', 'work'].concat(pd.itemsShown ? ['items'] : []).concat(['files'])
@@ -302,11 +302,11 @@ along with this software (see the LICENSE.md file). If not, see
                     responseRequiredDate: request.responseRequiredEdit ? request.responseRequiredEdit.substring(0, 10) : '', description: request.description || ''}
                 customerName = request.customerName || ''
                 assigneeName = request.assigneeName || ''
-                projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+                projectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
                 if (request.rootWorkEffortId && !projectOptions.some((option) => option.key === request.rootWorkEffortId))
                     projectOptions = [{key: request.rootWorkEffortId, text: projectName + ' (' + request.rootWorkEffortId + ')'}].concat(projectOptions)
                 makeProjectId = request.rootWorkEffortId || (projectOptions[0]?.key || '')
-                makeTypes = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: makeProjectId || null}).call()?.offeredList || [])
+                makeTypes = Array.from(ec.service.sync().name('ironstone.projects.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: makeProjectId || null}).call()?.offeredList || [])
                 makeTypeId = ({RqtBugFix: 'WepFix', RqtNewFeature: 'WepNewFeature'}[request.requestTypeEnumId]) || 'WepTask'
                 if (!makeTypes.some((type) => type.enumId === makeTypeId)) makeTypes = [{enumId: makeTypeId, label: L(makeTypeId === 'WepFix' ? 'Bug Fix' : makeTypeId === 'WepNewFeature' ? 'New Feature' : 'Task')}].concat(makeTypes)
                 makeValues = {requestId: requestId, rootWorkEffortId: makeProjectId, workEffortName: request.requestName || '', purposeEnumId: makeTypeId,

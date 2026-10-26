@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Allocations (design-projects.md §9 Allocations; style-guide §3.2 List): the allocations of the projects the user sees
-    (service/ironstone/ResourceServices.xml find#AllocationRows over mantle.work.ResourceServices.find#Allocations). The chips with their
+    (service/ironstone/projects/ResourceServices.xml find#AllocationRows over mantle.work.ResourceServices.find#Allocations). The chips with their
     counts: Requested (to decide; the default for the Projects managers), Unstaffed (placeholders), Mine (mine, or requested by me; the
     default for others), Allocated and All. The find (the list's dialog): project, person, and a period the allocations overlap. Each
     row: the project, the person or the placeholder's role and skill, from, thru, hours a week (or the percent), the status chip, who
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="decide">
         <actions>
-            <service-call name="ironstone.ResourceServices.decide#Allocation" out-map="decideOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:action,
+            <service-call name="ironstone.projects.ResourceServices.decide#Allocation" out-map="decideOut" in-map="{workEffortAllocationId:workEffortAllocationId, action:action,
                     reason:(reason || null), partyId:(staffPartyId || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(decideOut.message, 'success')</script></if>
         </actions>
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="bulkAction">
         <actions>
-            <service-call name="ironstone.ResourceServices.bulk#Allocations" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), reason:(reason || null)}"/>
+            <service-call name="ironstone.projects.ResourceServices.bulk#Allocations" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), reason:(reason || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="list"/><parameter name="rootWorkEffortId"/><parameter name="partyId"/></default-response>
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
-            const out = ec.service.sync().name('ironstone.ResourceServices.find#AllocationRows').parameters({list: list || null, rootWorkEffortId: rootWorkEffortId || null,
+            const out = ec.service.sync().name('ironstone.projects.ResourceServices.find#AllocationRows').parameters({list: list || null, rootWorkEffortId: rootWorkEffortId || null,
                 partyId: partyId || null, fromDate: fromDate || null, thruDate: thruDate || null}).call() || {}
             ec.message.clearErrors()
             list = out.list || 'mine'

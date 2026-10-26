@@ -1,5 +1,5 @@
 // Sign-in with Google or Microsoft for a mail account (screen/Comms/Settings/MailAccounts/SignIn.xml and SignIn.qvue, the
-// wizard's Connect step and the account page; service/ironstone/MailSettingsServices.xml get#OAuthChoice, start#MailSignIn,
+// wizard's Connect step and the account page; service/ironstone/comms/MailSettingsServices.xml get#OAuthChoice, start#MailSignIn,
 // mr-moqui docs/Mail-OAuth.md), with no network. Not set up (the seeded Google and Microsoft have no
 // client here): Connect offers no button and says an administrator can set the sign-in up, the password path is as before,
 // and a sign-in is refused. Set up (a provider of this spec's own, with its client on the EmailOAuthProvider row and a
@@ -15,7 +15,7 @@
 // Run: ./moq test mr-boss --spec MailSignIn
 const webroot = "component://webroot/screen/webroot.xml"
 const comms = "component://mr-boss/screen/Comms.xml"
-const SETTINGS = "ironstone.MailSettingsServices"
+const SETTINGS = "ironstone.comms.MailSettingsServices"
 const BASE = "Settings/MailAccounts"
 const PROVIDER = "EopBossSpec"
 const DOMAIN = "boss-oauth.example"

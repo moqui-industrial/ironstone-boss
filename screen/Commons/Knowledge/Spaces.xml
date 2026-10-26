@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Knowledge Spaces (design-drawers-commons.md §10 Spaces; style-guide §3.2 List, §3.11 Dialog): the spaces the user may read
-    (ironstone.KnowledgeServices.get#SpaceList over WikiServices.get#WikiViewScope; the notes spaces are in Notes), with New space
+    (ironstone.commons.KnowledgeServices.get#SpaceList over WikiServices.get#WikiViewScope; the notes spaces are in Notes), with New space
     (create#WikiSpace: database files, or a git repository in the database or on disk; a read-only mirror of a git URL for
     administrators) and Clone (clone#WikiSpace, with or without the history), each opening the new space; a row's settings are
     SpaceDetail. -->
@@ -21,14 +21,14 @@ along with this software (see the LICENSE.md file). If not, see
         default-menu-title="Spaces" default-menu-index="1" menu-image="sym_o_domain" menu-image-type="icon">
 
     <transition name="createSpace">
-        <service-call name="ironstone.KnowledgeServices.create#Space" in-map="{wikiSpaceId:wikiSpaceId, description:description, storage:(storage || 'db'),
+        <service-call name="ironstone.commons.KnowledgeServices.create#Space" in-map="{wikiSpaceId:wikiSpaceId, description:description, storage:(storage || 'db'),
                 remoteUrl:remoteUrl, restrictView:(restrictView == 'Y' ? 'Y' : 'N'), restrictUpdate:(restrictUpdate == 'Y' ? 'Y' : 'N')}" out-map="createOut"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Space ${description} created</message></if></actions>
         <default-response url=".."><parameter name="wikiSpaceId" from="createOut.wikiSpaceId"/></default-response>
         <error-response url="."/>
     </transition>
     <transition name="cloneSpace">
-        <service-call name="ironstone.KnowledgeServices.clone#Space" in-map="{baseWikiSpaceId:baseWikiSpaceId, wikiSpaceId:wikiSpaceId,
+        <service-call name="ironstone.commons.KnowledgeServices.clone#Space" in-map="{baseWikiSpaceId:baseWikiSpaceId, wikiSpaceId:wikiSpaceId,
                 description:description, storage:(storage || 'db'), copyHistory:(copyHistory == 'Y'), copyAttachments:(copyAttachments != 'N')}" out-map="cloneOut"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Space ${wikiSpaceId} cloned${cloneOut.versionCount ? ' with ' + cloneOut.versionCount + ' versions' : ''}</message></if></actions>
         <default-response url=".."><parameter name="wikiSpaceId" from="cloneOut.wikiSpaceId"/></default-response>
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="openSpace"><default-response url=".."/></transition>
 
     <actions>
-        <service-call name="ironstone.KnowledgeServices.get#SpaceList" out-map="listOut"/>
+        <service-call name="ironstone.commons.KnowledgeServices.get#SpaceList" out-map="listOut"/>
         <set field="spaceList" from="listOut.spaceList || []"/>
         <set field="isAdmin" from="!!listOut.isAdmin"/>
         <set field="spaceOptions" from="spaceList.map((space) =&gt; ({key: space.wikiSpaceId, text: space.description + ' (' + space.wikiSpaceId + ')'}))"/>

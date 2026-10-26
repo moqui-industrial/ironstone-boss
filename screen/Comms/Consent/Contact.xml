@@ -29,7 +29,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition-include name="consentHistoryExport" location="component://mr-boss/template/ConsentRecord.xml"/>
 
     <actions>
-        <service-call name="ironstone.ConsentServices.check#ConsentAdmin" out-map="adminOut"/>
+        <service-call name="ironstone.comms.ConsentServices.check#ConsentAdmin" out-map="adminOut"/>
         <set field="isConsentAdmin" from="!!adminOut.isConsentAdmin"/>
         <set field="consentPartyId" from="partyId"/>
         <set field="consentFull" from="true"/>

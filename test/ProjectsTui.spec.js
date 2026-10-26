@@ -221,7 +221,7 @@ feature("the twins show their data and the terminal's actions: My time, Backlog,
             docs: tui("Projects/ProjectDetail/KnowledgeTui", { workEffortId: "IRON" }),
             // a project with no space: says so, and its manager may set it up
             noDocs: tui("Projects/ProjectDetail/KnowledgeTui", { workEffortId: PROJECT }),
-            codeHosting: !!call("ironstone.CodeServices.get#CodeHosting", {}).available,
+            codeHosting: !!call("ironstone.projects.CodeServices.get#CodeHosting", {}).available,
             // the plain screens the design's terminal deferrals named: a request's triage dialogs (P5) and a time entry's edit (P6b)
             triage: tui("Requests/RequestDetail", { requestId: "BOSS_DEMO_PREQ_ACME2" }),
             entryEdit: tui("Time/TimeEntries/EditEntry", { timeEntryId: Array.from(ec.entity.find("mantle.work.time.TimeEntry").condition({ partyId: "EX_JOHN_DOE" })
@@ -275,7 +275,7 @@ feature("the twins show their data and the terminal's actions: My time, Backlog,
 
 feature("My time in the terminal: joe logs time, starts and stops the timer, deletes an entry and submits; john.doe returns the week", {
     when() {
-        const week = () => as("joe.developer", () => sys(() => call("ironstone.TimeServices.get#MyWeek", { weekDate: WEEK }).myWeek))
+        const week = () => as("joe.developer", () => sys(() => call("ironstone.projects.TimeServices.get#MyWeek", { weekDate: WEEK }).myWeek))
         const twin = as("joe.developer", () => tui("Time/MyTimeTui", { weekDate: WEEK }))
         const logged = as("joe.developer", () => post("Time/MyTimeTui/logTime", { weekDate: WEEK, entryItemId: "TUIW-1", day: "2027-09-14", hours: "2.5",
             billable: "Y", comments: "Terminal entry" }))
@@ -333,7 +333,7 @@ feature("the Backlog in the terminal: john.doe turns sprints on, makes a sprint,
             place: "top" })
         const bottom = post("WorkItems/BacklogTui/move", { rootWorkEffortId: PROJECT, workEffortIds: "TUIW-1", place: "bottom" })
         const after = tui("WorkItems/BacklogTui", { rootWorkEffortId: PROJECT })
-        const backlog = sys(() => call("ironstone.PlanningServices.get#Backlog", { rootWorkEffortId: PROJECT }).backlog)
+        const backlog = sys(() => call("ironstone.projects.PlanningServices.get#Backlog", { rootWorkEffortId: PROJECT }).backlog)
         const started = post("WorkItems/BacklogTui/startSprint", { rootWorkEffortId: PROJECT, sprintWorkEffortId: sprint ? sprint.workEffortId : "", startDay: day(0),
             endDay: day(13) })
         const active = itemOf(sprint ? sprint.workEffortId : "_NA_")
@@ -392,7 +392,7 @@ feature("the Timeline in the terminal: john.doe moves an item's dates, adds a de
 
 feature("the Team planner in the terminal: john.doe moves joe's requested allocation a week later and approves it", {
     when() {
-        const made = sys(() => call("ironstone.ResourceServices.save#Allocation", { workEffortId: PROJECT, partyId: "ORG_ZIZI_JD", fromDate: day(7), thruDate: day(20),
+        const made = sys(() => call("ironstone.projects.ResourceServices.save#Allocation", { workEffortId: PROJECT, partyId: "ORG_ZIZI_JD", fromDate: day(7), thruDate: day(20),
             amount: "8", unit: "h", request: "Y" }))
         const id = made.workEffortAllocationId
         const twin = tui("Resources/TeamPlannerTui", { rootWorkEffortId: PROJECT })
@@ -416,8 +416,8 @@ feature("the Team planner in the terminal: john.doe moves joe's requested alloca
 
 feature("Changes in the terminal: a file's diff, a line comment refused off the diff, then made and resolved (with git built in)", {
     when() {
-        if (!sys(() => !!call("ironstone.CodeServices.get#CodeHosting", {}).available)) return { skipped: true }
-        const changes = sys(() => call("ironstone.CodeServices.get#MergeRequestChanges", { mergeRequestId: ids.mergeRequestId }).changes)
+        if (!sys(() => !!call("ironstone.projects.CodeServices.get#CodeHosting", {}).available)) return { skipped: true }
+        const changes = sys(() => call("ironstone.projects.CodeServices.get#MergeRequestChanges", { mergeRequestId: ids.mergeRequestId }).changes)
         const file = Array.from(changes.fileList).find((one) => Array.from(one.hunkList || []).some((hunk) => Array.from(hunk.lineList).some((line) => line.tag == "insert")))
         const line = Array.from(file.hunkList).flatMap((hunk) => Array.from(hunk.lineList)).find((one) => one.tag == "insert")
         const twin = tui("Code/MergeRequestDetail/ChangesTui", { mergeRequestId: ids.mergeRequestId, path: file.path })

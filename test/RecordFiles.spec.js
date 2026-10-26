@@ -1,4 +1,4 @@
-// RecordFiles (screen/Shared/RecordFiles.xml and RecordFiles.qvue, service/ironstone/RecordFilesServices.xml, impl-drawers-commons.md
+// RecordFiles (screen/Shared/RecordFiles.xml and RecordFiles.qvue, service/ironstone/shared/RecordFilesServices.xml, impl-drawers-commons.md
 // M3): the files of a record through the panel's JSON transitions under the Commons app root, as john.doe. The demo request's
 // files list with their types, sizes and who added them; an upload to the request and one to the task go through the
 // dispatcher to Mantle's create#RequestContent and create#WorkEffortContent (each saving its file), several files at once,
@@ -32,8 +32,8 @@ const fileNamed = (answer, name) => (answer.json.fileList || []).find((file) => 
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.DemoServices.load#ChatterDemo", {}))
-        sys(() => call("ironstone.FilesDemoServices.load#FilesDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#ChatterDemo", {}))
+        sys(() => call("ironstone.commons.FilesDemoServices.load#FilesDemo", {}))
     },
 })
 

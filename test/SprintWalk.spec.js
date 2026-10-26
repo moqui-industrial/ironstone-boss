@@ -151,7 +151,7 @@ feature("the team finishes two items and puts one in through the work item's Edi
     when() {
         for (const id of ["SPW-2", "SPW-3"]) as("joe.developer", () => post("WorkItems/WorkItemDetail/changeStatus", { workEffortId: id, toStatusId: "WeComplete" }))
         const edit = as("joe.developer", () => post("WorkItems/WorkItemDetail/saveWorkItem", { workEffortId: "SPW-4", sprintId: sprint1 }))
-        const detail = as("joe.developer", () => sys(() => call("ironstone.PlanningServices.get#SprintDetail", { workEffortId: sprint1 }).detail))
+        const detail = as("joe.developer", () => sys(() => call("ironstone.projects.PlanningServices.get#SprintDetail", { workEffortId: sprint1 }).detail))
         return { edit, detail }
     },
     then({ edit, detail }) {

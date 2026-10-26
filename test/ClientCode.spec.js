@@ -183,7 +183,7 @@ feature("a client reads its project's shared repository: the Code tab, the repos
             tags: render("Code/RepositoryDetail/Tags", { repositoryId: REPO }),
             commit: render("Code/CommitDetail", { repositoryId: REPO, commitId: made.commitId }),
             ssoCommit: render("Code/CommitDetail", { repositoryId: REPO, commitId: made.sso }),
-            access: service("ironstone.CodeServices.get#RepositoryAccess", { repositoryId: REPO }),
+            access: service("ironstone.projects.CodeServices.get#RepositoryAccess", { repositoryId: REPO }),
             menu: hit("../menuData/apps/Projects/Code"),
         }))
     },
@@ -259,14 +259,14 @@ feature("a client reads a merge request of the shared repository: no reviewers, 
         return as(SHELDON, () => ({
             list: render("Code/MergeRequests", { list: "all" }),
             tab: render("Code/RepositoryDetail/MergeRequests", { repositoryId: REPO, list: "all" }),
-            found: service("ironstone.CodeServices.find#MergeRequests", { list: "all", repositoryId: REPO }),
+            found: service("ironstone.projects.CodeServices.find#MergeRequests", { list: "all", repositoryId: REPO }),
             header: render("Code/MergeRequestDetail", { mergeRequestId: made.mrId }, "qvt", "2"),
             overview: render("Code/MergeRequestDetail/Overview", { mergeRequestId: made.mrId }),
             commits: render("Code/MergeRequestDetail/Commits", { mergeRequestId: made.mrId }),
             changes: render("Code/MergeRequestDetail/Changes", { mergeRequestId: made.mrId }, "qvue"),
             changesJson: hit("Code/MergeRequestDetail/Changes/changes", { mergeRequestId: made.mrId }),
             tui: render("Code/MergeRequestDetail/ChangesTui", { mergeRequestId: made.mrId }),
-            detail: service("ironstone.CodeServices.get#MergeRequestDetail", { mergeRequestId: made.mrId }),
+            detail: service("ironstone.projects.CodeServices.get#MergeRequestDetail", { mergeRequestId: made.mrId }),
             threads: service("mantle.work.GitServices.get#ReviewThreads", { mergeRequestId: made.mrId }),
             chatter: hit("Chatter/timeline", { recordEntity: "moqui.resource.GitMergeRequest", recordId: made.mrId }),
             chatterData: hit("Chatter/chatterData", { recordEntity: "moqui.resource.GitMergeRequest", recordId: made.mrId }),
@@ -331,9 +331,9 @@ feature("refused: an internal repository, Compare, Git access, Activity, Setting
             ironRaw: hit("Code/RepositoryDetail/Files/raw", { repositoryId: "iron", ref: "main", path: "README.md" }),
             compare: render("Code/Compare", { repositoryId: REPO, head: BRANCH }),
             // Git access, Activity and Settings: refused as every screen file is in test/ClientIsolation.spec.js
-            activityService: service("ironstone.CodeServices.get#RepositoryActivity", { repositoryId: REPO }),
-            compareService: service("ironstone.CodeServices.get#CompareInfo", { repositoryId: REPO, head: BRANCH }),
-            palette: service("ironstone.CodeServices.search#CodePalette", { text: "acme" }),
+            activityService: service("ironstone.projects.CodeServices.get#RepositoryActivity", { repositoryId: REPO }),
+            compareService: service("ironstone.projects.CodeServices.get#CompareInfo", { repositoryId: REPO, head: BRANCH }),
+            palette: service("ironstone.projects.CodeServices.search#CodePalette", { text: "acme" }),
         }))
         // Bluth's own project shares its repositories: still nothing of Acme's
         share("BLUTH", true)
@@ -413,7 +413,7 @@ feature("a client changes nothing through the Code screens: a write of each is r
             ["MergeRequestDetail/mergeMergeRequest", hit("Code/MergeRequestDetail/mergeMergeRequest", Object.assign({ mergeMethodEnumId: "GmmMerge" }, m), "post")],
             ["Overview/mergeMergeRequest", hit("Code/MergeRequestDetail/Overview/mergeMergeRequest", Object.assign({ mergeMethodEnumId: "GmmMerge" }, m), "post")],
             ["Changes/comment", hit("Code/MergeRequestDetail/Changes/comment", Object.assign({ body: "cc client comment", path: "src/theme.css", newLine: "1" }, m), "post")],
-            ["comment#MergeRequest", { errors: service("ironstone.CodeServices.comment#MergeRequest", Object.assign({ body: "cc boss" }, m))._errors }],
+            ["comment#MergeRequest", { errors: service("ironstone.projects.CodeServices.comment#MergeRequest", Object.assign({ body: "cc boss" }, m))._errors }],
         ])
         const after = state()
         const comment = sys(() => ec.entity.find("mantle.party.communication.CommunicationEvent").condition("communicationEventId", made.commentId).one()?.statusId)
@@ -444,7 +444,7 @@ feature("an internal user's Code screens are unchanged: the actions, reviewers, 
                 ssoCommit: render("Code/CommitDetail", { repositoryId: REPO, commitId: made.sso }),
                 overview: render("Code/MergeRequestDetail/Overview", { mergeRequestId: made.mrId }),
                 changesJson: hit("Code/MergeRequestDetail/Changes/changes", { mergeRequestId: made.mrId }),
-                found: service("ironstone.CodeServices.find#MergeRequests", { list: "all", repositoryId: REPO }),
+                found: service("ironstone.projects.CodeServices.find#MergeRequests", { list: "all", repositoryId: REPO }),
                 list: render("Code/Repositories", { list: "all" }),
                 chatter: hit("Chatter/timeline", { recordEntity: "moqui.resource.GitMergeRequest", recordId: made.mrId }),
             }

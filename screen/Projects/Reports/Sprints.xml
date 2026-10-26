@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     (those the user sees that have sprints), a sprint of it (newest first; empty: the active one, else the latest) and how many of the
     last sprints. Velocity: committed against completed per sprint, oldest left (mantle.work.ProjectReportServices.get#SprintVelocity
     with the active ones), the average completed of the completed sprints, and the table (committed, added, removed, completed, carried
-    over; CSV and XLSX). Burndown: the remaining work by day against the ideal line, dashed (ironstone.PlanningServices.get#SprintDetail,
+    over; CSV and XLSX). Burndown: the remaining work by day against the ideal line, dashed (ironstone.projects.PlanningServices.get#SprintDetail,
     which refuses a sprint of a project the user does not see), with its table and a link to SprintDetail. Print opens the same report in
     html-print. A project the user does not see shows nothing. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -30,7 +30,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
         const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
-        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        const options = ec.service.sync().name('ironstone.projects.ReportServices.get#ReportOptions').call() || {}
         ec.message.clearErrors()
         const visibleIds = Array.from(options.projectOptions || []).map((one) => one.value)
         // the projects the user sees that have sprints
@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
         committedValue = ''; completedValue = ''; remainingValue = ''
         velocityHtml = ''; velocityTui = {t: 'text', text: ''}; burnHtml = ''; burnTui = {t: 'text', text: ''}
         if (projectSeen) {
-            const sprintsOut = ec.service.sync().name('ironstone.PlanningServices.get#ProjectSprints').parameters({rootWorkEffortId: rootWorkEffortId, includeClosed: true}).call() || {}
+            const sprintsOut = ec.service.sync().name('ironstone.projects.PlanningServices.get#ProjectSprints').parameters({rootWorkEffortId: rootWorkEffortId, includeClosed: true}).call() || {}
             ec.message.clearErrors()
             const sprints = Array.from(sprintsOut.sprintList || [])
             unitLabel = L(sprintsOut.estimateUnit === 'points' ? 'points' : 'h')
@@ -82,7 +82,7 @@ along with this software (see the LICENSE.md file). If not, see
                 averageValue = velocity.averageCompleted == null ? '—' : fmt(velocity.averageCompleted) + ' ' + unitLabel
                 hasVelocity = list.length > 0
                 if (hasVelocity) {
-                    const chart = ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'SprintVelocityChart', type: 'bar',
+                    const chart = ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'SprintVelocityChart', type: 'bar',
                         labels: list.map((one) => one.workEffortName), series: [{name: L('Committed'), data: list.map((one) => one.committed)},
                             {name: L('Completed'), data: list.map((one) => one.completed)}], yTitle: unitLabel}).call() || {}
                     velocityHtml = chart.html || ''; velocityTui = chart.tui || velocityTui
@@ -94,7 +94,7 @@ along with this software (see the LICENSE.md file). If not, see
             // the burndown of the chosen sprint
             if (workEffortId) {
                 try {
-                    const sprint = ec.service.sync().name('ironstone.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId}).call()?.detail
+                    const sprint = ec.service.sync().name('ironstone.projects.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId}).call()?.detail
                     if (sprint) {
                         sprintTitle = sprint.workEffortName + ' · ' + sprint.stateLabel + (sprint.datesText ? ' · ' + sprint.datesText : '')
                         sprintUrl = '/qapps/Projects/WorkItems/SprintDetail?workEffortId=' + encodeURIComponent(workEffortId)
@@ -103,7 +103,7 @@ along with this software (see the LICENSE.md file). If not, see
                         dayRows = days.filter((row) => !row.start).map((row) => ({dayLabel: row.label, remainingText: row.remainingText, idealText: row.idealText}))
                         hasBurndown = days.length > 1
                         if (hasBurndown) {
-                            const chart = ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'SprintBurndownChart', type: 'line',
+                            const chart = ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'SprintBurndownChart', type: 'line',
                                 labels: days.map((row) => row.label), series: [{name: L('Remaining') + ' (' + sprint.unitLabel + ')', data: days.map((row) => row.remaining)},
                                     {name: L('Ideal'), data: days.map((row) => row.ideal), dashed: true}]}).call() || {}
                             burnHtml = chart.html || ''; burnTui = chart.tui || burnTui

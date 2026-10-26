@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
         name order), since it bills SUPP's time. Brightwater Dental Group, whose installation the support desk runs, is its client (billing
         address and email); the rates: SUPP's
         client rate (140 an hour) and its project management rate (165), ACME's client rate (135 until October, 150 since), and the worker
-        pay of Joe Developer (70) and Bob Developer (60) on any project; then service/ironstone/BillingDemoServices.xml load#BillingDemo
+        pay of Joe Developer (70) and Bob Developer (60) on any project; then service/ironstone/projects/BillingDemoServices.xml load#BillingDemo
         finds the rates of SUPP's time again (as ProjectTime's Update rates does) and makes a draft client invoice of Joe's approved week,
         Net 30, a line per worker as the organization's billing defaults say. The rest of SUPP's time stays unbilled: Joe's last week
         waits for approval, Bob's was returned, this week's is open. -->
@@ -82,5 +82,5 @@ along with this software (see the LICENSE.md file). If not, see
     <mantle.work.effort.Deliverable deliverableId="BOSS_DEMO_DLV_GUIDE" deliverableTypeEnumId="DlvtDocument" deliverableName="Administrator guide"/>
     <mantle.work.effort.WorkEffortDeliverableProd workEffortId="ACME-MS-1" deliverableId="BOSS_DEMO_DLV_GUIDE" sequenceNum="20"/>
 
-    <ironstone.BillingDemoServices.load-BillingDemo/>
+    <ironstone.projects.BillingDemoServices.load-BillingDemo/>
 </entity-facade-xml>

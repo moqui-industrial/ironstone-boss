@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="saveOptions">
         <actions><script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
-            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
             if (!current?.found) { ec.message.addError(L('This import is not available; start again from the file')); return }
             const personal = asPersonal !== 'N'
             const admin = ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
             const groupIds = (contactBookGroupIdList == null ? [] : (typeof contactBookGroupIdList === 'string' ? contactBookGroupIdList.split(',') : Array.from(contactBookGroupIdList)))
                     .map((id) => String(id).trim()).filter((id) => id && book && (book.groupList || []).some((group) => group.contactBookGroupId === id))
             if (!personal && !book && (groupIds.length || groupNames)) { ec.message.addValidationError(null, 'contactBookId', null, L('Groups need a book'), null); return }
-            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'options', options: {
+            ec.service.sync().name('ironstone.commons.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'options', options: {
                 asPersonal: personal, contactBookId: contactBookId || null, contactBookGroupIdList: groupIds,
                 groupNames: groupNames ? String(groupNames).trim() : null, duplicatePolicy: duplicatePolicy, useFileGroups: useFileGroups !== 'N'}}}).call()
         ]]></script></actions>
@@ -48,7 +48,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition-include name="contactBookGroups" location="component://mr-boss/template/ContactRecord.xml"/>
 
     <actions>
-        <service-call name="ironstone.ContactServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <service-call name="ironstone.commons.ContactServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
         <set field="hasDraft" from="!!draftOut.found"/>
         <set field="draft" from="draftOut.draft || {}"/>
         <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>

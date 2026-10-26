@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- WorkItems (design-projects.md §5 WorkItems; style-guide §3.2 List, §3.6 Board, §3.15 Tree list, §3.8 Split for the peek
-    pane): the work items of the projects the user sees (service/ironstone/WorkItemServices.xml find#WorkItems, impl-projects.md
+    pane): the work items of the projects the user sees (service/ironstone/projects/WorkItemServices.xml find#WorkItems, impl-projects.md
     F1). A chip row of smart lists with their counts (Open, Assigned to me, Reported by me, Watching, Unassigned, Due this
     week, Overdue, Recently changed, Done, All); the find in the list's dialog (text or a key, project, type, status, priority band,
     assignee, milestone, release, label, under an item, top-level only, due period, visibility, repeating), whose saved finds
@@ -63,7 +63,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== changes that show the list again, with the find of the keep field ========== -->
     <transition name="quickAdd">
         <actions>
-            <service-call name="ironstone.WorkItemServices.quickAdd#WorkItem" out-map="addOut" in-map="{workEffortName:(workEffortName || ''),
+            <service-call name="ironstone.projects.WorkItemServices.quickAdd#WorkItem" out-map="addOut" in-map="{workEffortName:(workEffortName || ''),
                     rootWorkEffortId:(projectId || null), purposeEnumId:(purposeEnumId || null), assignToPartyId:(assignToPartyId || null),
                     sprintWorkEffortId:(addSprintId || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
@@ -84,7 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the bulk changes: selectedIds (a comma list), the change and its value -->
     <transition name="bulkAction">
         <actions>
-            <service-call name="ironstone.WorkItemServices.bulk#WorkItems" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedIds || ''), value:(value || null)}"/>
+            <service-call name="ironstone.projects.WorkItemServices.bulk#WorkItems" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedIds || ''), value:(value || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
             <script><![CDATA[
                 let kept = {}
@@ -105,7 +105,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== the in-place edits of a row (m-editable), as JSON ========== -->
     <transition name="updateField">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: field,
+            const out = ec.service.sync().name('ironstone.projects.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: field,
                 value: value == null ? '' : value}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {valueText: out.valueText, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -113,7 +113,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="fieldValue" read-only="true">
         <actions><script><![CDATA[
-            const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'view', app: 'projects'}).call()
+            const access = ec.service.sync().name('ironstone.commons.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'view', app: 'projects'}).call()
             let value = ''
             if (!ec.message.hasError() && access.workEffort) {
                 const item = access.workEffort
@@ -131,7 +131,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="moveCard">
         <actions><script><![CDATA[
             const groupBy = groupField || 'statusId'
-            const out = ec.service.sync().name('ironstone.WorkItemServices.move#WorkItemCard').parameters({workEffortId: workEffortId, groupField: groupBy,
+            const out = ec.service.sync().name('ironstone.projects.WorkItemServices.move#WorkItemCard').parameters({workEffortId: workEffortId, groupField: groupBy,
                 value: ec.web.parameters[groupBy] ?? ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -142,7 +142,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const day = estimatedCompletionDate == null ? '' : String(estimatedCompletionDate).trim().substring(0, 10)
             if (!day) { ec.message.addError(ec.l10n.localize('Drop the work item on a day')); ec.web.sendJsonResponse({}); return }
-            const out = ec.service.sync().name('ironstone.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: 'due', value: day}).call()
+            const out = ec.service.sync().name('ironstone.projects.WorkItemServices.update#WorkItemField').parameters({workEffortId: workEffortId, field: 'due', value: day}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -150,7 +150,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the tree: a move (a drag, Tab, Shift+Tab, Alt+Up or Down) posts the row, its new parent and its new previous sibling -->
     <transition name="moveWorkItem" method="post">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'update', app: 'projects'}).call()
+            ec.service.sync().name('ironstone.commons.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'update', app: 'projects'}).call()
             if (!ec.message.hasError()) ec.service.sync().name('mantle.work.TaskServices.move#Task').parameters({workEffortId: workEffortId,
                 parentWorkEffortId: parentWorkEffortId || null, previousSiblingId: previousSiblingId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success',
@@ -164,7 +164,7 @@ along with this software (see the LICENSE.md file). If not, see
             const wanted = String(ids || '').split(',').map((id) => id.trim()).filter((id) => id)
             const found = wanted.length ? ec.service.sync().name('mantle.work.ProjectServices.get#WorkItemTree').parameters({workEffortIds: wanted, withAncestors: true}).call() : {}
             const rows = Array.from(found?.workItemList || [])
-            const decorated = rows.length ? ec.service.sync().name('ironstone.WorkItemServices.decorate#WorkItemRows').parameters({taskList: rows}).call()?.rowList || [] : []
+            const decorated = rows.length ? ec.service.sync().name('ironstone.projects.WorkItemServices.decorate#WorkItemRows').parameters({taskList: rows}).call()?.rowList || [] : []
             ec.web.sendJsonResponse({workItemRows: decorated})
         ]]></script></actions>
         <default-response type="none"/>
@@ -173,7 +173,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people of the assignee drop-downs -->
     <transition name="assigneeSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -211,7 +211,7 @@ along with this software (see the LICENSE.md file). If not, see
             // a level of the tree (view-tree children, impl-projects.md F13), and every row of the board or calendar, without the counts
             const treeParent = param('parentWorkEffortId')
             const noLimit = param('pageNoLimit') === 'true'
-            const out = ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: list, text: text || null,
+            const out = ec.service.sync().name('ironstone.projects.WorkItemServices.find#WorkItems').parameters({list: list, text: text || null,
                 rootWorkEffortId: rootWorkEffortId || null, purposeEnumId: purposeEnumId || null, statusId: statusId || null, priorityBand: priorityBand || null,
                 assigneePartyId: assigneePartyId || null, milestoneId: milestoneId || null, releaseId: releaseId || null, sprintId: sprintId || null, labelId: labelId || null,
                 parentWorkEffortId: treeParent, underWorkEffortId: underWorkEffortId || null, topLevel: topLevel || null, visibilityEnumId: visibilityEnumId || null,
@@ -242,26 +242,26 @@ along with this software (see the LICENSE.md file). If not, see
                 params: Object.assign({}, find, {list: key})}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
             // the drop-downs
-            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
-            addProjectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+            projectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            addProjectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
             addProjectId = rootWorkEffortId && addProjectOptions.some((option) => option.key === rootWorkEffortId) ? rootWorkEffortId : (addProjectOptions[0]?.key || '')
             // the quick-add types: those the project offers (Settings, Work item types; the project's own WstWorkItemTypes)
-            addTypeOptions = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: addProjectId || null}).call()?.offeredList || [])
+            addTypeOptions = Array.from(ec.service.sync().name('ironstone.projects.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: addProjectId || null}).call()?.offeredList || [])
             addTypeId = addTypeOptions.some((type) => type.enumId === 'WepTask') ? 'WepTask' : (addTypeOptions[0]?.enumId || 'WepTask')
-            milestoneOptions = ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
+            milestoneOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
                 workEffortTypeEnumId: 'WetMilestone'}).call()?.optionList || []
-            releaseOptions = ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
+            releaseOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#PlanItemOptions').parameters({rootWorkEffortId: rootWorkEffortId || null,
                 workEffortTypeEnumId: 'WetRelease'}).call()?.optionList || []
             // the sprints: of the find (the sprints in progress, and those of the project), of the bulk change, of the quick add (its project)
-            sprintOptions = [{key: 'current', text: L('Current sprint (in progress)')}].concat(ec.service.sync().name('ironstone.WorkItemServices.get#PlanItemOptions')
+            sprintOptions = [{key: 'current', text: L('Current sprint (in progress)')}].concat(ec.service.sync().name('ironstone.projects.WorkItemServices.get#PlanItemOptions')
                     .parameters({rootWorkEffortId: rootWorkEffortId || null, workEffortTypeEnumId: 'WetSprint'}).call()?.optionList || [])
             bulkSprintOptions = sprintOptions.filter((option) => option.key !== 'current')
-            addSprintOptions = addProjectId ? Array.from(ec.service.sync().name('ironstone.PlanningServices.get#SprintOptions').parameters({rootWorkEffortId: addProjectId}).call()?.optionList || []) : []
+            addSprintOptions = addProjectId ? Array.from(ec.service.sync().name('ironstone.projects.PlanningServices.get#SprintOptions').parameters({rootWorkEffortId: addProjectId}).call()?.optionList || []) : []
             addSprintId = ''
             if (sprintId && addSprintOptions.some((option) => option.key === sprintId)) addSprintId = sprintId
             else if (sprintId === 'current') addSprintId = Array.from(ec.entity.find('mantle.work.effort.WorkEffort').condition('rootWorkEffortId', addProjectId || '_NA_')
                     .condition('workEffortTypeEnumId', 'WetSprint').condition('statusId', 'WeInProgress').orderBy('estimatedStartDate').list())[0]?.workEffortId || ''
-            labelOptions = ec.service.sync().name('ironstone.WorkItemServices.get#LabelOptions').call()?.optionList || []
+            labelOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#LabelOptions').call()?.optionList || []
             isProjectsManager = ec.user.isInGroup('BOSS_PROJECT_MANAGER') || ec.user.isInGroup('ADMIN')
             const empty = {open: 'No open work items', mine: 'No open work items assigned to you', reported: 'No open work items you reported',
                 watching: 'You are not watching any open work item', unassigned: 'Every open work item has an assignee', week: 'Nothing due this week',

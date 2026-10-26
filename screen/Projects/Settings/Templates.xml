@@ -15,13 +15,13 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Templates (design-projects.md §12 Templates; style-guide §3.9 Settings): the project templates (projects with isTemplate) with
     their key, work items, milestones, members and the projects made from them (mantle.work.ProjectServices.get#ProjectTemplates);
     a template opens as a project with the template banner, where it is changed; NewTemplate makes one from scratch or as a copy of
-    a project (ironstone.ProjectServices.save#ProjectAsTemplate). -->
+    a project (ironstone.projects.ProjectServices.save#ProjectAsTemplate). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Templates" default-menu-index="4" menu-image="sym_o_style" menu-image-type="icon">
 
     <transition name="projectDetail"><default-response url="//Projects/Projects/ProjectDetail"/></transition>
     <transition name="createTemplate">
-        <service-call name="ironstone.ProjectServices.save#ProjectAsTemplate" in-map="{baseWorkEffortId:baseWorkEffortId, workEffortId:workEffortId,
+        <service-call name="ironstone.projects.ProjectServices.save#ProjectAsTemplate" in-map="{baseWorkEffortId:baseWorkEffortId, workEffortId:workEffortId,
                 workEffortName:workEffortName}" out-map="templateOut"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(templateOut.message, 'success')</script></if></actions>
         <default-response url="."/>
@@ -30,9 +30,9 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            const orgId = ec.service.sync().name('ironstone.projects.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
             templateList = Array.from(ec.service.sync().name('mantle.work.ProjectServices.get#ProjectTemplates').parameters({organizationPartyId: orgId}).call()?.templateList || [])
-            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            projectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []
         ]]></script>
     </actions>
 

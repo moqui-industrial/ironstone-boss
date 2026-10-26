@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Invoices (design-projects.md §10 Invoices; style-guide §3.2 List; impl-projects.md P8a): the invoices of the projects the user
-    sees, for those who manage money (service/ironstone/BillingServices.xml find#InvoiceRows): client invoices made from project time,
+    sees, for those who manage money (service/ironstone/projects/BillingServices.xml find#InvoiceRows): client invoices made from project time,
     worker invoices and expense invoices on a project. The chips with their counts: Drafts, To send (approved, not sent), Sent,
     Overdue, Paid, Worker invoices, All (the default; cancelled ones too). The find (the list's dialog): project, client, kind, the
     invoice date period. Each row: the invoice (opening InvoiceDetail), kind, project, from, to, date, due, total, unpaid and the status
@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             clientView = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
-            managesMoney = !clientView && !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            managesMoney = !clientView && !!ec.service.sync().name('ironstone.projects.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
             invoiceRows = []
             if (!managesMoney && !clientView) return
             const ctx = (name) => { const value = ec.context.get(name); return value == null || value === '' ? null : String(value) }
@@ -49,7 +49,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (ctx('invoiceDate_from')) dateFrom = ec.l10n.parseTimestamp(ctx('invoiceDate_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
                 if (ctx('invoiceDate_thru')) dateThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('invoiceDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
-            const out = ec.service.sync().name('ironstone.BillingServices.find#InvoiceRows').parameters({list: list || 'all', rootWorkEffortId: rootWorkEffortId || null,
+            const out = ec.service.sync().name('ironstone.projects.BillingServices.find#InvoiceRows').parameters({list: list || 'all', rootWorkEffortId: rootWorkEffortId || null,
                 clientPartyId: clientPartyId || null, kind: clientView ? null : (kind || null), fromDate: dateFrom, thruDate: dateThru}).call() || {}
             ec.message.clearErrors()
             list = out.list || 'all'

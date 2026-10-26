@@ -18,29 +18,29 @@ along with this software (see the LICENSE.md file). If not, see
     Pause or Resume, Fix (a failed sign-in: the account's page with the password, or the provider's sign-in), Continue setup (a wizard left before its
     end), Settings; while an account syncs its card shows how far it is (the SyncProgress screen, on the emailSyncProgress
     topic). With no mail account yet, a welcome card leads into the wizard. Below, the user's own removed accounts whose mail
-    was kept, to delete with their mail (the Removed screen, which asks first). ironstone.MailSettingsServices
+    was kept, to delete with their mail (the Removed screen, which asks first). ironstone.comms.MailSettingsServices
     get#MailAccountList reads them through the framework's access rules; syncNow is the Inbox's sync#UserAccounts. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Accounts" default-menu-index="1" default-menu-include="false">
 
     <transition name="syncNow">
-        <service-call name="ironstone.InboxServices.sync#UserAccounts" in-map="{emailAccountId:emailAccountId}" out-map="syncOut"/>
+        <service-call name="ironstone.comms.InboxServices.sync#UserAccounts" in-map="{emailAccountId:emailAccountId}" out-map="syncOut"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Syncing now; new mail shows in the Inbox as it arrives</message></if></actions>
         <default-response url="."/>
     </transition>
     <transition name="pause">
-        <service-call name="ironstone.MailSettingsServices.set#AccountPaused" in-map="{emailAccountId:emailAccountId, paused:true}"/>
+        <service-call name="ironstone.comms.MailSettingsServices.set#AccountPaused" in-map="{emailAccountId:emailAccountId, paused:true}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Sync paused</message></if></actions>
         <default-response url="."/>
     </transition>
     <transition name="resume">
-        <service-call name="ironstone.MailSettingsServices.set#AccountPaused" in-map="{emailAccountId:emailAccountId, paused:false}"/>
+        <service-call name="ironstone.comms.MailSettingsServices.set#AccountPaused" in-map="{emailAccountId:emailAccountId, paused:false}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Sync resumed</message></if></actions>
         <default-response url="."/>
     </transition>
 
     <actions>
-        <service-call name="ironstone.MailSettingsServices.get#MailAccountList" out-map="listOut"/>
+        <service-call name="ironstone.comms.MailSettingsServices.get#MailAccountList" out-map="listOut"/>
         <script><![CDATA[
             const all = Array.from(listOut?.accountList || [])
             internalAccount = all.find((account) => account.isInternal) || null
@@ -52,7 +52,7 @@ along with this software (see the LICENSE.md file). If not, see
             hasRemoved = false
             ec.message.pushErrors()
             try {
-                hasRemoved = Array.from(ec.service.sync().name('ironstone.MailSettingsServices.get#RemovedMailAccounts').call()?.removedList || []).length > 0
+                hasRemoved = Array.from(ec.service.sync().name('ironstone.comms.MailSettingsServices.get#RemovedMailAccounts').call()?.removedList || []).length > 0
                 if (ec.message.hasError()) { ec.logger.warn(`Removed mail accounts of ${ec.user.username} not read: ${ec.message.getErrorsString()}`); hasRemoved = false }
             } finally { ec.message.clearErrors(); ec.message.popErrors() }
         ]]></script>

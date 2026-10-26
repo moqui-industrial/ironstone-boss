@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
         const L = (text) => ec.l10n.localize(text)
         const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
         const pct = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value))), '#,##0') + '%'
-        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        const options = ec.service.sync().name('ironstone.projects.ReportServices.get#ReportOptions').call() || {}
         ec.message.clearErrors()
         projectOptions = Array.from(options.projectOptions || [])
         personOptions = Array.from(options.personOptions || [])
@@ -63,7 +63,7 @@ along with this software (see the LICENSE.md file). If not, see
         billableUtilizationValue = totals.billableUtilization == null ? '—' : pct(totals.billableUtilization)
         const weekList = Array.from(out.weekList || [])
         hasChart = rowsFound && weekList.length > 0
-        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'UtilizationChart', type: 'bar',
+        const chart = hasChart ? ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'UtilizationChart', type: 'bar',
             labels: weekList.map((week) => week.label), series: [
                 {name: L('Logged'), data: weekList.map((week) => week.past ? week.logged : null)},
                 {name: L('Billable'), data: weekList.map((week) => week.past ? week.billable : null)},

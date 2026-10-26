@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- NewProject step 1, ProjectStart (design-projects.md §4 NewProject): the template (blank, or one of Settings/Templates with what
     it brings), name, key (one to eight letters or digits; suggested from the name when left empty), purpose, client, manager (the
     user by default), start and target dates, who sees it (General or Work group), program and description. Next makes the project
-    In Planning (ironstone.ProjectServices.create#NewProject) and carries its workEffortId on; Create now opens it at once. Back on
+    In Planning (ironstone.projects.ProjectServices.create#NewProject) and carries its workEffortId on; Create now opens it at once. Back on
     a project already made shows what was chosen, whose basics change in the project's settings. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Start" default-menu-index="1" menu-image="sym_o_flag" menu-image-type="icon">
@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="createProject">
         <actions>
-            <service-call name="ironstone.ProjectServices.create#NewProject" out-map="createOut" in-map="{workEffortId:(projectKey || ''), workEffortName:workEffortName,
+            <service-call name="ironstone.projects.ProjectServices.create#NewProject" out-map="createOut" in-map="{workEffortId:(projectKey || ''), workEffortName:workEffortName,
                     purposeEnumId:purposeEnumId, clientPartyId:clientPartyId, managerPartyId:managerPartyId, estimatedStartDate:estimatedStartDate,
                     estimatedCompletionDate:estimatedCompletionDate, visibilityEnumId:(visibilityEnumId || 'WevGeneral'), parentWorkEffortId:parentWorkEffortId,
                     templateWorkEffortId:templateWorkEffortId, description:description}"/>
@@ -51,7 +51,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="peopleSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -59,11 +59,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const orgId = ec.service.sync().name('ironstone.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
+            const orgId = ec.service.sync().name('ironstone.projects.ProjectServices.get#SettingsOrganization').call()?.organizationPartyId || null
             templateList = Array.from(ec.service.sync().name('mantle.work.ProjectServices.get#ProjectTemplates').parameters({organizationPartyId: orgId}).call()?.templateList || [])
                     .map((row) => Object.assign({}, row, {text: row.workEffortName + ' (' + row.itemCount + ' ' + ec.l10n.localize('work items') + ', ' + row.milestoneCount + ' '
                         + ec.l10n.localize('milestones') + ', ' + row.memberCount + ' ' + ec.l10n.localize('members') + ')'}))
-            programOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            programOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []
             myPartyId = ec.user.userAccount?.partyId || ''
             myName = ec.user.userAccount?.userFullName || ec.user.username
             start = {templateWorkEffortId: '', visibilityEnumId: 'WevGeneral', managerPartyId: myPartyId, estimatedStartDate: ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')}

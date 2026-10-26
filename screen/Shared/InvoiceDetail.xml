@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     (impl-projects.md §4: expanded when design-crosscut and Accounting need more); appRoot will choose the context then, as
     Shared/RequestDetail does, and every other app root reads it as Projects until it has its own.
 
-    Projects (service/ironstone/BillingServices.xml get#InvoiceDetail): for one who manages money and sees one of the invoice's projects;
+    Projects (service/ironstone/projects/BillingServices.xml get#InvoiceDetail): for one who manages money and sees one of the invoice's projects;
     anyone else gets "not available". The title row: the invoice, its kind, the client, the status-bar (read only: In-Process,
     Finalized, Sent, Payment Received; the moves are the actions), overdue; the actions on a client invoice: Approve (a draft; primary),
     Send (approves a draft first; email to the client's billing address with the PDF and the time detail; primary once approved), Print
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="changeStatus">
         <actions>
-            <service-call name="ironstone.BillingServices.update#InvoiceStatus" out-map="statusOut" in-map="{invoiceId:invoiceId, action:action}"/>
+            <service-call name="ironstone.projects.BillingServices.update#InvoiceStatus" out-map="statusOut" in-map="{invoiceId:invoiceId, action:action}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="invoiceId"/></default-response>
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="updateHeader">
         <actions>
-            <service-call name="ironstone.BillingServices.update#InvoiceHeader" out-map="headerOut" in-map="{invoiceId:invoiceId, invoiceDate:(invoiceDate || null),
+            <service-call name="ironstone.projects.BillingServices.update#InvoiceHeader" out-map="headerOut" in-map="{invoiceId:invoiceId, invoiceDate:(invoiceDate || null),
                     settlementTermId:(settlementTermId || null), referenceNumber:(referenceNumber ?? null), description:(description ?? null), invoiceMessage:(invoiceMessage ?? null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(headerOut.message, 'success')</script></if>
         </actions>
@@ -56,7 +56,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeLine">
         <actions>
-            <service-call name="ironstone.BillingServices.remove#InvoiceLine" out-map="removeOut" in-map="{invoiceId:invoiceId, invoiceItemSeqId:invoiceItemSeqId}"/>
+            <service-call name="ironstone.projects.BillingServices.remove#InvoiceLine" out-map="removeOut" in-map="{invoiceId:invoiceId, invoiceItemSeqId:invoiceItemSeqId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(removeOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="invoiceId"/></default-response>
@@ -64,7 +64,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="sendInvoice">
         <actions>
-            <service-call name="ironstone.BillingServices.send#Invoice" out-map="sendOut" in-map="{invoiceId:invoiceId, toAddresses:(toAddresses || ''), note:(note || null)}"/>
+            <service-call name="ironstone.projects.BillingServices.send#Invoice" out-map="sendOut" in-map="{invoiceId:invoiceId, toAddresses:(toAddresses || ''), note:(note || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(sendOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="invoiceId"/></default-response>
@@ -73,7 +73,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="invoices"><default-response url="//Projects/Billing/Invoices"/></transition>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.BillingServices.get#InvoiceDetail').parameters({invoiceId: invoiceId || ''}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.BillingServices.get#InvoiceDetail').parameters({invoiceId: invoiceId || ''}).call() || {}
         ec.message.clearErrors()
         recordFound = !!out.detail
         if (!recordFound) return
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
         projectRows = inv.projects
         milestoneRows = inv.milestoneRows || []
         clientView = !!inv.clientView
-        termOptions = clientView ? [] : Array.from(ec.service.sync().name('ironstone.BillingServices.get#BillingSettings').call()?.termOptions || [])
+        termOptions = clientView ? [] : Array.from(ec.service.sync().name('ironstone.projects.BillingServices.get#BillingSettings').call()?.termOptions || [])
         headerValue = {invoiceId: invoiceId, invoiceDate: inv.invoiceDateValue, settlementTermId: inv.settlementTermId, referenceNumber: inv.referenceNumber,
             description: inv.description, invoiceMessage: inv.invoiceMessage}
         sendValue = {invoiceId: invoiceId, toAddresses: inv.sendTo, note: ''}

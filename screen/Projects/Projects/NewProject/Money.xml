@@ -13,10 +13,10 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- NewProject step 4, ProjectMoneyStep (design-projects.md §4 NewProject): how it is paid for: the billing basis, the hours budget
-    and the client budget (ironstone.ProjectServices.save#ProjectMoney), and the project's rates (Add rate: client billing or
+    and the client budget (ironstone.projects.ProjectServices.save#ProjectMoney), and the project's rates (Add rate: client billing or
     worker pay for a person, a work type or everyone, mantle.humanres.RateServices.create#RateAmount scoped to the project; End), and
     for those who manage money the order line it fulfils (impl-projects.md P8b: a line of a sales order to the project's client,
-    ironstone.BillingServices.search#OrderLines and link#OrderLine; milestones take their shares of it later, on MilestoneDetail). -->
+    ironstone.projects.BillingServices.search#OrderLines and link#OrderLine; milestones take their shares of it later, on MilestoneDetail). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Money" default-menu-index="4" menu-image="sym_o_account_balance_wallet" menu-image-type="icon">
 
@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveMoney">
         <actions>
-            <service-call name="ironstone.ProjectServices.save#ProjectMoney" out-map="saveOut" in-map="{workEffortId:workEffortId, billingBasis:billingBasis,
+            <service-call name="ironstone.projects.ProjectServices.save#ProjectMoney" out-map="saveOut" in-map="{workEffortId:workEffortId, billingBasis:billingBasis,
                     totalTimeAllowed:totalTimeAllowed, totalClientCostAllowed:totalClientCostAllowed}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
         </actions>
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addRate">
         <actions>
-            <service-call name="ironstone.ProjectServices.add#ProjectRate" out-map="rateOut" in-map="{workEffortId:workEffortId, ratePurposeEnumId:ratePurposeEnumId,
+            <service-call name="ironstone.projects.ProjectServices.add#ProjectRate" out-map="rateOut" in-map="{workEffortId:workEffortId, ratePurposeEnumId:ratePurposeEnumId,
                     partyId:partyId, workTypeEnumId:workTypeEnumId, rateAmount:rateAmount}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(rateOut.message, 'success')</script></if>
         </actions>
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="endRate">
         <actions>
-            <service-call name="ironstone.ProjectServices.end#ProjectRate" out-map="rateOut" in-map="{workEffortId:workEffortId, rateAmountId:rateAmountId}"/>
+            <service-call name="ironstone.projects.ProjectServices.end#ProjectRate" out-map="rateOut" in-map="{workEffortId:workEffortId, rateAmountId:rateAmountId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(rateOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkOrderLine">
         <actions>
-            <service-call name="ironstone.BillingServices.link#OrderLine" out-map="linkOut" in-map="{workEffortId:workEffortId, orderLine:orderLine, orderId:orderId,
+            <service-call name="ironstone.projects.BillingServices.link#OrderLine" out-map="linkOut" in-map="{workEffortId:workEffortId, orderLine:orderLine, orderId:orderId,
                     orderItemSeqId:orderItemSeqId, remove:(remove == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
@@ -59,7 +59,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="orderLineSearch" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.BillingServices.search#OrderLines').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.BillingServices.search#OrderLines').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
             ec.message.clearErrors()
             ec.web.sendJsonResponse(out.optionList || [])
         ]]></script></actions>
@@ -67,7 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="peopleSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -80,9 +80,9 @@ along with this software (see the LICENSE.md file). If not, see
             const num = (value) => value == null ? '' : String(Number(String(value)))
             moneyValue = {workEffortId: workEffortId, billingBasis: settings.WstBillingBasis || 'TimeAndMaterials', totalTimeAllowed: num(draftProject.totalTimeAllowed),
                 totalClientCostAllowed: num(draftProject.totalClientCostAllowed)}
-            rateList = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
+            rateList = Array.from(ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
             // the order line it fulfils (impl-projects.md P8b), for those who manage money
-            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            managesMoney = !!ec.service.sync().name('ironstone.projects.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
             orderLineRows = []
             hasClient = false
             if (managesMoney) {

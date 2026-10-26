@@ -1,5 +1,5 @@
 // Commons Calendar/Schedules and Schedules/ResourceDetail (screen/Commons/Calendar/Schedules.xml and Schedules.qvue,
-// ResourceDetail.xml, service/ironstone/ScheduleServices.xml; impl-drawers-commons.md M7, design-drawers-commons.md §7): the
+// ResourceDetail.xml, service/ironstone/commons/ScheduleServices.xml; impl-drawers-commons.md M7, design-drawers-commons.md §7): the
 // meeting rooms and equipment john.doe may book, on the calendar demo (data/BossCalendarDemoData.xml, loaded again here). The
 // resources with their policy (Bob Developer approves the Board room and the video kit) and the type, text and seats filters, not the
 // manufacturing equipment; the bookings of a week with their status; a booking made at once, one waiting for approval, a clash
@@ -44,7 +44,7 @@ const made = {}
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.CalendarDemoServices.load#CalendarDemo", {}))
+        sys(() => call("ironstone.commons.CalendarDemoServices.load#CalendarDemo", {}))
         D = ec.l10n.format(ec.user.nowTimestamp, "yyyy-MM-dd")
     },
     cleanup() { login("john.doe") },
@@ -161,7 +161,7 @@ feature("ResourceDetail: what the Board room is, its policy, john.doe's booking 
     when() {
         const board = render("apps/Commons/Calendar/Schedules/ResourceDetail", { resourceType: "room", resourceId: "BOSS_DEMO_ROOM_BOARD" })
         const bad = render("apps/Commons/Calendar/Schedules/ResourceDetail", { resourceType: "room", resourceId: "BOSS_DEMO_PROJECTOR" })
-        const detail = sys(() => call("ironstone.ScheduleServices.get#ResourceDetail", { resourceType: "room", resourceId: "BOSS_DEMO_ROOM_BOARD" }))
+        const detail = sys(() => call("ironstone.commons.ScheduleServices.get#ResourceDetail", { resourceType: "room", resourceId: "BOSS_DEMO_ROOM_BOARD" }))
         const booked = call_("Calendar/Schedules/ResourceDetail/book", { resourceType: "equipment", resourceId: "BOSS_DEMO_PROJECTOR", date: day(5), from: "09:00",
             to: "10:00", purpose: "BOSS_TEST projector" }, "post")
         return { board, bad, detail, booked, projectorEvent: all("mantle.work.effort.WorkEffort", { workEffortName: "BOSS_TEST projector" })[0] || {} }

@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
         const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 10) / 10, '#,##0.#')
-        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        const options = ec.service.sync().name('ironstone.projects.ReportServices.get#ReportOptions').call() || {}
         ec.message.clearErrors()
         projectOptions = Array.from(options.projectOptions || [])
         typeOptions = Array.from(options.typeOptions || [])
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
         // the charts: created against resolved by week, and the open items by status
         const weeks = Array.from(out.weekList || [])
         hasFlow = weeks.length > 0 && (counts.created > 0 || counts.resolved > 0)
-        const flow = hasFlow ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'WorkItemFlowChart', type: 'bar',
+        const flow = hasFlow ? ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'WorkItemFlowChart', type: 'bar',
             labels: weeks.map((week) => week.label), series: [{name: L('Created'), data: weeks.map((week) => week.created)},
                 {name: L('Resolved'), data: weeks.map((week) => week.resolved)}], yTitle: L('Items')}).call() || {} : {}
         ec.message.clearErrors()
@@ -82,7 +82,7 @@ along with this software (see the LICENSE.md file). If not, see
         flowTui = flow.tui || {t: 'text', text: ''}
         const open = Array.from(out.openByStatus || [])
         hasOpen = open.length > 0
-        const openChart = hasOpen ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'WorkItemOpenChart', type: 'bar',
+        const openChart = hasOpen ? ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'WorkItemOpenChart', type: 'bar',
             labels: open.map((one) => one.label), series: [{name: L('Open items'), data: open.map((one) => one.count)}], horizontal: true,
             height: Math.max(160, 40 + open.length * 32) + 'px'}).call() || {} : {}
         ec.message.clearErrors()

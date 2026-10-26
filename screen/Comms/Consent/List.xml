@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The consent registry (design-drawers-commons.md §16 Consent ConsentFind and Consents; style-guide §3.2 List): one row per
     contact with consent data, with its email and phone and whether each allows contact, its lists as chips (subscribed,
     waiting, out), the purposes granted and withdrawn, and the last change with its source (mantle.party.ConsentServices
-    find#Consents through ironstone.ConsentServices). ConsentFind narrows by text (name, email, phone, id), list, status (a
+    find#Consents through ironstone.comms.ConsentServices). ConsentFind narrows by text (name, email, phone, id), list, status (a
     list status or a consent status), purpose, the period of a change and allow contact. A row opens the contact's consent
     (Consent/Contact: change it, the history, the export of a data request). The bulk action unsubscribes the selected
     contacts from a list with the note of where the request came from; Export CSV gives every match (a suppression list);
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="recordConsent">
         <actions>
-            <service-call name="ironstone.ConsentServices.record#Consent" in-map="context"/>
+            <service-call name="ironstone.comms.ConsentServices.record#Consent" in-map="context"/>
             <if condition="!ec.message.hasError()"><message type="success">Consent recorded</message></if>
         </actions>
         <default-response url="."/>
@@ -52,7 +52,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
             if (!ids.length) { ec.message.addError(ec.l10n.localize('Select the contacts to unsubscribe')); return }
-            const out = ec.service.sync().name('ironstone.ConsentServices.unsubscribe#Parties').parameters({partyIdList: ids,
+            const out = ec.service.sync().name('ironstone.comms.ConsentServices.unsubscribe#Parties').parameters({partyIdList: ids,
                 contactListId: bulkContactListId || '', evidenceText: evidenceText || null}).call()
             if (ec.message.hasError()) return
             const failed = (out.failedPartyIdList || []).length
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (param('changed_from')) changedFromDate = ec.l10n.parseTimestamp(param('changed_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
                 if (param('changed_thru')) changedThruDate = new Date(Number(String(ec.l10n.parseTimestamp(param('changed_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
-            const out = ec.service.sync().name('ironstone.ConsentServices.find#Consents').parameters({text: param('text'), contactListId: param('contactListId'),
+            const out = ec.service.sync().name('ironstone.comms.ConsentServices.find#Consents').parameters({text: param('text'), contactListId: param('contactListId'),
                 statusId: param('statusId'), purposeEnumId: param('purposeEnumId'), allowSolicitation: param('allowSolicitation'),
                 changedFromDate: changedFromDate, changedThruDate: changedThruDate, exportCsv: true}).call()
             if (!ec.message.hasError() && out?.csvText != null) ec.web.sendTextResponse(out.csvText, 'text/csv', out.fileName || 'consents.csv')
@@ -84,7 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.ConsentServices.check#ConsentAdmin" out-map="adminOut"/>
+        <service-call name="ironstone.comms.ConsentServices.check#ConsentAdmin" out-map="adminOut"/>
         <set field="isConsentAdmin" from="!!adminOut.isConsentAdmin"/>
         <script><![CDATA[
             if (!isConsentAdmin) return
@@ -98,7 +98,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (param('changed_from')) changedFromDate = ec.l10n.parseTimestamp(param('changed_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
                 if (param('changed_thru')) changedThruDate = new Date(Number(String(ec.l10n.parseTimestamp(param('changed_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
-            const out = ec.service.sync().name('ironstone.ConsentServices.find#Consents').parameters({text: text || null, contactListId: contactListId || null,
+            const out = ec.service.sync().name('ironstone.comms.ConsentServices.find#Consents').parameters({text: text || null, contactListId: contactListId || null,
                 statusId: statusId || null, purposeEnumId: purposeEnumId || null, allowSolicitation: allowSolicitation || null,
                 changedFromDate: changedFromDate, changedThruDate: changedThruDate, orderByField: orderByField || null,
                 pageIndex: Number(pageIndex || 0) || 0, pageSize: 20}).call() || {}
@@ -109,7 +109,7 @@ along with this software (see the LICENSE.md file). If not, see
             consentListPageMaxIndex = out.consentListPageMaxIndex || 0
             consentListPageRangeLow = out.consentListPageRangeLow || 0
             consentListPageRangeHigh = out.consentListPageRangeHigh || 0
-            const options = ec.service.sync().name('ironstone.ConsentServices.get#ConsentOptions').call() || {}
+            const options = ec.service.sync().name('ironstone.comms.ConsentServices.get#ConsentOptions').call() || {}
             listOptions = Array.from(options.listOptions || [])
             activeListOptions = listOptions.filter((option) => !option.archived)
             purposeOptions = Array.from(options.purposeOptions || [])

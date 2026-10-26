@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- NewProject step 2, ProjectTeamStep (design-projects.md §4 NewProject): who works on the project, a person and a project role
     each (Add member; a template's members came with it), with End on a row; with hours a week, from and thru the member is also
-    allocated on it (mantle.work.ResourceServices.create#Allocation through ironstone.ResourceServices.save#Allocation: allocated at
+    allocated on it (mantle.work.ResourceServices.create#Allocation through ironstone.projects.ResourceServices.save#Allocation: allocated at
     once for a Projects manager, else requested; impl-projects.md P7), and the project's allocations are listed below. Next goes on. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Team" default-menu-index="2" menu-image="sym_o_groups" menu-image-type="icon">
@@ -23,11 +23,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="addMember">
         <actions>
-            <service-call name="ironstone.ProjectServices.add#ProjectMember" out-map="addOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
+            <service-call name="ironstone.projects.ProjectServices.add#ProjectMember" out-map="addOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
             <!-- the member's allocation when hours a week are given -->
             <if condition="!ec.message.hasError() &amp;&amp; hoursPerWeek"><then>
-                <service-call name="ironstone.ResourceServices.save#Allocation" out-map="allocOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId,
+                <service-call name="ironstone.projects.ResourceServices.save#Allocation" out-map="allocOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId,
                         fromDate:allocFromDate, thruDate:allocThruDate, amount:hoursPerWeek, unit:'h'}"/>
                 <if condition="!ec.message.hasError()"><script>ec.message.addMessage(allocOut.message, 'success')</script></if>
             </then></if>
@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="endMember">
         <actions>
-            <service-call name="ironstone.ProjectServices.end#ProjectMember" out-map="endOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
+            <service-call name="ironstone.projects.ProjectServices.end#ProjectMember" out-map="endOut" in-map="{workEffortId:workEffortId, partyId:partyId, roleTypeId:roleTypeId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(endOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -46,7 +46,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="teamDone"><default-response url="."><parameter name="workEffortId"/></default-response></transition>
     <transition name="peopleSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -55,10 +55,10 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!draftProject) return
-            const team = ec.service.sync().name('ironstone.ProjectServices.get#ProjectTeam').parameters({workEffortId: workEffortId}).call() || {}
+            const team = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectTeam').parameters({workEffortId: workEffortId}).call() || {}
             memberList = Array.from(team.memberList || [])
             roleOptions = Array.from(team.roleOptions || [])
-            const allocations = ec.service.sync().name('ironstone.ResourceServices.get#ProjectAllocations').parameters({workEffortId: workEffortId}).call() || {}
+            const allocations = ec.service.sync().name('ironstone.projects.ResourceServices.get#ProjectAllocations').parameters({workEffortId: workEffortId}).call() || {}
             ec.message.clearErrors()
             allocationList = Array.from(allocations.allocationList || [])
             // the allocation's days default to the project's start and target dates, else four weeks from this week

@@ -15,14 +15,14 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Identities and signatures (design-drawers-commons.md §17 Identities): per mail account the user may send from, the names
     and addresses it sends as, each with its reply-to, signature (m-rich-text), where the signature goes (below or above the
     quote), whether it goes on replies too, and the default. A manager of the account adds, changes, makes default and deletes
-    (ironstone.MailSettingsServices store#Identity, which cleans the signature as safe HTML, and the framework's identity
+    (ironstone.comms.MailSettingsServices store#Identity, which cleans the signature as safe HTML, and the framework's identity
     services, which check the permission); a member who only sends sees them. An address added must be one the provider lets
     the account send as (an alias), or the provider rewrites or refuses it. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Identities and signatures" default-menu-index="2" menu-image="sym_o_person" menu-image-type="icon">
 
     <transition name="storeIdentity">
-        <service-call name="ironstone.MailSettingsServices.store#Identity" in-map="{emailIdentityId:emailIdentityId, emailAccountId:emailAccountId,
+        <service-call name="ironstone.comms.MailSettingsServices.store#Identity" in-map="{emailIdentityId:emailIdentityId, emailAccountId:emailAccountId,
                 emailAddress:emailAddress, displayName:displayName, replyToAddress:replyToAddress, signatureHtml:signatureHtml,
                 signaturePlacementEnumId:signaturePlacementEnumId, useForReplies:(useForReplies == 'Y' ? 'Y' : 'N'), isDefault:isDefault}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Identity saved</message></if></actions>
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.MailSettingsServices.get#IdentitySettings" out-map="identitiesOut"/>
+        <service-call name="ironstone.comms.MailSettingsServices.get#IdentitySettings" out-map="identitiesOut"/>
         <script><![CDATA[
             identityAccounts = Array.from(identitiesOut?.accountList || [])
             hasAccounts = identityAccounts.length > 0

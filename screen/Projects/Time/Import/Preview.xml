@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Time import step 2 (design-projects.md §8 ImportTime): the first 50 rows as they will be made, without writing anything
-    (mantle.work.TimeServices.import#TimeEntryCsv preview, through ironstone.TimeImportServices.get#ImportPreview): the row, the
+    (mantle.work.TimeServices.import#TimeEntryCsv preview, through ironstone.projects.TimeImportServices.get#ImportPreview): the row, the
     day, the person, the work item and project, the hours and time, the work type, billable, what it will do (create, skip when the
     entry is there already, or fail) and its problems (no date, a person or work item not found or not visible, no hours, a week
     submitted or not the user's to change) and warnings (hours rounded to the smallest entry, a work type not found), with the
@@ -26,16 +26,16 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="confirmPreview">
         <actions><script><![CDATA[
-            const current = ec.service.sync().name('ironstone.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call()
+            const current = ec.service.sync().name('ironstone.projects.TimeImportServices.get#ImportDraft').parameters({importId: importId}).call()
             if (!current?.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
-            ec.service.sync().name('ironstone.TimeImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'previewed'}}).call()
+            ec.service.sync().name('ironstone.projects.TimeImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'previewed'}}).call()
         ]]></script></actions>
         <default-response url="."><parameter name="importId"/></default-response>
         <error-response url="."/>
     </transition>
 
     <actions>
-        <service-call name="ironstone.TimeImportServices.get#ImportPreview" in-map="{importId:importId}" out-map="previewOut"/>
+        <service-call name="ironstone.projects.TimeImportServices.get#ImportPreview" in-map="{importId:importId}" out-map="previewOut"/>
         <script><![CDATA[
             preview = previewOut.preview || null
             hasDraft = !!preview && !preview.error

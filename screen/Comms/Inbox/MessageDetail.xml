@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     source" in the Inbox, a Chatter entry's "Open thread" and the mail the system sent (for administrators): the header card,
     the body (html-view), the files, the communication events and records it is filed on, and the raw headers and source,
     collapsed. By emailMessageId, or by communicationEventId (an internal message, or the email of one). The message comes
-    through ironstone.InboxServices.get#MessageDetail, which checks the user's accounts and the message's visibility: one the
+    through ironstone.comms.InboxServices.get#MessageDetail, which checks the user's accounts and the message's visibility: one the
     user may not see is "not found". Actions: Open in Inbox, Reply, Resend (bounced and system mail, confirmed), Download
     .eml, Print, Link to a record. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -27,7 +27,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="resend">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.InboxServices.get#MessageDetail').parameters({emailMessageId: emailMessageId || null,
+            const out = ec.service.sync().name('ironstone.comms.InboxServices.get#MessageDetail').parameters({emailMessageId: emailMessageId || null,
                 communicationEventId: communicationEventId || null}).call()
             if (!ec.message.hasError() && !out.detail?.canResend) ec.message.addError(ec.l10n.localize('This message cannot be sent again'))
             if (!ec.message.hasError()) {
@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
         which the export reads only with authorization disabled -->
     <transition name="downloadEml" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.InboxServices.get#MessageDetail').parameter('emailMessageId', emailMessageId || '').call()
+            const out = ec.service.sync().name('ironstone.comms.InboxServices.get#MessageDetail').parameter('emailMessageId', emailMessageId || '').call()
             if (!ec.message.hasError() && out?.detail?.kind !== 'email') ec.message.addError(ec.l10n.localize('Only an email downloads as an .eml file'))
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const wasDisabled = out.detail.isSystemMail ? ec.artifactExecution.disableAuthz() : true
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="attachment" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.InboxServices.get#MessageAttachment').parameters({store: store || '', id: id || ''}).call()
+            const out = ec.service.sync().name('ironstone.comms.InboxServices.get#MessageAttachment').parameters({store: store || '', id: id || ''}).call()
             if (ec.message.hasError()) ec.web.sendJsonResponse({})
             else ec.web.sendResourceResponse(out.location, String(inline) === 'true' && out.inlineAllowed)
         ]]></script></actions>
@@ -66,7 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="searchRecords" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.InboxServices.search#LinkRecords').parameter('term', term || '').call()
+            const out = ec.service.sync().name('ironstone.comms.InboxServices.search#LinkRecords').parameter('term', term || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
         ]]></script></actions>
         <default-response type="none"/>
@@ -77,7 +77,7 @@ along with this software (see the LICENSE.md file). If not, see
             const at = value.indexOf('|')
             if (at <= 0) ec.message.addError(ec.l10n.localize('Choose a record'))
             else {
-                const out = ec.service.sync().name('ironstone.InboxServices.link#ThreadRecord').parameters({emailMessageId: emailMessageId || null,
+                const out = ec.service.sync().name('ironstone.comms.InboxServices.link#ThreadRecord').parameters({emailMessageId: emailMessageId || null,
                     communicationEventId: emailMessageId ? null : (communicationEventId || null), recordEntityName: value.substring(0, at), recordId: value.substring(at + 1)}).call()
                 if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Linked') + (out.link ? ': ' + out.link.title : ''), 'success')
             }
@@ -90,7 +90,7 @@ along with this software (see the LICENSE.md file). If not, see
             // a message the user may not see is "not found": the screen says so rather than failing
             ec.message.pushErrors()
             try {
-                const detailOut = ec.service.sync().name('ironstone.InboxServices.get#MessageDetail').parameters({emailMessageId: emailMessageId || null,
+                const detailOut = ec.service.sync().name('ironstone.comms.InboxServices.get#MessageDetail').parameters({emailMessageId: emailMessageId || null,
                     communicationEventId: communicationEventId || null}).requireNewTransaction(true).call()
                 detail = ec.message.hasError() ? null : (detailOut?.detail || null)
             } finally { ec.message.clearErrors(); ec.message.popErrors() }

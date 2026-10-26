@@ -95,7 +95,7 @@ feature("joe makes a branch for the work item on its Development tab, named by t
         const before = as("joe.developer", () => render("apps/Projects/WorkItems/WorkItemDetail", { workEffortId: ITEM, tab: "development" }))
         const made = as("joe.developer", () => post("WorkItems/WorkItemDetail/createBranch", { workEffortId: ITEM }))
         settle()
-        const dev = as("joe.developer", () => sys(() => call("ironstone.CodeServices.get#WorkItemDevelopment", { workEffortId: ITEM }).development))
+        const dev = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.get#WorkItemDevelopment", { workEffortId: ITEM }).development))
         branchName = dev.branchList[0]?.name
         return { before, made, dev }
     },
@@ -121,7 +121,7 @@ feature("joe commits on the branch through the services, as a push would; the co
                     "src/threads.js": "// the review threads of a file, by line\nexport const threads = []\nexport const byLine = (line) => threads.filter((thread) => thread.line === line)\n" } }).commitId))
         } finally { sys(() => call("org.moqui.impl.GitServices.update#GitRepository", { repositoryId: REPO, branch: "main" })) }
         settle()
-        const dev = as("joe.developer", () => sys(() => call("ironstone.CodeServices.get#WorkItemDevelopment", { workEffortId: ITEM }).development))
+        const dev = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.get#WorkItemDevelopment", { workEffortId: ITEM }).development))
         const page = as("joe.developer", () => render("apps/Projects/WorkItems/WorkItemDetail", { workEffortId: ITEM, tab: "development" }))
         return { dev, page }
     },
@@ -137,14 +137,14 @@ feature("joe commits on the branch through the services, as a push would; the co
 
 feature("joe opens a merge request from Compare; its Closes line links the item to complete on merge and john is asked to review", {
     when() {
-        const info = as("joe.developer", () => sys(() => call("ironstone.CodeServices.get#CompareInfo", { repositoryId: REPO, head: branchName })))
+        const info = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.get#CompareInfo", { repositoryId: REPO, head: branchName })))
         const opened = as("joe.developer", () => post("Code/Compare/openMergeRequest", { repositoryId: REPO, sourceRef: branchName, targetRef: "main",
             title: info.defaults.title, description: info.defaults.description, reviewerUserIds: info.defaults.reviewerUserIds.join(","),
             completeItems: info.defaults.completeItems }))
         const mr = sys(() => ec.entity.find("moqui.resource.GitMergeRequest").condition({ repositoryId: REPO, sourceRef: branchName }).one())
         mergeRequestId = mr?.mergeRequestId
         const links = sys(() => Array.from(ec.entity.find("mantle.work.effort.WorkEffortGitMergeRequest").condition("mergeRequestId", mergeRequestId || "_NA_").list()))
-        const waiting = sys(() => call("ironstone.CodeServices.find#MergeRequests", { list: "waiting" }))
+        const waiting = sys(() => call("ironstone.projects.CodeServices.find#MergeRequests", { list: "waiting" }))
         const notified = sys(() => ec.entity.find("moqui.security.user.NotificationMessage").condition("topic", "MergeRequestReview").count())
         return { info, opened, mr, links, waiting, notified }
     },
@@ -170,7 +170,7 @@ feature("john comments on a line of the diff and approves; the merge waits for c
         const comment = json("Code/MergeRequestDetail/Changes/comment", { mergeRequestId, body: "Sort the threads by line?", path: "src/threads.js",
             newLine: line.newNo, lineText: line.text }, "post")
         const approved = json("Code/MergeRequestDetail/Changes/submitReview", { mergeRequestId, decision: "approve", note: "Good, with the one question" }, "post")
-        const detail = as("joe.developer", () => sys(() => call("ironstone.CodeServices.get#MergeRequestDetail", { mergeRequestId, parts: "threads" }).detail))
+        const detail = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.get#MergeRequestDetail", { mergeRequestId, parts: "threads" }).detail))
         return { changes, line, comment, approved, detail }
     },
     then({ changes, line, comment, approved, detail }) {
@@ -189,7 +189,7 @@ feature("CI posts a passed ci/build on the head; joe may now merge", {
     when() {
         sys(() => call("org.moqui.impl.GitServices.create#GitCommitStatus", { repositoryId: REPO, commitId: headCommitId, state: "success", context: "ci/build",
             description: "Build and tests passed", targetUrl: "https://ci.example.com/crw/1" }))
-        const detail = as("joe.developer", () => sys(() => call("ironstone.CodeServices.get#MergeRequestDetail", { mergeRequestId, parts: "" }).detail))
+        const detail = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.get#MergeRequestDetail", { mergeRequestId, parts: "" }).detail))
         const header = as("joe.developer", () => render("apps/Projects/Code/MergeRequestDetail", { mergeRequestId }, "qvt", "2"))
         return { detail, header }
     },
@@ -210,7 +210,7 @@ feature("joe merges with a squash and deletes the branch: the merge request is m
         const mr = sys(() => ec.entity.find("moqui.resource.GitMergeRequest").condition("mergeRequestId", mergeRequestId).one())
         const branches = sys(() => Array.from(call("org.moqui.impl.GitServices.get#GitRefs", { repositoryId: REPO, refType: "branch" }).refList).map((ref) => ref.shortName))
         const log = sys(() => Array.from(call("org.moqui.impl.GitServices.get#GitLog", { repositoryId: REPO, limit: 1 }).commitList))
-        const dev = sys(() => call("ironstone.CodeServices.get#WorkItemDevelopment", { workEffortId: ITEM }).development)
+        const dev = sys(() => call("ironstone.projects.CodeServices.get#WorkItemDevelopment", { workEffortId: ITEM }).development)
         const overview = render("apps/Projects/Code/MergeRequestDetail/Overview", { mergeRequestId })
         return { merged, mr, branches, log, task: item(), dev, overview }
     },

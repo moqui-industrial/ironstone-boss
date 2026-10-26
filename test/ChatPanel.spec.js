@@ -24,7 +24,7 @@ const roomOf = (answer, id) => (answer.json.roomList || []).find((room) => room.
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.ChatDemoServices.load#ChatDemo", {}))
+        sys(() => call("ironstone.comms.ChatDemoServices.load#ChatDemo", {}))
     },
 })
 

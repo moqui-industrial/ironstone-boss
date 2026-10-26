@@ -96,7 +96,7 @@ feature("john.doe requests a placeholder on the Team tab: a Rust programmer, 20 
 feature("the staffing dialog ranks Joe Developer first: he knows Rust and has the hours free; john.doe staffs the placeholder with him, which allocates it", {
     when() {
         const dialog = render("apps/Projects/Resources/Allocations/Staff", { workEffortAllocationId: made.placeholder })
-        const candidates = sys(() => call("ironstone.ResourceServices.get#StaffCandidates", { workEffortAllocationId: made.placeholder }).candidateList)
+        const candidates = sys(() => call("ironstone.projects.ResourceServices.get#StaffCandidates", { workEffortAllocationId: made.placeholder }).candidateList)
         const staffed = post("Resources/Allocations/Staff/staff", { workEffortAllocationId: made.placeholder, staffPartyId: "ORG_ZIZI_JD" })
         return { dialog, candidates, staffed, rows: allocations() }
     },

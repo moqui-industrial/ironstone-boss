@@ -1,4 +1,4 @@
-// Knowledge review (screen/Commons/Knowledge.xml and its subscreen Review, service/ironstone/KnowledgeServices.xml over
+// Knowledge review (screen/Commons/Knowledge.xml and its subscreen Review, service/ironstone/commons/KnowledgeServices.xml over
 // org.moqui.impl.WikiServices request, decide, cancel and find#WikiPageReviews; impl-drawers-commons.md M9, R23; design §10
 // Review): a version asked for review from the page, decided from the tray's Notifications tab (approve publishes it, refuse
 // asks for changes with the reason) or from the page and the Review list, cancelled by the one who asked; the requester told
@@ -49,7 +49,7 @@ spec({
 feature("the demo's review waits on john.doe in To do and on the page, and opens on its compare from the published version", {
     when() {
         const toDo = get("page", { wikiSpaceId: "BOSSKB", pagePath: "Release process" }).json.page.reviews
-        const found = sys(() => call("ironstone.KnowledgeServices.find#Reviews", { filter: "toDo" })).reviewList
+        const found = sys(() => call("ironstone.commons.KnowledgeServices.find#Reviews", { filter: "toDo" })).reviewList
         const demo = found.find((row) => row.wikiPageReviewId === "BOSS_DEMO_WPR_RELEASE")
         const diff = get("diff", { wikiPageId: demo.wikiPageId, fromVersionName: demo.baseVersionName, toVersionName: demo.versionName })
         return { toDo, demo, diff, list: render("Knowledge/Review") }
@@ -80,14 +80,14 @@ feature("joe.developer asks bob.developer to review a version; Bob approves it f
         })
         made.travelReview = requested.json.wikiPageReviewId
         const bob = as("bob.developer", () => {
-            const toDo = sys(() => call("ironstone.KnowledgeServices.find#Reviews", { filter: "toDo" })).reviewList
+            const toDo = sys(() => call("ironstone.commons.KnowledgeServices.find#Reviews", { filter: "toDo" })).reviewList
             const tray = approvalFor(made.travelReview)
             const approved = call_("Panel/Notifications/approve", { notificationMessageId: tray.notificationMessageId }, "post")
             return { toDo, tray, approved, after: approvalFor(made.travelReview) }
         })
         const joe = as("joe.developer", () => {
             const told = decisions().find((row) => row.recordId === made.travelReview)
-            const rows = sys(() => call("ironstone.CommonsServices.decorate#Notifications", { notificationList: [told] })).rows
+            const rows = sys(() => call("ironstone.commons.CommonsServices.decorate#Notifications", { notificationList: [told] })).rows
             return { told, row: rows[0] }
         })
         return { requested, bob, joe, review: review(made.travelReview), page: pageRow(made.travel) }

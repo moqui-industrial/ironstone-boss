@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Compare and merge two contacts (design-drawers-commons.md §6 Duplicates "Compare dialog", ContactDetail "merge with…"; the
     baseline FindDuplicates DupPartyList): both records side by side, a field-level choice for the fields both have with
-    different values, which one to keep, then Merge (ironstone.ContactServices.merge#Contacts: the chosen fields on the kept
+    different values, which one to keep, then Merge (ironstone.commons.ContactServices.merge#Contacts: the chosen fields on the kept
     one, then mantle.party.DuplicateServices.merge#Parties, or link#PersonalContactToDirectory for a personal contact merged
     into a directory party). From Duplicates it opens in a dialog with Not a duplicate as well (returnTo=duplicates); from the
     contact record and the Contacts bulk action it is a page. Both contacts are found under the user's filters; a pair the
@@ -36,7 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (picked && picked !== keepSide) take.push(name)
             }
             const other = keepPartyId === partyId ? otherPartyId : partyId
-            ec.service.sync().name('ironstone.ContactServices.merge#Contacts').parameters({keepPartyId: keepPartyId, otherPartyId: other, takeFields: take.join(',')}).call()
+            ec.service.sync().name('ironstone.commons.ContactServices.merge#Contacts').parameters({keepPartyId: keepPartyId, otherPartyId: other, takeFields: take.join(',')}).call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Contacts merged'), 'success')
             mergedPartyId = keepPartyId
         ]]></script></actions>
@@ -46,7 +46,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="notDuplicate">
         <actions>
-            <service-call name="ironstone.ContactServices.mark#NotDuplicate" in-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
+            <service-call name="ironstone.commons.ContactServices.mark#NotDuplicate" in-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
             <if condition="!ec.message.hasError()"><message type="success">Marked as not duplicates</message></if>
         </actions>
         <default-response url="../Duplicates"/>
@@ -54,7 +54,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.ContactServices.get#ComparePair" in-map="{partyId:partyId, otherPartyId:otherPartyId}" out-map="pair"/>
+        <service-call name="ironstone.commons.ContactServices.get#ComparePair" in-map="{partyId:partyId, otherPartyId:otherPartyId}" out-map="pair"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

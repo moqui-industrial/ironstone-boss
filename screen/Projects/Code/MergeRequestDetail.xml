@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- MergeRequestDetail (design-projects.md §7 MergeRequestDetail; style-guide §3.3 Detail): one merge request of a repository the
-    user may view (ironstone.CodeServices get#MergeRequestAccess in always-actions, so a tab loaded on its own has it,
+    user may view (ironstone.projects.CodeServices get#MergeRequestAccess in always-actions, so a tab loaded on its own has it,
     impl-projects.md F18; get#MergeRequestDetail over org.moqui.impl.GitReviewServices.get#MergeRequest for the header). The title
     row: the number and title, the stages of the merge request flow (Draft, Open, Merged; Open and Closed for a closed one), the
     repository, the source and target branches, the author and when it was opened. The primary action by state: Mark ready on a
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="mergeRequestId" required="true"/>
 
     <always-actions><script><![CDATA[
-        mrAccess = codeHosting ? (ec.service.sync().name('ironstone.CodeServices.get#MergeRequestAccess').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}) : {}
+        mrAccess = codeHosting ? (ec.service.sync().name('ironstone.projects.CodeServices.get#MergeRequestAccess').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}) : {}
         recordFound = !!mrAccess.canView
         mrBasic = mrAccess.mergeRequest || {}
         canPush = !!mrAccess.canPush
@@ -44,7 +44,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="repositoryDetail"><default-response url="../RepositoryDetail"/></transition>
     <transition name="markReady">
         <actions>
-            <service-call name="ironstone.CodeServices.update#MergeRequestInfo" out-map="updateOut" in-map="{mergeRequestId:mergeRequestId, draft:(draft || 'N')}"/>
+            <service-call name="ironstone.projects.CodeServices.update#MergeRequestInfo" out-map="updateOut" in-map="{mergeRequestId:mergeRequestId, draft:(draft || 'N')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="mergeRequestId"/></default-response>
@@ -52,7 +52,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="editMergeRequest">
         <actions>
-            <service-call name="ironstone.CodeServices.update#MergeRequestInfo" out-map="updateOut" in-map="{mergeRequestId:mergeRequestId, title:title,
+            <service-call name="ironstone.projects.CodeServices.update#MergeRequestInfo" out-map="updateOut" in-map="{mergeRequestId:mergeRequestId, title:title,
                     description:(description || ''), targetRef:targetRef}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(updateOut.message, 'success')</script></if>
         </actions>
@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addReviewers">
         <actions>
-            <service-call name="ironstone.CodeServices.set#MergeRequestReviewersBoss" out-map="reviewersOut" in-map="{mergeRequestId:mergeRequestId, addUserIds:addUserIds}"/>
+            <service-call name="ironstone.projects.CodeServices.set#MergeRequestReviewersBoss" out-map="reviewersOut" in-map="{mergeRequestId:mergeRequestId, addUserIds:addUserIds}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reviewersOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="mergeRequestId"/></default-response>
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="submitReview">
         <actions>
-            <service-call name="ironstone.CodeServices.submit#Review" out-map="reviewOut" in-map="{mergeRequestId:mergeRequestId, decision:decision, note:note}"/>
+            <service-call name="ironstone.projects.CodeServices.submit#Review" out-map="reviewOut" in-map="{mergeRequestId:mergeRequestId, decision:decision, note:note}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(reviewOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="mergeRequestId"/></default-response>
@@ -77,7 +77,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="closeMergeRequest">
         <actions>
-            <service-call name="ironstone.CodeServices.close#MergeRequestBoss" out-map="closeOut" in-map="{mergeRequestId:mergeRequestId, reopen:(reopen == 'Y')}"/>
+            <service-call name="ironstone.projects.CodeServices.close#MergeRequestBoss" out-map="closeOut" in-map="{mergeRequestId:mergeRequestId, reopen:(reopen == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(closeOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="mergeRequestId"/></default-response>
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="mergeMergeRequest">
         <actions>
-            <service-call name="ironstone.CodeServices.merge#MergeRequestBoss" out-map="mergeOut" in-map="{mergeRequestId:mergeRequestId, mergeMethodEnumId:mergeMethodEnumId,
+            <service-call name="ironstone.projects.CodeServices.merge#MergeRequestBoss" out-map="mergeOut" in-map="{mergeRequestId:mergeRequestId, mergeMethodEnumId:mergeMethodEnumId,
                     commitMessage:commitMessage, deleteSourceBranch:(deleteSourceBranch || 'N')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(mergeOut.message, 'success')</script></if>
         </actions>
@@ -98,7 +98,7 @@ along with this software (see the LICENSE.md file). If not, see
             if (!recordFound) return
             const L = (text) => ec.l10n.localize(text)
             const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
-            const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestDetail').parameters({mergeRequestId: mergeRequestId, parts: 'reviewerOptions'}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.CodeServices.get#MergeRequestDetail').parameters({mergeRequestId: mergeRequestId, parts: 'reviewerOptions'}).call() || {}
             ec.message.clearErrors()
             headerFound = !!out.found
             if (!headerFound) return
@@ -127,7 +127,7 @@ along with this software (see the LICENSE.md file). If not, see
             if (detail.canEdit) {
                 ec.message.pushErrors()
                 try {
-                    targetOptions = Array.from(ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: mr.repositoryId}).call()?.optionList || [])
+                    targetOptions = Array.from(ec.service.sync().name('ironstone.projects.CodeServices.get#RefOptions').parameters({repositoryId: mr.repositoryId}).call()?.optionList || [])
                             .filter((option) => !String(option.text).startsWith(L('Tag')) && option.key !== mr.sourceRef)
                 } catch (err) { ec.logger.warn('Merge request ' + mergeRequestId + ': no branches for Edit: ' + err) }
                 finally { ec.message.clearErrors(); ec.message.popErrors() }

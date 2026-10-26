@@ -250,7 +250,7 @@ feature("john imports a Jira CSV into the project: the file and the project, the
         importId = newestImport("EX_JOHN_DOE")
         const mapping = render("apps/Projects/WorkItems/Import/Mapping", { importId })
         // the mapping step's fields as the wizard posts them: each target's column, the value maps as shown
-        const info = sys(() => call("ironstone.WorkItemImportServices.get#ImportMappingInfo", { importId }).info)
+        const info = sys(() => call("ironstone.projects.WorkItemImportServices.get#ImportMappingInfo", { importId }).info)
         const fields = { importId, estimateUnit: info.estimateUnit }
         for (const target of info.targets) fields["map_" + target.fieldName] = target.column
         info.typeValues.forEach((entry, index) => { fields["vt_" + index] = entry.value === "Epic" ? "WepFeatureEnhance" : entry.mapped })

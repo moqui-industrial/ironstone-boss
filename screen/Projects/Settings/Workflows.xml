@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     Development, and any other flow between work statuses) with the projects that use each as their work item flow; the chosen
     flow's moves (from, to, name; Add or rename a move, Remove one); the work statuses with their sequence and color (Edit). The
     Default flow is the system's and the projects' own; its work moves are shown with the others it holds left out. Other status
-    types are edited in the Tools app's Status Flows. Service: ironstone.ProjectServices get#Workflows, store#FlowTransition,
+    types are edited in the Tools app's Status Flows. Service: ironstone.projects.ProjectServices get#Workflows, store#FlowTransition,
     update#WorkStatus. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Workflows" default-menu-index="2" menu-image="sym_o_account_tree" menu-image-type="icon">
@@ -24,14 +24,14 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="statusFlowId"/>
 
     <transition name="storeTransition">
-        <service-call name="ironstone.ProjectServices.store#FlowTransition" in-map="{statusFlowId:statusFlowId, statusId:statusId, toStatusId:toStatusId,
+        <service-call name="ironstone.projects.ProjectServices.store#FlowTransition" in-map="{statusFlowId:statusFlowId, statusId:statusId, toStatusId:toStatusId,
                 transitionName:transitionName, remove:remove}" out-map="moveOut"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(moveOut.message, 'success')</script></if></actions>
         <default-response url="."><parameter name="statusFlowId"/></default-response>
         <error-response url="."/>
     </transition>
     <transition name="updateStatus">
-        <service-call name="ironstone.ProjectServices.update#WorkStatus" in-map="{statusId:statusId, description:description, sequenceNum:sequenceNum,
+        <service-call name="ironstone.projects.ProjectServices.update#WorkStatus" in-map="{statusId:statusId, description:description, sequenceNum:sequenceNum,
                 statusColor:statusColor}" out-map="statusOut"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if></actions>
         <default-response url="."><parameter name="statusFlowId"/></default-response>
@@ -40,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const info = ec.service.sync().name('ironstone.ProjectServices.get#Workflows').parameters({statusFlowId: statusFlowId || 'WorkEffortDevelopment'}).call() || {}
+            const info = ec.service.sync().name('ironstone.projects.ProjectServices.get#Workflows').parameters({statusFlowId: statusFlowId || 'WorkEffortDevelopment'}).call() || {}
             flowList = Array.from(info.flowList || [])
             if (!statusFlowId || !flowList.some((flow) => flow.statusFlowId === statusFlowId)) statusFlowId = flowList.some((flow) => flow.statusFlowId === 'WorkEffortDevelopment') ? 'WorkEffortDevelopment' : (flowList[0]?.statusFlowId || 'Default')
             transitionList = Array.from(info.transitionList || [])

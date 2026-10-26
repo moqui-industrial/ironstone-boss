@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.DriveServices.get#SharesData" out-map="sharesOut"/>
+        <service-call name="ironstone.commons.DriveServices.get#SharesData" out-map="sharesOut"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             incomingList = Array.from(sharesOut.incomingList || [])

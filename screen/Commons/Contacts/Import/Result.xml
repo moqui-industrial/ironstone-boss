@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Import step 5, ImportResult (design-drawers-commons.md §6): the wizard's Import submits runImport
-    (ironstone.ContactServices.run#Import: mantle.party.ContactImportServices.import#Contacts, each row in its own
+    (ironstone.commons.ContactServices.run#Import: mantle.party.ContactImportServices.import#Contacts, each row in its own
     transaction), then the step shows the outcome: created, updated, skipped and failed with the reasons, the failures as a
     CSV download, and the way to the book. A file of up to 100 rows is imported in the request (the wizard's button shows it
     is running); a larger one runs on as a job, and the step shows how far it is (the ImportProgress screen, on the topic
@@ -27,7 +27,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="runImport">
         <parameter name="background"/>
         <actions>
-            <service-call name="ironstone.ContactServices.run#Import" in-map="{importId:importId, background:(background == 'Y' ? true : null)}" out-map="runOut"/>
+            <service-call name="ironstone.commons.ContactServices.run#Import" in-map="{importId:importId, background:(background == 'Y' ? true : null)}" out-map="runOut"/>
             <if condition="runOut?.running"><then><message type="info">The import runs on; this page shows how far it is</message></then>
                 <else><set field="done" value="Y"/></else></if>
         </actions>
@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the rows that failed, as a CSV file with the reason first -->
     <transition name="failuresCsv">
         <actions><script><![CDATA[
-            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
             const failures = Array.from(current?.draft?.result?.failureList || [])
             if (!current?.found || !failures.length) { ec.web.sendJsonResponse({errors: ec.l10n.localize('No failures to download')}); return }
             const columns = []
@@ -54,7 +54,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
-        const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+        const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
         hasDraft = !!current.found
         if (!hasDraft) return
         draft = current.draft

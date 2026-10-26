@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The consent demo of IronStone Comms M11 (data/BossConsentDemoData.xml calls load#ConsentDemo as the element
+    ironstone.comms.ConsentDemoServices.load-ConsentDemo): Ziziwork Retail's lists, their members, the consent behind them, a campaign
+    sent to one list and the unsubscribe links of the public page, written through Mantle's consent services so the history,
+    allowSolicitation and the list statuses are real, dated over the weeks before the load. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="ConsentDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>Stores, once (nothing when the list BOSS_DEMO_LIST_NEWS is there already):
+            - the contacts Alex Rivera, Jordan Lee, Casey Morgan and Taylor Brooks (BOSS_DEMO_CON_*), with emails and Taylor's mobile;
+            - Ziziwork Retail's lists: Ziziwork News (a newsletter, its template BOSS_DEMO_NEWS), Events and workshops (marketing) and
+              Product updates (an announcement list that requires unsubscribe confirmation, from news@ziziwork.example);
+            - consent: Alex subscribed to all three with marketing email and data processing granted on the signup form; Jordan
+              unsubscribed from the news by the email link ("I get too many emails") and still on the events; Casey waiting for
+              the opt-in to the news (pending); Taylor on the news, SMS granted on the phone, and an unsubscribe from the updates
+              waiting for its confirmation (code BossDemoVerify2026); Bob Acme on the news from an import, withdrawn by staff from
+              the events at his request;
+            - the October news sent to its members (send#ContactListEmail; the demo mail server has no SMTP host, so nothing goes
+              out and each message waits as Ready), each message with its unsubscribe link and the List-Unsubscribe headers it
+              asked for written in its headersString (the framework does not send extra headers yet);
+            - known unsubscribe links: BossDemoUnsubNews2026 (Alex on the news), BossDemoUnsubUpdates2026 (Taylor on the updates,
+              /u/BossDemoUnsubUpdates2026?verifyCode=BossDemoVerify2026 confirms) and BossDemoUnsubExpired2026 (Jordan, ended).
+            A part that fails is logged by name and the others are still loaded.</description>
+        <actions><script><![CDATA[
+            if (ec.entity.find('mantle.marketing.contact.ContactList').condition('contactListId', 'BOSS_DEMO_LIST_NEWS').disableAuthz().one() != null) return
+            if (ec.entity.find('mantle.party.Party').condition('partyId', 'ORG_ZIZI_RETAIL').disableAuthz().one() == null) {
+                ec.logger.warn('The consent demo needs Ziziwork Retail (mr-mantle demo data); nothing loaded'); return }
+            const startUser = ec.user.username || null
+            for (const part of ['records', 'consent', 'campaign', 'links']) {
+                ec.message.pushErrors()
+                try {
+                    ec.service.sync().name('ironstone.comms.ConsentDemoServices.load#ConsentDemoPart').parameter('part', part).requireNewTransaction(true).call()
+                    if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                } catch (err) {
+                    ec.logger.error(`Consent demo: the ${part} part not loaded: ${err && err.message ? err.message : err}`)
+                } finally {
+                    ec.message.clearErrors()
+                    ec.message.popErrors()
+                    if (ec.user.username !== startUser) {
+                        if (ec.user.username) ec.user.logoutUser()
+                        if (startUser) ec.user.internalLoginUser(startUser)
+                    }
+                    ec.user.setEffectiveTime(null)
+                }
+            }
+        ]]></script></actions>
+    </service>
+
+    <service verb="load" noun="ConsentDemoPart" authenticate="anonymous-all" allow-remote="false">
+        <in-parameters><parameter name="part" required="true"/></in-parameters>
+        <actions><script><![CDATA[
+            const day = 86400000
+            const base = Number(String(ec.user.nowTimestamp))
+            // a moment some days before the load, at an hour of the day
+            const at = (daysAgo, hour) => { const date = new Date(base - daysAgo * day); date.setHours(hour || 10, 0, 0, 0); return date.getTime() }
+            const when = (daysAgo, hour) => ec.user.setEffectiveTime(at(daysAgo, hour))
+            const create = (name, params) => {
+                ec.service.sync().name('create#' + name).parameters(params).call()
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+            }
+            const call = (name, params) => {
+                const out = ec.service.sync().name(name).parameters(params || {}).call()
+                if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
+                return out || {}
+            }
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                if (part === 'records') {
+                    const fromDate = at(40, 9)
+                    const person = (id, firstName, lastName, email) => {
+                        create('mantle.party.Party', {partyId: id, pseudoId: id, partyTypeEnumId: 'PtyPerson', disabled: 'N'})
+                        create('mantle.party.Person', {partyId: id, firstName: firstName, lastName: lastName})
+                        create('mantle.party.PartyRole', {partyId: id, roleTypeId: 'Customer'})
+                        create('mantle.party.contact.ContactMech', {contactMechId: id + '_EM', contactMechTypeEnumId: 'CmtEmailAddress', infoString: email})
+                        create('mantle.party.contact.PartyContactMech', {partyId: id, contactMechId: id + '_EM', contactMechPurposeId: 'EmailPrimary', fromDate: fromDate})
+                    }
+                    person('BOSS_DEMO_CON_ALEX', 'Alex', 'Rivera', 'alex.rivera@example.com')
+                    person('BOSS_DEMO_CON_JORDAN', 'Jordan', 'Lee', 'jordan.lee@example.net')
+                    person('BOSS_DEMO_CON_CASEY', 'Casey', 'Morgan', 'casey.morgan@example.org')
+                    person('BOSS_DEMO_CON_TAYLOR', 'Taylor', 'Brooks', 'taylor.brooks@example.com')
+                    create('mantle.party.contact.ContactMech', {contactMechId: 'BOSS_DEMO_CON_TAYLOR_TN', contactMechTypeEnumId: 'CmtTelecomNumber'})
+                    create('mantle.party.contact.TelecomNumber', {contactMechId: 'BOSS_DEMO_CON_TAYLOR_TN', countryCode: '1', areaCode: '801', contactNumber: '555-0147'})
+                    create('mantle.party.contact.PartyContactMech', {partyId: 'BOSS_DEMO_CON_TAYLOR', contactMechId: 'BOSS_DEMO_CON_TAYLOR_TN',
+                        contactMechPurposeId: 'PhoneMobile', fromDate: fromDate})
+
+                    // the demo mail server has no SMTP host: the campaign's messages wait as Ready
+                    create('moqui.basic.email.EmailServer', {emailServerId: 'BOSS_DEMO_NEWS_SMTP', mailUsername: 'news@ziziwork.example'})
+                    create('moqui.basic.email.EmailTemplate', {emailTemplateId: 'BOSS_DEMO_NEWS', description: 'Ziziwork News (demo)', emailServerId: 'BOSS_DEMO_NEWS_SMTP',
+                        fromAddress: 'news@ziziwork.example', fromName: 'Ziziwork Retail', subject: 'Ziziwork News for ${firstName}', webHostName: 'shop.ziziwork.example'})
+                    const list = (id, typeId, name, description) => create('mantle.marketing.contact.ContactList', {contactListId: id, contactListTypeEnumId: typeId,
+                        contactListName: name, description: description, ownerPartyId: 'ORG_ZIZI_RETAIL', contactMechTypeEnumId: 'CmtEmailAddress', isPublic: 'Y',
+                        verifyEmailFrom: 'news@ziziwork.example'})
+                    list('BOSS_DEMO_LIST_NEWS', 'NEWSLETTER', 'Ziziwork News', 'The month in the shop: new arrivals, offers and tips, once a month')
+                    list('BOSS_DEMO_LIST_EVENTS', 'MARKETING', 'Events and workshops', 'Invitations to workshops, tastings and the summer sale')
+                    list('BOSS_DEMO_LIST_UPDATES', 'ANNOUNCEMENT', 'Product updates', 'Recalls, price changes and service notices for what you bought')
+                    create('mantle.marketing.contact.ContactListEmail', {contactListId: 'BOSS_DEMO_LIST_NEWS', emailTypeEnumId: 'CONT_EMAIL_TEMPLATE',
+                        fromDate: at(60), emailTemplateId: 'BOSS_DEMO_NEWS'})
+                    // the updates list asks to confirm an unsubscribe (Mantle's MANTLE_UNSUBSCRIBE_VERIFY, from its verifyEmailFrom)
+                    create('mantle.marketing.contact.ContactListEmail', {contactListId: 'BOSS_DEMO_LIST_UPDATES', emailTypeEnumId: 'CONT_UNSUB_VER', fromDate: at(60)})
+                    const member = (listId, partyId, statusId, daysAgo, preferred) => create('mantle.marketing.contact.ContactListParty', {contactListId: listId,
+                        partyId: partyId, fromDate: at(daysAgo, 9), statusId: statusId, preferredContactMechId: preferred === undefined ? partyId + '_EM' : preferred})
+                    member('BOSS_DEMO_LIST_NEWS', 'BOSS_DEMO_CON_ALEX', 'CLPT_ACCEPTED', 35)
+                    member('BOSS_DEMO_LIST_EVENTS', 'BOSS_DEMO_CON_ALEX', 'CLPT_ACCEPTED', 35)
+                    member('BOSS_DEMO_LIST_UPDATES', 'BOSS_DEMO_CON_ALEX', 'CLPT_ACCEPTED', 35)
+                    member('BOSS_DEMO_LIST_NEWS', 'BOSS_DEMO_CON_JORDAN', 'CLPT_ACCEPTED', 30)
+                    member('BOSS_DEMO_LIST_EVENTS', 'BOSS_DEMO_CON_JORDAN', 'CLPT_ACCEPTED', 30)
+                    member('BOSS_DEMO_LIST_NEWS', 'BOSS_DEMO_CON_CASEY', 'CLPT_PENDING', 3)
+                    member('BOSS_DEMO_LIST_NEWS', 'BOSS_DEMO_CON_TAYLOR', 'CLPT_ACCEPTED', 25)
+                    member('BOSS_DEMO_LIST_UPDATES', 'BOSS_DEMO_CON_TAYLOR', 'CLPT_ACCEPTED', 25)
+                    member('BOSS_DEMO_LIST_NEWS', 'ORG_ACME_BA', 'CLPT_ACCEPTED', 20, 'ORG_ACME_BA_EM')
+                    member('BOSS_DEMO_LIST_EVENTS', 'ORG_ACME_BA', 'CLPT_ACCEPTED', 20, 'ORG_ACME_BA_EM')
+                } else if (part === 'consent') {
+                    const CONSENT = 'mantle.party.ConsentServices'
+                    const store = (daysAgo, params) => { when(daysAgo); call(CONSENT + '.store#PartyConsent', params) }
+                    const signup = 'Signup form at shop.ziziwork.example: "Send me Ziziwork News, offers and invitations" checked'
+                    store(35, {partyId: 'BOSS_DEMO_CON_ALEX', contactMechId: 'BOSS_DEMO_CON_ALEX_EM', purposeEnumId: 'PcpMarketingEmail', statusId: 'PconGranted',
+                        sourceEnumId: 'PcsForm', evidenceText: signup})
+                    store(35, {partyId: 'BOSS_DEMO_CON_ALEX', purposeEnumId: 'PcpDataProcessing', statusId: 'PconGranted', sourceEnumId: 'PcsForm',
+                        evidenceText: 'Signup form: privacy notice of 2026-09 accepted'})
+                    for (const listId of ['BOSS_DEMO_LIST_NEWS', 'BOSS_DEMO_LIST_EVENTS', 'BOSS_DEMO_LIST_UPDATES'])
+                        store(35, {partyId: 'BOSS_DEMO_CON_ALEX', contactMechId: 'BOSS_DEMO_CON_ALEX_EM', contactListId: listId, purposeEnumId: 'PcpMarketingEmail',
+                            statusId: 'PconGranted', sourceEnumId: 'PcsForm', evidenceText: signup})
+                    store(30, {partyId: 'BOSS_DEMO_CON_JORDAN', contactMechId: 'BOSS_DEMO_CON_JORDAN_EM', purposeEnumId: 'PcpMarketingEmail', statusId: 'PconGranted',
+                        sourceEnumId: 'PcsForm', evidenceText: 'Checkout: "Email me about offers" checked'})
+                    // Jordan leaves the news by the link of an email, with a reason
+                    when(6)
+                    call(CONSENT + '.set#ContactListPartySubscription', {contactListId: 'BOSS_DEMO_LIST_NEWS', partyId: 'BOSS_DEMO_CON_JORDAN', subscribe: false,
+                        contactMechId: 'BOSS_DEMO_CON_JORDAN_EM', sourceEnumId: 'PcsEmailLink', evidenceText: 'Unsubscribe link of message ziziwork-news-2026-09@ziziwork.example',
+                        comments: 'I get too many emails', confirmed: true})
+                    store(25, {partyId: 'BOSS_DEMO_CON_TAYLOR', contactMechId: 'BOSS_DEMO_CON_TAYLOR_EM', purposeEnumId: 'PcpMarketingEmail', statusId: 'PconGranted',
+                        sourceEnumId: 'PcsForm', evidenceText: 'In-store tablet signup'})
+                    store(25, {partyId: 'BOSS_DEMO_CON_TAYLOR', contactMechId: 'BOSS_DEMO_CON_TAYLOR_TN', purposeEnumId: 'PcpSms', statusId: 'PconGranted',
+                        sourceEnumId: 'PcsForm', evidenceText: 'In-store tablet signup: "Text me order updates" checked'})
+                    // Taylor's unsubscribe from the updates waits for the confirmation: the demo's code is known
+                    when(1)
+                    call(CONSENT + '.set#ContactListPartySubscription', {contactListId: 'BOSS_DEMO_LIST_UPDATES', partyId: 'BOSS_DEMO_CON_TAYLOR', subscribe: false,
+                        contactMechId: 'BOSS_DEMO_CON_TAYLOR_EM', sourceEnumId: 'PcsEmailLink', evidenceText: 'Unsubscribe link of message ziziwork-updates-2026-10@ziziwork.example'})
+                    const pending = Array.from(ec.entity.find('mantle.marketing.contact.ContactListParty').condition({contactListId: 'BOSS_DEMO_LIST_UPDATES',
+                        partyId: 'BOSS_DEMO_CON_TAYLOR'}).list())
+                    for (const row of pending) if (row.statusId === 'CLPT_UNSUBS_PENDING') { row.set('optInVerifyCode', 'BossDemoVerify2026'); row.update() }
+                    // Bob Acme came in an import; staff took him off the events at his request
+                    store(20, {partyId: 'ORG_ACME_BA', contactMechId: 'ORG_ACME_BA_EM', purposeEnumId: 'PcpMarketingEmail', statusId: 'PconGranted',
+                        sourceEnumId: 'PcsImport', evidenceText: 'Trade show leads, contacts-2026-09.csv row 14: opted in at the booth'})
+                    ec.user.internalLoginUser('john.doe')
+                    when(4)
+                    call(CONSENT + '.unsubscribe#ContactListParty', {contactListId: 'BOSS_DEMO_LIST_EVENTS', partyId: 'ORG_ACME_BA', sourceEnumId: 'PcsStaff',
+                        evidenceText: 'Phone call to the shop, 2026-10: no more invitations', confirmed: true})
+                } else if (part === 'campaign') {
+                    when(10, 8)
+                    const out = call('mantle.marketing.ContactListServices.send#ContactListEmail', {contactListId: 'BOSS_DEMO_LIST_NEWS', subject: 'October in the shop',
+                        baseUrl: 'https://shop.ziziwork.example', unsubscribeMailto: 'unsubscribe@ziziwork.example', validDays: 365,
+                        body: '<h2>October in the shop</h2><p>Hello ${firstName}, the autumn range is in: wool blankets, cast iron and the first of the winter teas.</p>'
+                            + '<p>Workshop: sharpening kitchen knives, Saturday the 24th.</p>',
+                        bodyText: 'Hello ${firstName}, the autumn range is in: wool blankets, cast iron and the first of the winter teas.\nWorkshop: sharpening kitchen knives, Saturday the 24th.'})
+                    // the headers each message asked for, on its record (the framework does not send extra headers yet)
+                    for (const recipient of Array.from(out.recipientList || [])) {
+                        if (!recipient.emailMessageId || !recipient.listUnsubscribeHeaders) continue
+                        const message = ec.entity.find('moqui.basic.email.EmailMessage').condition('emailMessageId', recipient.emailMessageId).one()
+                        if (message == null) continue
+                        message.set('headersString', Object.entries(recipient.listUnsubscribeHeaders).map(([name, value]) => `${name}: ${value}`).join('\n'))
+                        message.update()
+                    }
+                } else if (part === 'links') {
+                    const link = (token, listId, partyId, communicationEventId, daysAgo, thruDaysAgo) => create('mantle.marketing.contact.ContactListToken', {
+                        tokenHash: ec.user.singleUseCodeHash(token), contactListId: listId, partyId: partyId, contactMechId: partyId + '_EM',
+                        communicationEventId: communicationEventId || null, purposeEnumId: 'PcpMarketingEmail', createdDate: at(daysAgo, 8),
+                        thruDate: thruDaysAgo == null ? null : at(thruDaysAgo, 8)})
+                    const campaign = Array.from(ec.entity.find('mantle.party.communication.CommunicationEvent').condition('contactListId', 'BOSS_DEMO_LIST_NEWS')
+                            .orderBy('-entryDate').list())[0]
+                    link('BossDemoUnsubNews2026', 'BOSS_DEMO_LIST_NEWS', 'BOSS_DEMO_CON_ALEX', campaign ? campaign.communicationEventId : null, 10)
+                    link('BossDemoUnsubUpdates2026', 'BOSS_DEMO_LIST_UPDATES', 'BOSS_DEMO_CON_TAYLOR', null, 1)
+                    link('BossDemoUnsubExpired2026', 'BOSS_DEMO_LIST_NEWS', 'BOSS_DEMO_CON_JORDAN', null, 400, 35)
+                }
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+            }
+        ]]></script></actions>
+    </service>
+</services>

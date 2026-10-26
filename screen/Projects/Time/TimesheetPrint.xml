@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The timesheet (design-projects.md §14; style-guide §8 Print documents), TimesheetDetail's Print: with renderMode=html-print a
     printed page of one person's week: its status and who approved it, the hours, billable and working hours, the entries by day
     (from, to, work item, project, hours, work type, billable, comment), the totals by project and the flags
-    (ironstone.TimeServices.get#TimesheetDetail, for its person, its approvers and ADMIN), every value escaped. A sibling of
+    (ironstone.projects.TimeServices.get#TimesheetDetail, for its person, its approvers and ADMIN), every value escaped. A sibling of
     TimesheetDetail, so the page has none of its header; in another render mode it links to the printed page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Timesheet print" default-menu-include="false">
@@ -23,7 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="timesheetId" required="true"/>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.TimeServices.get#TimesheetDetail').parameters({timesheetId: timesheetId || ''}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.TimeServices.get#TimesheetDetail').parameters({timesheetId: timesheetId || ''}).call() || {}
         ec.message.clearErrors()
         const L = (text) => ec.l10n.localize(text)
         const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

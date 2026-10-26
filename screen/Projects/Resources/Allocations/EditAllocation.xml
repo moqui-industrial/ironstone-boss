@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- EditAllocation (design-projects.md §9 AllocationForm): the dialog of Allocations' New allocation (prefilled with the project and
     person of the find) and of a row's Edit: the project (a new one: those the user may request on), the person (with their hours free
     a week in the period; empty for a placeholder to staff), the project role, the skill, from, thru, the hours a week or a percent of
-    capacity, the note; an approver allocates at once unless Request is ticked (service/ironstone/ResourceServices.xml
+    capacity, the note; an approver allocates at once unless Request is ticked (service/ironstone/projects/ResourceServices.xml
     get#AllocationEdit, save#Allocation). Each change answers the list again. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Allocation" default-menu-include="false">
@@ -26,7 +26,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveAllocation">
         <actions>
-            <service-call name="ironstone.ResourceServices.save#Allocation" out-map="saveOut" in-map="{workEffortAllocationId:(workEffortAllocationId || null),
+            <service-call name="ironstone.projects.ResourceServices.save#Allocation" out-map="saveOut" in-map="{workEffortAllocationId:(workEffortAllocationId || null),
                     workEffortId:(allocWorkEffortId || null), partyId:(partyId || null), roleTypeId:(allocRoleTypeId ?? null), skillTypeEnumId:(allocSkillTypeEnumId ?? null),
                     fromDate:(allocFromDate || null), thruDate:(allocThruDate || null), amount:amount, unit:(unit || 'h'), comments:(comments ?? null), request:(request || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
@@ -36,14 +36,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="people" read-only="true">
         <actions>
-            <service-call name="ironstone.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.projects.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
     </transition>
 
     <actions>
-        <service-call name="ironstone.ResourceServices.get#AllocationEdit" out-map="editOut"
+        <service-call name="ironstone.projects.ResourceServices.get#AllocationEdit" out-map="editOut"
                 in-map="{workEffortAllocationId:(workEffortAllocationId || null), workEffortId:(workEffortId || null), partyId:(partyId || null)}"/>
         <script><![CDATA[
             ec.message.clearErrors()

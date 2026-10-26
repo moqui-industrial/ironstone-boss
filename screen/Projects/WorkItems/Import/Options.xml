@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             if (!['skip', 'update'].includes(existingPolicy)) { ec.message.addValidationError(null, 'existingPolicy', null, L('Choose what to do with rows already imported'), null); return }
-            ec.service.sync().name('ironstone.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'options',
+            ec.service.sync().name('ironstone.projects.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'options',
                 options: {createMissing: createMissing === 'Y', existingPolicy: existingPolicy}}}).call()
         ]]></script></actions>
         <default-response url="."><parameter name="importId"/></default-response>
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.WorkItemImportServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <service-call name="ironstone.projects.WorkItemImportServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
         <script><![CDATA[
             hasDraft = !!draftOut.found
             const saved = (draftOut.draft || {}).options || {}

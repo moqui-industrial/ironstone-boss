@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Timesheets (design-projects.md §8 Timesheets; style-guide §3.2 List): the weekly timesheets the user may see
-    (service/ironstone/TimeServices.xml find#TimesheetRows over mantle.work.TimesheetServices.find#Timesheets: their own, those they
+    (service/ironstone/projects/TimeServices.xml find#TimesheetRows over mantle.work.TimesheetServices.find#Timesheets: their own, those they
     approve, all for ADMIN). The chips with their counts: To approve (submitted weeks the user approves; the default for one who
     has any, and for the managers), Mine, Returned, Missing (the time keepers of the projects the user manages whose week, last week
     by default, is not submitted), Approved and All (the last eight weeks, or the week found). The find (the list's dialog): the
@@ -32,7 +32,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the bulk decisions: selectedIds (a comma list of timesheets, or P:partyId of a missing week), the action and a reason -->
     <transition name="bulkAction">
         <actions>
-            <service-call name="ironstone.TimeServices.bulk#Timesheets" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), reason:(reason || null),
+            <service-call name="ironstone.projects.TimeServices.bulk#Timesheets" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), reason:(reason || null),
                     weekDate:(weekDate || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
         </actions>
@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
-            const out = ec.service.sync().name('ironstone.TimeServices.find#TimesheetRows').parameters({list: list || null, partyId: partyId || null,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.find#TimesheetRows').parameters({list: list || null, partyId: partyId || null,
                 weekDate: weekDate || null}).call() || {}
             ec.message.clearErrors()
             list = out.list || 'mine'

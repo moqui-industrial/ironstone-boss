@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     "Add an account" and "Fix" land) shows it; Add is the add-account wizard and Account an account's page (sign-in, servers,
     options, members, folders, import and remove). SignIn, SyncProgress and Removed are .qvue parts the others load (the
     provider's sign-in button, a sync's live progress, the removed accounts to delete). Every read and write goes through
-    ironstone.MailSettingsServices and the framework's EmailClientServices, which check the user's access to each account (R21). -->
+    ironstone.comms.MailSettingsServices and the framework's EmailClientServices, which check the user's access to each account (R21). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Mail accounts" default-menu-index="1" menu-image="sym_o_alternate_email" menu-image-type="icon">
     <subscreens default-item="List"/>

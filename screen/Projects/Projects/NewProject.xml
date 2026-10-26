@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     roles; allocations come with impl-projects.md P7), Modules and code (modules, estimate unit, work item flow, a repository
     made or linked, documentation on database files or in the repository at docs/), Money (billing basis, the hours and
     client budgets, the project's rates) and Review (everything chosen; Create opens the project). After Start the project exists
-    In Planning (service/ironstone/ProjectServices.xml create#NewProject), so a wizard left keeps a draft project; each later step
+    In Planning (service/ironstone/projects/ProjectServices.xml create#NewProject), so a wizard left keeps a draft project; each later step
     carries its workEffortId in the URL. For managers (BOSS_PROJECTS_MANAGERS); QuickProject's More options opens it. The
     request's Convert to project and the sales order's Create project come with impl-projects.md P5 and Sales. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             draftProject = null
             if (workEffortId) {
-                const access = ec.service.sync().name('ironstone.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
+                const access = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectAccess').parameters({workEffortId: workEffortId, need: 'none'}).call() || {}
                 if (access.canManage) draftProject = access.project
             }
         ]]></script>

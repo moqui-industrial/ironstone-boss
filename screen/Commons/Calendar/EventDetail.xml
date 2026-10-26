@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- EventDetail (design-drawers-commons.md §7 EventDetail, Context passed; style-guide §3.3 Detail; impl-drawers-commons.md M7): one
-    event as Commons shows it (service/ironstone/EventServices.xml get#EventDetail), an instance of a repeating one with
+    event as Commons shows it (service/ironstone/commons/EventServices.xml get#EventDetail), an instance of a repeating one with
     instanceStart. The header has the name, its calendar, its status, when and how it repeats, where, the organizer and the
     user's answer, and the actions: the organizer's Send invitations (primary while attendees have not had the latest), an
     attendee's RSVP (Yes, Maybe, No, or with a note), Duplicate, Export .ics and Cancel event. The tabs: Overview (When with
@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
     with when and by whom each was linked; an editor takes one off or links another, found by its id (lookup#ById) or the
     search index. A change to a repeating
     event asks which events (this, this and following, all) and whether to tell the attendees. An event the user may not see
-    is "not available" (ironstone.CalendarServices.get#EventAccessInfo: IronStone R5, R28); one the user may not change shows
+    is "not available" (ironstone.commons.CalendarServices.get#EventAccessInfo: IronStone R5, R28); one the user may not change shows
     the same layout read-only. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Event" default-menu-include="false">
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== changes, each showing the event again on its tab ========== -->
     <transition name="saveOverview">
         <actions>
-            <service-call name="ironstone.EventServices.save#EventOverview" out-map="saveOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
+            <service-call name="ironstone.commons.EventServices.save#EventOverview" out-map="saveOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
                     scope:scope, workEffortName:workEffortName, allDay:allDay, startDate:startDate, startTime:startTime, endDate:endDate, endTime:endTime,
                     location:location, infoUrl:infoUrl, description:description, visibilityEnumId:visibilityEnumId, calendarId:calendarId, notify:notify,
                     allowConflicts:allowConflicts}"/>
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveRecurrence">
         <actions>
-            <service-call name="ironstone.EventServices.save#Recurrence" out-map="recurOut" in-map="{workEffortId:workEffortId, freq:freq, interval:interval,
+            <service-call name="ironstone.commons.EventServices.save#Recurrence" out-map="recurOut" in-map="{workEffortId:workEffortId, freq:freq, interval:interval,
                     byDay:byDay, monthlyBy:monthlyBy, ends:ends, untilDate:untilDate, count:count}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(recurOut.message, 'success')</script></if>
         </actions>
@@ -67,7 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="respond">
         <actions>
-            <service-call name="ironstone.CalendarServices.respond#Invitation" out-map="answerOut" in-map="{workEffortId:workEffortId, response:response, message:message}"/>
+            <service-call name="ironstone.commons.CalendarServices.respond#Invitation" out-map="answerOut" in-map="{workEffortId:workEffortId, response:response, message:message}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(answerOut.resultMessage, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
@@ -75,7 +75,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="sendInvitations">
         <actions>
-            <service-call name="ironstone.EventServices.send#Invitations" out-map="sendOut" in-map="{workEffortId:workEffortId, resendAll:resendAll, note:note}"/>
+            <service-call name="ironstone.commons.EventServices.send#Invitations" out-map="sendOut" in-map="{workEffortId:workEffortId, resendAll:resendAll, note:note}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(sendOut.message, sendOut.skippedList?.length ? 'warning' : 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
@@ -83,7 +83,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addAttendees">
         <actions>
-            <service-call name="ironstone.EventServices.add#Attendees" out-map="addOut" in-map="{workEffortId:workEffortId, partyIds:partyIds, emails:emails,
+            <service-call name="ironstone.commons.EventServices.add#Attendees" out-map="addOut" in-map="{workEffortId:workEffortId, partyIds:partyIds, emails:emails,
                     optional:optional, sendNow:sendNow}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
         </actions>
@@ -93,7 +93,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="removeAttendee">
         <actions>
             <!-- the organizer stays; a removed attendee who had the invitation is told (mantle.work.EventServices.remove#EventAttendee) -->
-            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}"/>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}"/>
             <if condition="!ec.message.hasError()">
                 <service-call name="mantle.work.EventServices.remove#EventAttendee" out-map="removeOut" in-map="{workEffortId:workEffortId, partyId:partyId,
                         eventUrl:('/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(workEffortId))}"/>
@@ -105,14 +105,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="setOptional">
         <actions>
-            <service-call name="ironstone.EventServices.set#AttendeeOptional" out-map="optOut" in-map="{workEffortId:workEffortId, partyId:partyId, optional:optional}"/>
+            <service-call name="ironstone.commons.EventServices.set#AttendeeOptional" out-map="optOut" in-map="{workEffortId:workEffortId, partyId:partyId, optional:optional}"/>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="attendees"/></default-response>
         <error-response url="."/>
     </transition>
     <transition name="addReminder">
         <actions>
-            <service-call name="ironstone.EventServices.store#MyReminders" out-map="remOut" in-map="{workEffortId:workEffortId, offsetMinutes:offsetMinutes, methodEnumId:methodEnumId}"/>
+            <service-call name="ironstone.commons.EventServices.store#MyReminders" out-map="remOut" in-map="{workEffortId:workEffortId, offsetMinutes:offsetMinutes, methodEnumId:methodEnumId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(remOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="reminders"/></default-response>
@@ -120,7 +120,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeReminder">
         <actions>
-            <service-call name="ironstone.EventServices.store#MyReminders" out-map="remOut" in-map="{workEffortId:workEffortId, removeSeqId:reminderSeqId}"/>
+            <service-call name="ironstone.commons.EventServices.store#MyReminders" out-map="remOut" in-map="{workEffortId:workEffortId, removeSeqId:reminderSeqId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(remOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab" value="reminders"/></default-response>
@@ -128,7 +128,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="bookResource">
         <actions>
-            <service-call name="ironstone.EventServices.book#EventResource" out-map="bookOut" in-map="{workEffortId:workEffortId, facilityId:facilityId, assetId:assetId,
+            <service-call name="ironstone.commons.EventServices.book#EventResource" out-map="bookOut" in-map="{workEffortId:workEffortId, facilityId:facilityId, assetId:assetId,
                     comments:comments}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bookOut.message, bookOut.statusId &amp;&amp; bookOut.statusId.endsWith('Requested') ? 'warning' : 'success')</script></if>
         </actions>
@@ -137,7 +137,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cancelBooking">
         <actions>
-            <service-call name="ironstone.EventServices.cancel#EventResource" out-map="cancelOut" in-map="{workEffortId:workEffortId, facilityId:facilityId, assetId:assetId}"/>
+            <service-call name="ironstone.commons.EventServices.cancel#EventResource" out-map="cancelOut" in-map="{workEffortId:workEffortId, facilityId:facilityId, assetId:assetId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cancelOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/><parameter name="instanceStart"/><parameter name="tab"/></default-response>
@@ -145,7 +145,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="duplicateEvent">
         <actions>
-            <service-call name="ironstone.EventServices.duplicate#Event" out-map="dupOut" in-map="{workEffortId:workEffortId}"/>
+            <service-call name="ironstone.commons.EventServices.duplicate#Event" out-map="dupOut" in-map="{workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(dupOut.message, 'success')</script></if>
         </actions>
         <conditional-response url="." condition="dupOut?.newWorkEffortId"><parameter name="workEffortId" from="dupOut.newWorkEffortId"/></conditional-response>
@@ -155,7 +155,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="cancelEvent">
         <actions>
             <!-- one instance of a repeating event is left out of its series (an EXDATE), this and following end the series before it -->
-            <service-call name="ironstone.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}"/>
+            <service-call name="ironstone.commons.CalendarServices.get#EventAccessInfo" in-map="{workEffortId:workEffortId, need:'edit'}"/>
             <if condition="!ec.message.hasError()">
                 <service-call name="mantle.work.EventServices.cancel#EventOccurrence" out-map="cancelOut" in-map="{workEffortId:workEffortId, instanceStart:instanceStart,
                         scope:(scope || 'all'), notify:notify, eventUrl:('/qapps/Commons/Calendar/EventDetail?workEffortId=' + encodeURIComponent(workEffortId))}"/>
@@ -168,7 +168,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- LinkedRecords: put the event on a record the user may see, or take it off one -->
     <transition name="linkRecord">
         <actions>
-            <service-call name="ironstone.EventServices.link#EventRecord" out-map="linkOut" in-map="{workEffortId:workEffortId, record:record,
+            <service-call name="ironstone.commons.EventServices.link#EventRecord" out-map="linkOut" in-map="{workEffortId:workEffortId, record:record,
                     recordEntityName:recordEntityName, recordId:recordId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
@@ -177,7 +177,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkRecord">
         <actions>
-            <service-call name="ironstone.EventServices.unlink#EventRecord" out-map="unlinkOut" in-map="{workEffortId:workEffortId,
+            <service-call name="ironstone.commons.EventServices.unlink#EventRecord" out-map="unlinkOut" in-map="{workEffortId:workEffortId,
                     recordEntityName:recordEntityName, recordId:recordId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(unlinkOut.message, 'success')</script></if>
         </actions>
@@ -187,7 +187,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the records the event may go on: an id (lookup#ById) or the search index, each one the user may see -->
     <transition name="searchRecords" read-only="true">
         <actions>
-            <service-call name="ironstone.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.comms.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.optionList || []).map((option) =&gt; ({value: option.value, label: option.label})))</script>
         </actions>
         <default-response type="none"/>
@@ -195,7 +195,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the event as an .ics download -->
     <transition name="exportIcs" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.EventServices.export#EventFile').parameters({workEffortId: workEffortId}).call()
+            const out = ec.service.sync().name('ironstone.commons.EventServices.export#EventFile').parameters({workEffortId: workEffortId}).call()
             if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>
@@ -204,7 +204,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people of the attendees drop-down -->
     <transition name="searchPeople" read-only="true">
         <actions>
-            <service-call name="ironstone.CalendarServices.search#Attendees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.CalendarServices.search#Attendees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -221,7 +221,7 @@ along with this software (see the LICENSE.md file). If not, see
                     .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').condition('fromDate', keyTs).list()[0]
             if (changed) { workEffortId = changed.toWorkEffortId; instanceStart = null }
         ]]></script></if>
-        <service-call name="ironstone.EventServices.get#EventDetail" in-map="{workEffortId:workEffortId, instanceStart:instanceStart}" out-map="detail"/>
+        <service-call name="ironstone.commons.EventServices.get#EventDetail" in-map="{workEffortId:workEffortId, instanceStart:instanceStart}" out-map="detail"/>
         <set field="recordFound" from="!!detail.visible"/>
         <script><![CDATA[
             if (!recordFound) return

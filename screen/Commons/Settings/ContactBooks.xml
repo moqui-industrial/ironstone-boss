@@ -68,7 +68,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the users of the share dialog -->
     <transition name="searchUsers" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.shared.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.userList || []).map((user) =&gt; ({value: user.value, label: user.label})))</script>
         </actions>
         <default-response type="none"/>

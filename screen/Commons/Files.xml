@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
     Drives, DriveSettings and Shares show in its place. The view is in the URL (drive, path, view, tag, q, file), so a view is
     a link. The data and every change go through the JSON transitions below, each a service of org.moqui.impl.FileServices
     (which checks the drive's members and shares, R21, and on the records drive the records: only those the user may see,
-    R5) or of service/ironstone/DriveServices.xml over it. A download is sent by ec.web.sendResourceResponse under the file's
+    R5) or of service/ironstone/commons/DriveServices.xml over it. A download is sent by ec.web.sendResourceResponse under the file's
     own name (a past version by its location#version, a zip under its folder's name). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Files" default-menu-index="6" render-modes="vue,qvue,tui" server-static="vue,qvue" menu-image="sym_o_folder" menu-image-type="icon">
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the rail: drives with their storage, tags, shares waiting -->
     <transition name="filesData" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.get#FilesData').call()
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.get#FilesData').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {driveList: out.driveList, personalDriveId: out.personalDriveId,
                 recordsDriveId: out.recordsDriveId, tagList: out.tagList, pendingShareCount: out.pendingShareCount, isAdmin: out.isAdmin,
                 userId: ec.user.userId})
@@ -57,7 +57,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a folder of a drive -->
     <transition name="folder" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.list#FolderView').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.list#FolderView').parameters({driveId: driveId || '', path: path || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {fileList: out.fileList, folder: out.folder, drive: out.drive,
                 breadcrumbList: out.breadcrumbList, record: out.record, hiddenCount: out.hiddenCount})
         ]]></script></actions>
@@ -66,7 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- recent, favorites, shared with me, shared by me, a tag, a search, the trash of a drive -->
     <transition name="rows" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.find#FileRows').parameters({view: view || 'recent', driveId: driveId || null,
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.find#FileRows').parameters({view: view || 'recent', driveId: driveId || null,
                 path: path || null, tagId: tagId || null, text: text || null, fileType: fileType || null, modifiedPeriod: modifiedPeriod || null,
                 modifiedByUserId: modifiedByUserId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {fileList: out.fileList, drive: out.drive, usedIndex: out.usedIndex})
@@ -76,7 +76,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the details pane of one file or folder -->
     <transition name="detail" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.get#ItemDetail').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.get#ItemDetail').parameters({driveId: driveId || '', path: path || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {item: out.item, drive: out.drive, access: out.access, shareList: out.shareList,
                 linkList: out.linkList, record: out.record})
         ]]></script></actions>
@@ -160,7 +160,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a text file's whole text, for the editor -->
     <transition name="text" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.get#ItemText').parameters({driveId: driveId || '', path: path || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.get#ItemText').parameters({driveId: driveId || '', path: path || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {text: out.text, versionName: out.versionName, canWrite: out.canWrite})
         ]]></script></actions>
         <default-response type="none"/>
@@ -168,7 +168,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people and groups of the share dialog and the drive members: [{value, label}] -->
     <transition name="shareTargets" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.search#ShareTargets').parameter('term', term || '').call()
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.search#ShareTargets').parameter('term', term || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? [] : (out.optionList || []))
         ]]></script></actions>
         <default-response type="none"/>
@@ -178,7 +178,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             let names = []
             try { names = JSON.parse(nameListJson || '[]') } catch (err) { names = [] }
-            const out = ec.service.sync().name('ironstone.DriveServices.check#UploadNames').parameters({driveId: driveId || '', path: path || '', nameList: names}).call()
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.check#UploadNames').parameters({driveId: driveId || '', path: path || '', nameList: names}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {conflictList: out.conflictList})
         ]]></script></actions>
         <default-response type="none"/>
@@ -188,7 +188,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="upload">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.upload#Files').parameters({driveId: driveId || '', path: path || '',
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.upload#Files').parameters({driveId: driveId || '', path: path || '',
                 contentFile: contentFile || null, relativePath: relativePath || null, conflictPolicy: conflictPolicy || 'replace', versionNote: versionNote || null}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const infos = [{type: 'success', message: out.message}]
@@ -209,7 +209,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a new text or markdown file, or an edit of one (replace true, path the file) -->
     <transition name="saveText">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.create#TextFile').parameters({driveId: driveId || '', path: path || '',
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.create#TextFile').parameters({driveId: driveId || '', path: path || '',
                 name: name || null, text: text ?? '', versionNote: versionNote || null, replace: String(replace) === 'true'}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {newPath: out.newPath, versionName: out.versionName, messageInfos: [{type: 'success',
                 message: String(replace) === 'true' ? ec.l10n.localize('Saved') : ec.resource.expand('${name} made', '', {name: name})}]})
@@ -302,7 +302,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- share with a person or a group (who is told), or make a link (its address answered once) -->
     <transition name="share">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.DriveServices.share#Item').parameters({driveId: driveId || '', path: path || '',
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.share#Item').parameters({driveId: driveId || '', path: path || '',
                 shareWith: shareWith || null, isLink: isLink || 'N', permissionEnumId: permissionEnumId || 'RspView',
                 expireDate: expireDate ? ec.l10n.parseTimestamp(String(expireDate).length <= 10 ? expireDate + ' 23:59' : String(expireDate), 'yyyy-MM-dd HH:mm') : null,
                 password: password || null, linkLabel: linkLabel || null, note: note || null}).call()

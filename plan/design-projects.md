@@ -126,9 +126,9 @@ written down here and extended for work items, requests and clients:
   message's from, to or a party to it and the message (or its thread's root) is filed on a record the client sees; a
   Comment (a note) never is. P10a makes clients read only in Projects (every IronStone write service and every Mantle
   record write denied), denies Billing until P10b opens Invoices and InvoiceDetail, and shows no time (no hours shared)
-  until P10b's client states. As built in P10b: a client's own writes are `ironstone.client.ClientServices` only (a package
-  below the IronStone service deny pattern, which now names every write verb and is checked against every service file by
-  test/ClientWrites.spec.js), each allow-remote false and checking the client's access itself before it writes with
+  until P10b's client states. As built in P10b: a client's own writes are `ironstone.client.ClientServices` only (the client
+  package, which the IronStone service deny pattern does not name; the pattern names every write verb and is checked against
+  every service file by test/ClientWrites.spec.js), each allow-remote false and checking the client's access itself before it writes with
   authorization off: Send message and Reply in Chatter (a Message to the record's internal people only: the record's
   assignees or request assignee and the project's managers, never another client, the client's own side or an outside
   party; a reply only to a message or a status update for it), raise a request in a client project with files (the public
@@ -431,7 +431,7 @@ Profitability report), and a separate project expenses screen (ProjectMoney's Ex
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `QuickWorkItem` | dialog | A work item in a project | project (from context, else the last used), type, title, assignee (default unassigned; "me" one click), priority, due, sprint (when the project uses sprints) | `focus-field` on title; type as a `q-btn-toggle` of the project's offered types | `mantle.work.TaskServices.create#Task`; `mantle.work.TaskServices.set#TaskSprint` (new); the context link through `mantle.work.WorkEffortServices.link#WorkEffortRecord` | `FindTask` `NewTaskForm`; Commons `QuickTask`; OpenProject inline create |
-| `QuickTime` | dialog | Log time | work item (context, else my recent), date (today), hours, billable, work type, comment (from and to are in MyTime's `EntryForm`, which More options opens) | hours rounded to the policy's smallest entry | `mantle.work.TimeServices.store#TimeEntry` (through `ironstone.TimeServices.save#TimeEntry`) | `EditTimeEntries` `AddTaskTime`; `PartyTimeEntries/EditTimeEntry` `AddTimeForm` |
+| `QuickTime` | dialog | Log time | work item (context, else my recent), date (today), hours, billable, work type, comment (from and to are in MyTime's `EntryForm`, which More options opens) | hours rounded to the policy's smallest entry | `mantle.work.TimeServices.store#TimeEntry` (through `ironstone.projects.TimeServices.save#TimeEntry`) | `EditTimeEntries` `AddTaskTime`; `PartyTimeEntries/EditTimeEntry` `AddTimeForm` |
 | `QuickProject` | dialog | A project in one step | name, key, client, template, manager (me) | key suggested from the name, upper case | `mantle.work.ProjectServices.create#Project`, or `clone#Project` from the template | `FindProject` `NewProject`; Odoo quick create project |
 
 - **Source:** design-drawers-commons §1.5 and §4 QuickCreate.
@@ -584,11 +584,11 @@ As built (P4c): ProjectDetail's Plan tab (`ProjectDetail/Plan.xml`, menu index 4
 the default) and `Plan/Calendar`; the toggle between them is a Timeline | Calendar button toggle in each component's header (a tab's
 subscreens have no second row of tabs). `Plan/Calendar.xml` serves Commons' `Calendar.qvue`, which has a project mode (its
 `calendarSetup` answers the project): no rail and no search, its requests carry the project as `workEffortId` and an event's id as
-`eventWorkEffortId` (impl-projects.md F43's pattern). The data is `ironstone.PlanningServices.get#ProjectCalendarEvents`: the meetings
+`eventWorkEffortId` (impl-projects.md F43's pattern). The data is `ironstone.projects.PlanningServices.get#ProjectCalendarEvents`: the meetings
 linked to the project from `get#FullCalendarData` `rootWorkEffortId` (only the linked events: all of them for a party of the
 project, else only the user's own), the sprints over their days, the milestones and releases on their due days (over their days a
 phase filled every day of a month; a phase's start is a day of its own), and the work items by due day through
-`ironstone.WorkItemServices.find#WorkItems` rather than `TaskServices.get#FullCalendarData`, so a Restricted item stays with those
+`ironstone.projects.WorkItemServices.find#WorkItems` rather than `TaskServices.get#FullCalendarData`, so a Restricted item stays with those
 who see it. A milestone, release or work item the user may change drags to other days (`move#ProjectCalendarItem`: a work item's
 due day; a milestone or release by as many days, its start with it); New meeting
 makes the event and links it (`link#WorkEffortRecord`) for the project's team. The terminal shows an agenda of the next four weeks.
@@ -650,7 +650,7 @@ Services beyond the Commons version: `org.moqui.impl.WikiServices.create#WikiSpa
 `WikiPageWorkEffort` (`entity`), which covers `Project/EditWikiPages` `AddWpweForm` and `DeleteWpweForm`.
 
 As built (P4b): the tab is Commons `Knowledge.xml` mounted in ProjectDetail; `Knowledge.qvue` has a project mode (its setup
-answers the project's space through `ironstone.ProjectServices.get#ProjectDocs`): the side pane names the space and its
+answers the project's space through `ironstone.projects.ProjectServices.get#ProjectDocs`): the side pane names the space and its
 storage instead of the space choice and has Linked pages (Link a page of another space, Unlink) in place of Recent and the
 Commons links; a page of another space opens in Commons Knowledge. A project with no space shows "Set up documentation" to
 those who manage it: in a repository of the project the user may update (not a mirror), or on database files
@@ -689,7 +689,7 @@ Clients see it only when the project shares hours with the client, as hours by w
 amounts or people's names beyond the team's.
 
 As built (impl-projects.md P6b): `Time/TimeEntries.xml` mounted as tab 10, the project fixed by `projectTabId` (F43's fallback in
-its transitions), the list opening on All. The box "Time on the project" (`ironstone.TimeServices.get#ProjectTime`) sums every
+its transitions), the list opening on All. The box "Time on the project" (`ironstone.projects.TimeServices.get#ProjectTime`) sums every
 entry of the find, not only the page: hours against the project's estimate (`estimatedWorkTime`, rolled up), billable against
 not, the client amount and worker cost for those who manage money, and the hours by person, by work item against each item's
 estimate (the 15 with the most) and by work type. Update rates is for a manager of the project who manages money. The tab is
@@ -719,7 +719,7 @@ always there (F24).
   `ClientManager`, else its `Customer` contact), and the gate's approval is requested, so the client approves the
   estimate in MilestoneDetail as any gate and no other approval record is needed.
 - **As built (impl-projects.md P8b):** `ProjectDetail/Money.xml` (tab 11, always there as F24 says) over
-  `ironstone.BillingServices.get#ProjectMoney` and `mantle.work.ProjectServices.get#ProjectMoneySummary`; for those who manage money
+  `ironstone.projects.BillingServices.get#ProjectMoney` and `mantle.work.ProjectServices.get#ProjectMoneySummary`; for those who manage money
   (`check#Money`), others see that it is theirs. Number cards (value at client rates, budget used, invoiced, unbilled, milestone shares
   due); Budget and actuals (the billing basis and caps against hours, value at client rates, cost at the workers' rates and profit, from
   the project's rolled-up `actualCost`/`actualClientCost`; Edit is `save#ProjectMoney`); Unbilled (Create invoice is Unbilled's dialog,
@@ -780,7 +780,7 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
 
 - **Views:** list; calendar by due date (`view-calendar`, range-find); timeline, which opens Timeline in plan mode.
 - **States:** clients see their projects' plan items, read only.
-- **As built (P4b):** `ironstone.PlanningServices.find#RoadmapItems` (up to 500, not paged, so the calendar has every row and
+- **As built (P4b):** `ironstone.projects.PlanningServices.find#RoadmapItems` (up to 500, not paged, so the calendar has every row and
   no range-find); the list is sorted by project and then due date with a project column (list grouping is §16 later); a second
   row of kind chips (All kinds, Milestones, Releases; Sprints in a project's tab); due and status edited in place by the
   project's team (`update#PlanItemField`; the status along the `Default` flow); progress is done of the items (cancelled left
@@ -850,7 +850,7 @@ The `record-files` element over the project (design-drawers-commons §9 RecordFi
   when asked, moves unfinished items to the next release or to none, and publishes the notes); Generate draft.
 - **States:** clients see the version, dates, the shared items and the published notes. As built (impl-projects.md P10b):
   `get#ReleaseNotesInfo` answers a client the notes only once published (never the generated draft, which names every item);
-  a merge request names only the items the user sees (`ironstone.CodeServices.get#VisibleWorkEfforts`).
+  a merge request names only the items the user sees (`ironstone.projects.CodeServices.get#VisibleWorkEfforts`).
 - **As built (P4b):** the work items in one list with a Kind column (Features, Fixes, Other) rather than grouped (list grouping
   is later); the merge requests and tags only of repositories the user may view (`get#ReleaseCode`); Create tag (an annotated
   tag, by default `v` and the version, at a ref given or the default branch) and Link a tag; the notes are kept as the
@@ -1015,7 +1015,7 @@ actions.
 | `Branches` | list | Linked branches | repository, branch, head, ahead and behind the default, merge request, CI; Unlink | Create branch dialog: repository, from (the default branch), name (`<KEY>-<n>-<words of the title>`), and the checkout command to copy | `mantle.work.GitServices.create#TaskBranch` (new); `add#WorkEffortRef`, `remove#WorkEffortRef`; `org.moqui.impl.GitServices.get#GitCompare` (new) for ahead and behind | `Task/EditSource` `TaskRefList`, `AddRefForm`; GitLab "Create branch" on an issue |
 | `Commits` | list | Linked commits | repository, commit (link), summary, author, date, on (branch), linked by; Unlink | Add commit dialog: repository, commit id or prefix | `mantle.work.GitServices.add#TaskCommit`, `remove#TaskCommit` | `Task/EditSource` `TaskCommitList`, `AddCommitForm`; `TaskSummary` Commits |
 | `WorkItemMergeRequests` | list | Its merge requests | `!num`, title, status, approvals, CI, merged | | `WorkEffortGitMergeRequest` (new, `entity`) | GitLab issue's related merge requests |
-| `WorkItemTime` | list | Time on it | date, person, hours, work type, billable, comment, client and vendor rate and amount (managers), invoice; Edit, Delete (own uninvoiced; managers any uninvoiced). As built (impl-projects.md P6b): the user's own entries (P2) and below them, in Projects, All time (`ironstone.TimeServices.get#ItemTime`: everyone's on the item, the latest 100, the week's status, the amounts for those who manage money, a link to Time entries for the edits) | totals estimated, actual and remaining above | `store#TimeEntry`, `mantle.work.TimeServices.delete#TimeEntry` | `Task/EditTimeEntries` `TimeEntryList`; `MyAccount/User/TimeEntries` `TimeEntryList` |
+| `WorkItemTime` | list | Time on it | date, person, hours, work type, billable, comment, client and vendor rate and amount (managers), invoice; Edit, Delete (own uninvoiced; managers any uninvoiced). As built (impl-projects.md P6b): the user's own entries (P2) and below them, in Projects, All time (`ironstone.projects.TimeServices.get#ItemTime`: everyone's on the item, the latest 100, the week's status, the amounts for those who manage money, a link to Time entries for the edits) | totals estimated, actual and remaining above | `store#TimeEntry`, `mantle.work.TimeServices.delete#TimeEntry` | `Task/EditTimeEntries` `TimeEntryList`; `MyAccount/User/TimeEntries` `TimeEntryList` |
 | `LogTime` | dialog | Add time, or stop the timer with its details | person (managers), date, from and to or hours, break, billable, work type, position class, comment, remaining work | from and to `date-time`; remaining defaults to remaining less these hours | `mantle.work.TaskServices.add#TaskTime` | `EditTimeEntries` `AddTaskTime`; `PartyTimeEntries/EditTimeEntry` `AddTimeForm` |
 | `Timer` | single | Start or stop | started, elapsed, comment | `m-elapsed` (new) | `mantle.work.TimeServices.create#TimeEntryClockIn`; `store#TimeEntry` | `TaskSummary` `ClockInForm`; `EditTimeEntries` `ClockInForm` |
 | `Chatter`, `RecordFiles` | component | Timeline and files | | `chatter`, `record-files` | Shared/Chatter, Shared/RecordFiles | `TaskSummary` `AddCommentForm`, `NewContentForm`, `UpdateContentForm`; `TaskCommentReply` and `TaskCommentUpdate` `ReplyCommentForm` |
@@ -1142,7 +1142,7 @@ actions.
   item starts before the next weekday after the other's due plus the lag is drawn in the warning color. Holidays are the
   `WepHoliday` days of the projects' organizations. The terminal has `TimelineTui` (impl-projects.md P11): the rows, Move
   dates (dates or a shift, sub-items and dependents when asked), Add and Remove dependency; dragging bars is the browser's.
-  Services: `ironstone.PlanningServices` `get#Timeline`, `move#TimelineItem`, `save#` and `remove#TimelineDependency`; Mantle
+  Services: `ironstone.projects.PlanningServices` `get#Timeline`, `move#TimelineItem`, `save#` and `remove#TimelineDependency`; Mantle
   `TaskServices` `add#`, `remove#TaskDependency` and `set#TaskDates`, `ProjectServices.get#TimelineData` (§15). WorkItemDetail's
   Links make dependencies through `add#TaskDependency` too.
 - **Needs:** Timeline data; Dependency lag; `view-timeline` (later); `.qvue` TUI texts.
@@ -1163,7 +1163,7 @@ actions.
 
 - **Source:** research §16 (the audience moving from Jira and Redmine); Commons ContactImport as the pattern.
 - **As built (P4c):** `WorkItems/Import.xml` and its steps in `Import/`, the draft in the user's own folder
-  (`ironstone.WorkItemImportServices`, as ContactImport's). Source takes the project (one the manager works in). Mapping is a
+  (`ironstone.projects.WorkItemImportServices`, as ContactImport's). Source takes the project (one the manager works in). Mapping is a
   field to a column rather than a column to a field (an export with a hundred columns would be a hundred fields): the targets
   are those above plus the original id (Jira's Issue id, which its Parent column names), start, resolved, story points and the
   epic (the parent when no parent is given); a column the file repeats (Jira's Labels, Sprint, Fix Version/s) is one column whose
@@ -1214,7 +1214,7 @@ keeps the user's own slice.
 - **Source:** research §11 (intake mechanisms, request to work); baseline `Request/FindRequest`; MarbleERP's request
   counts by status.
 - **Needs:** Intake settings; `view-board` all rows; Client access.
-- **As built (P5):** `Projects/Requests/List.xml` on `ironstone.ProjectRequestServices.find#ProjectRequests`; the team's
+- **As built (P5):** `Projects/Requests/List.xml` on `ironstone.projects.ProjectRequestServices.find#ProjectRequests`; the team's
   default list is Assigned to me (the managers' New), the project's tab opens on All; a Channel column (app, email, form) and
   find; NewRequest takes the project's triage assignee when none is given; the bulk changes run each request in a transaction of
   its own (failures counted and named).
@@ -1519,7 +1519,7 @@ find stays in it.
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
 | `MergeRequestFind` | find | Narrow | text in the title, repository, project (its repositories), author, reviewer (the people who write or review merge requests the user may view), target branch; the status is the chips' | `header-dialog` | | GitLab merge request filters |
-| `MergeRequestList` | list | The merge requests | `!num` and title (link) with source to target, status, repository, author, reviewers with their state, CI state, comments (with replies), linked items, updated | `saved-finds` | `ironstone.CodeServices.find#MergeRequests` over `org.moqui.impl.GitReviewServices.find#MergeRequests` (new) | GitLab merge requests list (familiar shape) |
+| `MergeRequestList` | list | The merge requests | `!num` and title (link) with source to target, status, repository, author, reviewers with their state, CI state, comments (with replies), linked items, updated | `saved-finds` | `ironstone.projects.CodeServices.find#MergeRequests` over `org.moqui.impl.GitReviewServices.find#MergeRequests` (new) | GitLab merge requests list (familiar shape) |
 
 - **Needs:** Code review store.
 
@@ -1572,9 +1572,9 @@ find stays in it.
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `FileTree` | component | Changed files | path, change, insertions, deletions, open threads, viewed (kept in the browser per head commit) | `q-tree` | `org.moqui.impl.GitReviewServices.get#MergeRequestDiff` (new) through `ironstone.CodeServices.get#MergeRequestChanges` | GitLab file browser in changes |
+| `FileTree` | component | Changed files | path, change, insertions, deletions, open threads, viewed (kept in the browser per head commit) | `q-tree` | `org.moqui.impl.GitReviewServices.get#MergeRequestDiff` (new) through `ironstone.projects.CodeServices.get#MergeRequestChanges` | GitLab file browser in changes |
 | `DiffView` | component | The diffs with threads | old and new line numbers, the line, threads; unified or side by side (kept in the browser) | per-line comment start | `get#MergeRequestDiff` (new) hunks of numbered lines; `mantle.work.GitServices.get#ReviewThreads` | GitLab changes tab; GitHub files changed |
-| `LineComment` | single | A comment on a line or a reply | body (markdown) | `m-text-area` `editor-type="md"` | `mantle.work.GitServices.create#ReviewComment` (new: a `Comment` filed on the merge request with its anchor, or a reply) through `ironstone.CodeServices.comment#MergeRequest` | Chatter `LogNote` |
+| `LineComment` | single | A comment on a line or a reply | body (markdown) | `m-text-area` `editor-type="md"` | `mantle.work.GitServices.create#ReviewComment` (new: a `Comment` filed on the merge request with its anchor, or a reply) through `ironstone.projects.CodeServices.comment#MergeRequest` | Chatter `LogNote` |
 | `ResolveThread` | single | Resolve or reopen a thread | resolved | | `mantle.work.GitServices.resolve#ReviewThread` (new: the thread's first comment to `CeResolved` and back) | GitLab resolve thread |
 
 - **Devices:** desktop and tablet only.
@@ -1730,7 +1730,7 @@ is the same decision.
   a job with progress on the topic `timeImportProgress`.
 - **States:** an invoiced entry shows its invoice and no edit; an entry on a submitted timesheet says so.
 - **As built (impl-projects.md P6b):** `Time/TimeEntries.xml` over `mantle.work.TimeServices.find#TimeEntries` (through
-  `ironstone.TimeServices.find#TimeEntryRows`). Who sees a person's time: the person, the managers of the projects it is on (its
+  `ironstone.projects.TimeServices.find#TimeEntryRows`). Who sees a person's time: the person, the managers of the projects it is on (its
   entries on the project and its items), the person's line managers (`PrtManager`), ADMIN, and under an `any` policy the holders
   of `TIMESHEET_APPROVE`; one who sees an entry changes it only as its week allows (the person or an approver while it is open).
   Who manages money: the holders of `TIME_ENTRY_RATE`, granted to `BOSS_PROJECT_MANAGER` (and ADMIN): only for them do the rates
@@ -1744,7 +1744,7 @@ is the same decision.
   offered there (Mantle's own screens keep it). Log team time (`TeamTime`) is not built yet (impl-projects.md §7).
   Clients (impl-projects.md P10b): TimeEntries and the whole Time section stay refused, and ProjectDetail's Time tab with them; a client
   of a project that shares its hours (`WstShareHours`) gets its own tab, Hours (`ProjectDetail/ClientHours.xml`, mounted by a
-  `SubscreensItem` row for the client group only, over `ironstone.TimeServices.get#ClientHours`): the hours by week and work item, with the
+  `SubscreensItem` row for the client group only, over `ironstone.projects.TimeServices.get#ClientHours`): the hours by week and work item, with the
   totals by item, of the entries the team stands behind (ended, billable, on an approved week or a client invoice) on the items shared with
   the client; never who, a rate, an amount, a comment or the timesheet. A project that does not share its hours says so and reads nothing.
   The `TimeEntry` filter stays `_NA_`: no generic find reads time for a client; WorkItemDetail's All time answers a client nothing.
@@ -1852,7 +1852,7 @@ drawn down by billable time) are not designed here; they are left to People, wit
 
 - **Actions:** per row Create invoice and Review time (TimeEntries with the project and Unbilled); after an invoice
   is made a notification links to it.
-- **As built (impl-projects.md P8a):** `Billing/Unbilled.xml` over `ironstone.BillingServices.find#UnbilledRows` and
+- **As built (impl-projects.md P8a):** `Billing/Unbilled.xml` over `ironstone.projects.BillingServices.find#UnbilledRows` and
   `mantle.work.ProjectServices.get#UnbilledSummary`, for those who manage money (TIME_ENTRY_RATE or ADMIN). Unbilled time is a
   billable entry (rate type not No Charge) on no client invoice that has ended; only the approved part (its timesheet Approved)
   is ready to invoice, so the number cards are Unbilled, Ready to invoice, Hours and Projects, and the chips All unbilled and
@@ -1883,7 +1883,7 @@ drawn down by billable time) are not designed here; they are left to People, wit
 | `ProjectInvoiceFind` | find | Narrow | project, client, type, status, date and due periods | | | `FindInvoice` `MainOptions` |
 | `ProjectInvoiceList` | list | Invoices | invoice (link), type, project, from, to, date, due, total, unpaid, status chip | CSV | `Invoice` with `WorkEffortInvoice` and the billed time entries (`entity`) | `FindInvoice` `InvoiceList`; `FindExpenseInvoice` `InvoiceList` |
 
-As built (impl-projects.md P8a): `Billing/Invoices.xml` over `ironstone.BillingServices.find#InvoiceRows`: the invoices of the
+As built (impl-projects.md P8a): `Billing/Invoices.xml` over `ironstone.projects.BillingServices.find#InvoiceRows`: the invoices of the
 projects the user sees, by `WorkEffortInvoice` (which `create#ProjectInvoiceItems` now writes for a client invoice) and the billed
 time (`TimeEntry.invoiceId`, a client invoice; `vendorInvoiceId`, a worker's); an invoice linked to the project to someone other
 than its client is an expense invoice. The chips add **To send** (Finalized: approved and not sent) between Drafts and Sent, so an
@@ -1891,7 +1891,7 @@ approved invoice is in one chip; All is the default and includes cancelled invoi
 Clients (impl-projects.md P10b): Billing opens on Invoices for a client (Unbilled, Rates and OrderDetail stay refused it), which lists
 only the client invoices of its client projects addressed to its organization or itself and sent to it (Sent, Acknowledged, Payment
 Received: never a draft, an approved invoice not sent yet or a cancelled one), with the chips Sent, Overdue, Paid and All
-(`ironstone.BillingServices.get#ClientInvoices`); never a worker's or an expense invoice, another client's, or one of a project of its
+(`ironstone.projects.BillingServices.get#ClientInvoices`); never a worker's or an expense invoice, another client's, or one of a project of its
 organization without client sign-in.
 
 ### InvoiceDetail (Context passed)
@@ -1953,7 +1953,7 @@ line waits for Sales.
 
 - **States:** `update#RateAmount` changes only dates and amount, so a change of scope ends the rate (thru) and adds
   a new one; the list says so on such an edit.
-- **As built (impl-projects.md P8a):** `Billing/Rates.xml` over `ironstone.BillingServices` `find#RateRows`, `store#Rate`, `end#Rate`,
+- **As built (impl-projects.md P8a):** `Billing/Rates.xml` over `ironstone.projects.BillingServices` `find#RateRows`, `store#Rate`, `end#Rate`,
   `get#WhichRate`: the rates on the projects the user sees or on none; current and coming by default, ended ones on asking or on an
   effective day. The edit is a row dialog (from, thru, amount), not in-place cells. Which rate is a dialog whose answer shows above
   the list (the client and worker rate found by `mantle.work.TimeServices.find#RateAmount` and what each is scoped to). The seeded
@@ -2058,7 +2058,7 @@ client budget.
 
 **As built (impl-projects.md P9).** `Projects/Reports` holds the index (`Reports/Index`, the cards; Profitability and Utilization only for
 managers, who alone may open them through `BOSS_PROJECTS_MANAGERS`) and a screen per report in the menu. Each report keeps its parameters
-in the URL (a GET form), shows number cards, its charts (`ironstone.ReportServices.get#ChartConfig`: the series in the brand order, a
+in the URL (a GET form), shows number cards, its charts (`ironstone.projects.ReportServices.get#ChartConfig`: the series in the brand order, a
 terminal chart twin) with the tables behind them (CSV and XLSX), and Print opens the same URL in `html-print`. Every report reads only the
 projects the user sees, time by the rule of TimeEntries (the user's own and their reports', that of the projects they manage, everyone's
 for ADMIN) and money only for those who manage it (ADMIN, `TIME_ENTRY_RATE`). The measures as computed: the value of time is the entry's
@@ -2151,7 +2151,7 @@ TimeEntries' dialog and bulk change read it. The smallest entry is a choice of 0
 
 As built (impl-projects.md P8a): `Settings/Billing.xml`, the organization's `ProjBillingDefaults` JSON (`billingBasis`,
 `invoiceGrouping` PerEntry, PerWorker or OneLine, `timeDetail`, `shareHours`, `settlementTermId`, `workerInvoicing` Monthly or
-ByProject) through `ironstone.BillingServices` `get#` and `store#BillingSettings`, for the Projects managers who manage money. Added
+ByProject) through `ironstone.projects.BillingServices` `get#` and `store#BillingSettings`, for the Projects managers who manage money. Added
 the payment terms of a new invoice (a SettlementTerm; empty uses the organization's accounting terms). The time detail is the new
 project setting type `WstTimeDetail` (its organization default `timeDetail`), as the billing basis, grouping and shared hours are.
 
@@ -2161,7 +2161,7 @@ project setting type `WstTimeDetail` (its organization default `timeDetail`), as
 
 | Form | Kind | Purpose | Highlighted fields | Widgets of note | Services | Derived from |
 | --- | --- | --- | --- | --- | --- | --- |
-| `RepositoryDefaults` | single | New repositories | storage for project repositories, default branch name, default merge method (merge commit), branch rules (default branch protected from force pushes and deletes; merge requests required off; approvals 1; approvals kept when the source moves) | `create#ProjectRepository` applies them; no default webhook, as each needs its own secret, kept encrypted on the repository | `ironstone.CodeServices.store#RepositoryDefaults` (`PartySetting` `ProjRepositoryDefaults`, short keys within its 255 characters) | Git-Hosting; GitLab defaults |
+| `RepositoryDefaults` | single | New repositories | storage for project repositories, default branch name, default merge method (merge commit), branch rules (default branch protected from force pushes and deletes; merge requests required off; approvals 1; approvals kept when the source moves) | `create#ProjectRepository` applies them; no default webhook, as each needs its own secret, kept encrypted on the repository | `ironstone.projects.CodeServices.store#RepositoryDefaults` (`PartySetting` `ProjRepositoryDefaults`, short keys within its 255 characters) | Git-Hosting; GitLab defaults |
 | `Conventions` | single | Commit and branch conventions | Fixes keywords on, branch name pattern, merge request moves (opened to In Review, merged to Complete) | requiring a work item key in commits to protected branches is later (a pre-receive rule) | `store#Conventions` (`PartySetting` `ProjConventions`) | Git-Hosting "Projects and tasks" |
 | `SshAccess` | list | Who may use SSH | user group, holds `SSH_GIT`; Grant, Revoke | ADMIN's grant does not change here | `set#SshAccess` (`UserGroupPermission`) | Git-Hosting "Logging in" |
 
@@ -2176,7 +2176,7 @@ project setting type `WstTimeDetail` (its organization default `timeDetail`), as
 | `EmailIntake` | list, editable rows | Addresses that make requests | mail account, plus tag, project, makes (requests, or work items for internal senders) | each row writes its Comms rule | `org.moqui.impl.EmailClientServices.create#EmailRule`, `update#EmailRule`, `delete#EmailRule` with the new `createRequest` action | Odoo project alias; Redmine mail handler; Dolibarr email collector |
 | `PublicForm` | single | The public request form | CAPTCHA on, files allowed and their size, the confirmation email's template | | `PartySetting` (`entity`) | Mantle contact request with reCAPTCHA |
 
-As built (P5): `ironstone.ProjectRequestServices`. The types are the organization's `ProjIntake` (`offered`, `triaged`,
+As built (P5): `ironstone.projects.ProjectRequestServices`. The types are the organization's `ProjIntake` (`offered`, `triaged`,
 `defaultType`, `triagePartyId`; a project may set its own default type, `WstRequestType`, and triage assignee); the email intake
 is a list of the projects with an address and an Add an address dialog, each row's rule written as the manager (who must
 manage the account; a plus tag belongs to one project); the public form is `ProjPublicForm` (CAPTCHA, files, at most how many
@@ -2342,7 +2342,7 @@ record is read through a service that checks the repository's rights (R21).
 | Code review store | data model + service type | Framework `moqui.resource.GitMergeRequest` {mergeRequestId, repositoryId, mergeRequestNum (per repository from 1), title, description, sourceRef, targetRef, statusId (`GmrDraft`, `GmrOpen`, `GmrMerged`, `GmrClosed`, with a flow), authorUserId, createdDate, lastUpdatedDate, headCommitId, baseCommitId, mergeableEnumId, conflictPaths, mergeMethodEnumId, deleteSourceBranch, mergedDate, mergedByUserId, mergeCommitId, closedDate} and `GitMergeRequestReviewer` {mergeRequestId, userId, statusId (`GmrrRequested`, `GmrrApproved`, `GmrrChangesRequested`, `GmrrCommented`), reviewedCommitId, reviewedDate}; `org.moqui.impl.GitReviewServices` `create#MergeRequest`, `update#MergeRequest`, `set#MergeRequestReviewers`, `submit#MergeRequestReview`, `close#MergeRequest`, `reopen#MergeRequest`, `merge#MergeRequest`, `find#MergeRequests`, `get#MergeRequestDiff`, and `refresh#MergeRequests` (a framework rule on ref-update: a source's new head, mergeability again, merged when the target holds the head). As built (impl-projects.md P11, F132): only a user who may push (update on the repository) approves, a viewer comments or requests changes, and the approvals counted toward a branch rule are those of users who may push now, each decided as its reviewer (`get#MergeRequestApprovals`, the same count `merge#MergeRequest` makes) | MergeRequests, MergeRequestDetail, MergeRequestChanges, Compare, Home | Mantle-free, as `WikiPageReview` is |
 | Merge request links | data model + service type | Mantle `mantle.work.effort.WorkEffortGitMergeRequest` {workEffortId, mergeRequestId, repositoryId, linkSourceEnumId (`WglsMergeRequestBranch`, `WglsMergeRequestText`, `WglsExplicit`), completeOnMerge, linkedByUserId, linkedDate}; `mantle.work.GitServices.link#MergeRequestItems` (the source branch's item and the keys in the title and description, by `find#TaskReferences`; completeOnMerge from a `Closes` keyword, the NewMergeRequest choice, else the project's `WstMergeRequestMoves`; a text key taken out drops its link), `move#MergeRequestItemsToReview` (opened or ready, with `WstMergeRequestMoves`), `complete#MergeRequestItems` (merged: the completeOnMerge items, where their flow allows), `add#`, `remove#MergeRequestItem` and `get#MergeRequestItems` (for MergeRequestDetail), dispatched by `handle#MergeRequestEvent` from the SECAs of `WorkGit.secas.xml` on the framework's `queue#MergeRequestEvent`, `merge#MergeRequest` and `set#MergeRequestReviewers` (merge request events are not git events, so not gitECA rules; impl-projects.md P3b) | WorkItemDetail, ReleaseDetail, MergeRequestDetail | |
 | Review anchors | data model + service type | Mantle `mantle.party.communication.CommunicationEventGitAnchor` {communicationEventId, mergeRequestId, repositoryId, commitId, path, oldLine, newLine, lineText, outdated}, the comment a `Comment` linked to the merge request by `CommunicationEventRecord`; `mantle.work.GitServices.create#ReviewComment` (a line comment or a reply, telling the author and reviewers), `store#ReviewAnchor`, `resolve#ReviewThread` (the first comment to `CeResolved` and back to `CeSent` by a direct change, as the Default flow has neither move from a sent comment), `get#ReviewThreads`, `refresh#ReviewAnchors` (outdated on a new head that changed the line); `get#RecordLinkInfo` knows `moqui.resource.GitMergeRequest` and `GitRepository` (visible to whoever may view the repository) | MergeRequestChanges, Chatter on a merge request | |
-| Code in the palette | service type | `mantle.work.GitServices.search#Code(text, limit)`: repositories and merge requests the user may view, as results (Mantle has no screen links); BOSS's `ironstone.CodeServices.search#CodePalette` makes them palette rows | palette | |
+| Code in the palette | service type | `mantle.work.GitServices.search#Code(text, limit)`: repositories and merge requests the user may view, as results (Mantle has no screen links); BOSS's `ironstone.projects.CodeServices.search#CodePalette` makes them palette rows | palette | |
 | Repository access by role | service type | `check#GitRepositoryAuthz` gives the delete right to the project's leads (`ProjectManager`, `Manager`, `ProgrammerLead`, `SysArchitect`) and only view, when the project shares its repositories, to its client contacts (`Customer`, `CustomerBillTo`, `ClientManager`, `ClientBilling`); the framework decides `AT_GIT_REPOSITORY` by the repository's own records, not an app root's inheritable grant (impl-projects.md F23) | §7 | was: every active party got view, create and update |
 | Task branches | service type | `mantle.work.GitServices.create#TaskBranch(workEffortId, repositoryId, fromRef, branchName)`: the name from the project's pattern (`get#TaskBranchName`: `<id>`, `<KEY>`, `<key>`, `<n>`, `<words>`, `<type>`; `<id>-<words>` by default), `create#GitRef`, the link | WorkItemDetail | |
 | Release tags by version | service type | `link#RefByName` also links a tag named as a release's version, or `v` and the version, in the projects linked to the repository | ReleaseDetail | |
@@ -2351,14 +2351,14 @@ record is read through a service that checks the repository's rights (R21).
 
 | Need | Kind | Proposed as | Used by | Stub spec |
 | --- | --- | --- | --- | --- |
-| Shared work item and request detail | BOSS screens | `Shared/WorkItemDetail.xml` and `Shared/RequestDetail.xml`, made from the Commons M6 screens and their `ironstone.TaskServices` and `RequestServices`, with the app context (tabs, fields, actions) set by the including app; Commons mounts them at its present paths | WorkItemDetail, RequestDetail, Commons | design-doc-guide §10 |
+| Shared work item and request detail | BOSS screens | `Shared/WorkItemDetail.xml` and `Shared/RequestDetail.xml`, made from the Commons M6 screens and their `ironstone.commons.TaskServices` and `RequestServices`, with the app context (tabs, fields, actions) set by the including app; Commons mounts them at its present paths | WorkItemDetail, RequestDetail, Commons | design-doc-guide §10 |
 | Sprints | data model + service type + seed data | `WorkEffortType` `WetSprint` and `WorkEffortAssocType` `WeatSprint` (sprint to item; a carry-over ends one membership and starts the next); `mantle.work.ProjectServices.create#Sprint`, `update#Sprint`, `get#SprintDefaults`, `start#Sprint`, `complete#Sprint`; `mantle.work.TaskServices.set#TaskSprint` as `set#TaskMilestone`. As built (P4a): id `<KEY>-SP-<n>`; In Planning, In Progress, Complete; the goal is the description; the capacity is `estimatedPoints` in a points project, `totalTimeAllowed` in an hours one; done is Complete or Closed (a cancelled item is neither done nor carried); a carried item's membership ends at the sprint's `actualCompletionDate`; a change in a sprint in progress writes an `EntityAuditLog` row (`WorkEffortAssoc`, `pkPrimaryValue` the sprint, `pkSecondaryValue` the item, `fromDate` added or `thruDate` removed) with the user | Backlog, SprintDetail, WorkItems, QuickCreate | |
 | Releases and components | service type | `create#Release`, `create#Component` as `create#Milestone` (ids `<KEY>-REL-<n>`, `<KEY>-CMP-<n>`, milestones `<KEY>-MS-<n>`); `set#TaskRelease`, `set#TaskComponent` as `set#TaskMilestone`. As built (P4b): `get#PlanItemDefaults` and `create#PlanItem` under the three (an id given is refused when taken; a release's version is its own in the project); `create#Milestone` takes no id or a description now; `update#Milestone` takes the description and `clearFields`, checks the version and the dates, and sets `actualCompletionDate` on Complete or Closed; `get#PlanItemSummary` (items by state, hours, points, of milestones, releases, sprints and components) | Roadmap, ReleaseDetail, ProjectSettings, WorkItemDetail | the types and assoc types exist |
 | Rank | data model + service type | `WorkEffort.sequenceNum` (number-integer, gaps of 1000); `set#TaskRank(workEffortId, previousSiblingId)`, renumbering a run when a gap closes; in the tree a rank orders the children of one parent. As built (P4a): the Backlog's `set#TaskBacklogRank(workEffortId, previousWorkEffortId or nextWorkEffortId)` treats the ranks as one order over the project's items at every depth, renumbering the whole project when a gap closes, so the tree's order of siblings is that order narrowed to them | Backlog, the tree, sub-items, board card order | |
 | Work item tree | service type | `mantle.work.ProjectServices.get#WorkItemTree(find parameters, parentWorkEffortId or top, withAncestors)`: one level of the tree in rank order with each row's roll-up (its subtree's estimate, remaining, actual, budget, item and done counts, cancelled left out, as `get#WorkEffortChildStats` sums), a has-children flag, and for a find the ancestors of the matches so each sits in its place; `mantle.work.TaskServices.move#Task(workEffortId, parentWorkEffortId, previousSiblingId)`: the parent in the same project, refused when it is the item or one of its descendants, the rank set among the new siblings, the change in the audit log; `update#Task` with a new `rootWorkEffortId` moves the subtree and refuses a parent left in another project | WorkItems, WorkItemDetail, Backlog's epic filter, Timeline, ProjectOverview | `get#WorkEffortChildStats` reads one level of children per call today |
 | Story points | data model | `WorkEffort.estimatedPoints` (number-decimal); a sprint's capacity in the project's unit | WorkItemDetail, Backlog, SprintReport | |
 | Dependency lag | data model + service type | `WorkEffortAssoc.lagDays` (number-decimal, working days) on `WeatDependsOn`, whose direction is fixed: `workEffortId` depends on `toWorkEffortId`. As built (P4c): `mantle.work.TaskServices.add#TaskDependency` (a loop, an ancestor or descendant, a negative lag refused; one already there takes the new lag) and `remove#TaskDependency`; `set#TaskDates` (start and due days, or `shiftDays`; `moveSubtree`; `autoSchedule` moves the dependents later by business days, keeping their length, through `get#FutureBusinessDay` with the project's organization's holidays) | Timeline, WorkItemDetail | |
-| Development status flow | seed data | `StatusItem`s `WeInReview` (sequence 6) and `WeInTesting` (7) of type `WorkEffort`; `StatusFlow` `WorkEffortDevelopment` with Approved, In Progress, In Review, In Testing, Complete and Closed and the moves back; `complete#TaskFromCommit` and `ironstone.TaskServices.set#TaskStatus` accept it | WorkItems, WorkItemDetail, Backlog | |
+| Development status flow | seed data | `StatusItem`s `WeInReview` (sequence 6) and `WeInTesting` (7) of type `WorkEffort`; `StatusFlow` `WorkEffortDevelopment` with Approved, In Progress, In Review, In Testing, Complete and Closed and the moves back; `complete#TaskFromCommit` and `ironstone.commons.TaskServices.set#TaskStatus` accept it | WorkItems, WorkItemDetail, Backlog | |
 | Labels | data model + seed data | `WorkEffortCategory.categoryTypeEnumId` (new `WorkEffortCategoryType`: `WcatLabel`, `WcatHoliday`) and `colorName` (a brand color name); the holiday categories take `WcatHoliday` | WorkItems, Labels, WorkItemDetail | |
 | Project health | data model + service type + seed data | `WorkEffort.healthEnumId` (new `WorkEffortHealth`: `WehOnTrack`, `WehAtRisk`, `WehOffTrack`); `mantle.work.effort.WorkEffortUpdate` {workEffortId, communicationEventId, updateDate, healthEnumId, percentComplete, clientVisible}; `CommunicationEventType` `StatusUpdate`; `post#ProjectUpdate`; topic `ProjectStatusUpdate` | ProjectOverview, Projects, Home, PortfolioReport | |
 | Project settings | data model + service type | `mantle.work.effort.WorkEffortSetting` {workEffortId, settingTypeEnumId, settingValue} with `WorkEffortSettingType` (`WstModules`, `WstEstimateUnit`, `WstWorkItemTypes`, `WstSeveralSprints`, `WstShareNewItems`, `WstKeywordComplete`, `WstRequestFromWork`, `WstIntakeAccount`, `WstIntakePlusTag`, `WstIntakeToken`, `WstTriageParty`, `WstBranchPattern`, `WstMergeRequestMoves`, `WstBillingBasis`, `WstInvoiceGrouping`, `WstShareHours`, `WstClientSignIn`, `WstShareRepositories`, `WstDocsWikiSpace`, `WstApprovalRequired`, `WstApproverParty`); `store#ProjectSetting`, `mantle.work.ProjectServices.get#ProjectSettings` (the project's, else the organization's `PartySetting`) | ProjectSettings, NewProject, every screen that reads a module | as `PartySetting` and `ProductStoreSetting` |
@@ -2371,7 +2371,7 @@ record is read through a service that checks the repository's rights (R21).
 | Release notes | service type | `generate#ReleaseNotes` (markdown of the release's items by type with their keys, and its merged merge requests) and `publish#ReleaseNotes` (a page of the project's docs space, a `CHANGELOG.md` commit through `commit#GitFiles`, an email to its followers). As built (P4b): the draft has the release's description, its done items as Features, Fixes and Other, and its merged merge requests of repositories the user may view (the open items are counted, not listed); `store#` and `get#ReleaseNotes` keep them as a `WorkEffortContent` `WectReleaseNotes`; `publish#ReleaseNotes` goes each way on its own (a failure is a warning naming it): the page `Releases/<version>` (Releases made when missing), the version's section at the top of `CHANGELOG.md` (replaced when there), and the topic `ReleasePublished` to the followers of the release and the project; `release#Release` completes it (unfinished items to the next open release or none, a tag, the notes) | ReleaseDetail | |
 | Project activity | service type | `mantle.work.ProjectServices.get#ProjectActivity`: the status changes (audit log), comments, commits and merges of the project's items, newest first, paged | ProjectOverview, Home | |
 | Time in Chatter | service type | `get#RecordTimeline` gains a time-entry source for a work item (who logged how long, with the comment). As built (P6b): `mantle.work.TimeServices.get#TimeEntryTimeline`, registered as a `RecordTimelineSource` `ServiceRegister` (`TimeEntryTimeline`, Mantle seed): entries of kind `time` (the hours and work type as the title, the comment as the body, no rates, a running timer left out), shown in every list but a filtered one; Chatter labels them Time logged | WorkItemDetail | design-drawers-commons §15, Projects' row |
-| Calendar project filter | service type | `mantle.work.EventServices.get#FullCalendarData` takes `rootWorkEffortId`: the project's events (by `WorkEffortRecord`), milestones, releases and sprints. As built (P4c): only the linked events, all of them for a current party of the project (or ADMIN), else those the user owns or is on; the milestones, releases, sprints and work items are read by the caller (`ironstone.PlanningServices.get#ProjectCalendarEvents`) | ProjectCalendar | |
+| Calendar project filter | service type | `mantle.work.EventServices.get#FullCalendarData` takes `rootWorkEffortId`: the project's events (by `WorkEffortRecord`), milestones, releases and sprints. As built (P4c): only the linked events, all of them for a current party of the project (or ADMIN), else those the user owns or is on; the milestones, releases, sprints and work items are read by the caller (`ironstone.projects.PlanningServices.get#ProjectCalendarEvents`) | ProjectCalendar | |
 | Timeline data | service type | `mantle.work.ProjectServices.get#TimelineData`: the find's items with start, due, progress, plan items and dependencies, and for each parent its subtree's span and roll-up progress; business days through `get#FutureBusinessDay`. As built (P4c): `workEffortIds` with their ancestors (`get#WorkItemTree`, so only items the user sees), `spanStartDay` and `spanDueDay` (cancelled items aside), progress 100 when done, else the roll-up's estimate less remaining, else the done of the sub-items; the dependencies between them with `violated`; the projects' milestones, releases and sprints with their progress (`get#PlanItemSummary`) | Timeline | |
 | Work item import services | service type | `mantle.work.WorkItemImportServices` `parse#WorkItemFile`, `preview#WorkItems`, `import#WorkItems` (a job with progress on a topic; the original key in `sourceReferenceId`; Jira, Redmine and GitHub CSV presets). As built (P4c): also `read#WorkItemRows` (the CSV and the mapping, a script) and `plan#WorkItemRows` (what each row does in the project); `import#WorkItems` makes the missing plan items and labels, then each row in its own transaction (`import#WorkItemRow`), then the parents (`move#Task`), then completes the past sprints it made; the BOSS step runs it as a job past 100 rows | WorkItemImport | as `ContactImportServices` |
 | Wiki space in a repository | service type | `create#WikiSpace` with `rootPageDirectory` `git://<repositoryId>/docs` in a code repository: check that a space rooted in a subdirectory works and that its saves (commits by the user on the default branch) pass the branch rules as writes. Checked (P4b, impl-projects.md F7): it works with no framework change (a moqui-core test, Revision-Management "Wiki spaces on git"); the home page is `docs/<SPACE>.md` and the pages under `docs/<SPACE>/`; `mantle.work.ProjectServices.create#ProjectDocsSpace` makes it (members, visibility, users following the project's members) | ProjectDocs, NewProject | Revision-Management "Wiki spaces on git" |

@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     ahead and behind the default (the 20 most recently changed), its work item, its open merge request and its CI state;
     Compare and New merge request (Compare with the branch as the source), Delete for those with the delete right (not the
     default branch; its branch rules still apply), and New branch for those who may push. A client contact (impl-projects.md P10b)
-    reads the list only: no Compare or New merge request (Compare is refused it). Services: ironstone.CodeServices
+    reads the list only: no Compare or New merge request (Compare is refused it). Services: ironstone.projects.CodeServices
     get#RepositoryBranches; org.moqui.impl.GitServices create#GitRef, delete#GitRef. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Branches" default-menu-index="3" menu-image="sym_o_call_split" menu-image-type="icon">
@@ -44,14 +44,14 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!recordFound) return
-            const out = ec.service.sync().name('ironstone.CodeServices.get#RepositoryBranches').parameters({repositoryId: repositoryId}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.CodeServices.get#RepositoryBranches').parameters({repositoryId: repositoryId}).call() || {}
             const L = (text) => ec.l10n.localize(text)
             const checkColors = {success: 'positive', failure: 'negative', error: 'negative', pending: 'warning'}
             const checkLabels = {success: 'Passed', failure: 'Failed', error: 'Error', pending: 'Pending'}
             branchList = Array.from(out.branchList || []).map((row) => Object.assign(row, {checkColor: checkColors[row.checkState] || '',
                 checkLabel: row.checkState ? L(checkLabels[row.checkState] || row.checkState) : '', mayDelete: canDelete && !row.isDefault && !isArchived,
                 mrText: row.mergeRequest ? '!' + row.mergeRequest.mergeRequestNum + ' ' + row.mergeRequest.title : ''}))
-            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+            refOptions = ec.service.sync().name('ironstone.projects.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
         ]]></script>
     </actions>
 

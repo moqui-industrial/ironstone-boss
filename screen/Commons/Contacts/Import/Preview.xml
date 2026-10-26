@@ -24,10 +24,10 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="confirmPreview">
         <actions><script><![CDATA[
-            const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
+            const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call()
             if (!current?.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
             if (!current.draft.options) { ec.message.addError(ec.l10n.localize('Choose the options first')); return }
-            ec.service.sync().name('ironstone.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'previewed'}}).call()
+            ec.service.sync().name('ironstone.commons.ContactServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'previewed'}}).call()
         ]]></script></actions>
         <default-response url="."><parameter name="importId"/></default-response>
         <error-response url="."/>
@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
-        const current = ec.service.sync().name('ironstone.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+        const current = ec.service.sync().name('ironstone.commons.ContactServices.get#ImportDraft').parameters({importId: importId}).call() || {}
         hasDraft = !!current.found
         previewRows = []
         if (!hasDraft) return

@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Duplicates (design-drawers-commons.md §6 Duplicates; style-guide §3.2 List): the candidate duplicate pairs of the directory,
     grouped by reason (same email, same phone, same name, same address, same identification), from the duplicate scan
     (mantle.party.DuplicateServices.check#AllPartyDuplicates, run on demand here; find#PartyDuplicates for each flagged
-    party, with what matched and how alike the names are: ironstone.ContactServices.get#DuplicatePairs); DuplicateFind
+    party, with what matched and how alike the names are: ironstone.commons.ContactServices.get#DuplicatePairs); DuplicateFind
     narrows by reason, book and minimum score. Each pair opens the Compare dialog (Contacts/Compare: both records side by
     side, the field-level choice, Merge) or is marked Not a duplicate (mark#PartyNotDuplicate). Personal contacts never
     appear: the duplicate services skip them and the pairs are directory parties only. For contact admins (the CONTACT_ADMIN
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="notDuplicate">
         <actions>
-            <service-call name="ironstone.ContactServices.mark#NotDuplicate" in-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
+            <service-call name="ironstone.commons.ContactServices.mark#NotDuplicate" in-map="{partyId:partyId, otherPartyId:otherPartyId}"/>
             <if condition="!ec.message.hasError()"><message type="success">Marked as not duplicates</message></if>
         </actions>
         <default-response url="."/>
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <set field="isContactAdmin" from="ec.user.hasPermission('CONTACT_ADMIN') || ec.user.isInGroup('BOSS_CONTACT_ADMIN') || ec.user.isInGroup('ADMIN')"/>
         <if condition="isContactAdmin">
-            <service-call name="ironstone.ContactServices.get#DuplicatePairs" in-map="{reason:reason}" out-map="dupOut"/>
+            <service-call name="ironstone.commons.ContactServices.get#DuplicatePairs" in-map="{reason:reason}" out-map="dupOut"/>
             <service-call name="mantle.party.ContactBookServices.get#UserContactBooks" out-map="booksOut"/>
         </if>
         <script><![CDATA[

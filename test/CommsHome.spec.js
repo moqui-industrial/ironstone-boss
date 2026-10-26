@@ -1,4 +1,4 @@
-// Comms Home (screen/Comms/Home.xml, service/ironstone/CommsHomeServices.xml; design-drawers-commons.md §12 Home): the counters per
+// Comms Home (screen/Comms/Home.xml, service/ironstone/comms/CommsHomeServices.xml; design-drawers-commons.md §12 Home): the counters per
 // mail account and for the internal messages, flagged, snoozed, mentions and Not sent; the account whose sign-in failed (the demo's
 // Support) with Fix for its owner only; Needs reply; a follow-up email and a meeting with a join link of this spec's own; the
 // mailboxes with unread (the demo's Office announcements); the shortcuts. Each part stands alone: a user with no party and no mail
@@ -17,14 +17,14 @@ function sys(run) {
     const wasDisabled = ec.artifactExecution.disableAuthz()
     try { return run() } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
 }
-const home = () => sys(() => call("ironstone.CommsHomeServices.get#CommsHome", {}))
+const home = () => sys(() => call("ironstone.comms.CommsHomeServices.get#CommsHome", {}))
 const card = (out, key) => (out.cardList || []).find((item) => item.key == key)
 
 spec({
     setupSpec() {
         sys(() => {
-            call("ironstone.MailDemoServices.load#MailDemo", {})
-            call("ironstone.MailDemoServices.load#MailSettingsDemo", {})
+            call("ironstone.comms.MailDemoServices.load#MailDemo", {})
+            call("ironstone.comms.MailDemoServices.load#MailSettingsDemo", {})
             const now = Date.now()
             const store = (entityName, fields) => ec.service.sync().name("store#" + entityName).parameters(fields).call()
             store("mantle.work.effort.WorkEffort", { workEffortId: FOLLOW_UP, workEffortTypeEnumId: "WetTask", purposeEnumId: "WepEmail", statusId: "WeApproved",
@@ -93,9 +93,9 @@ feature("john.doe's Home: a counter per account and for the messages, the failed
 feature("joe.developer's Home has his counts and Support without Fix, none of john.doe's mail; a user with no party still gets the page", {
     when() {
         login("joe.developer")
-        const joe = { page: render({}), out: sys(() => call("ironstone.CommsHomeServices.get#CommsHome", {})) }
+        const joe = { page: render({}), out: sys(() => call("ironstone.comms.CommsHomeServices.get#CommsHome", {})) }
         ec.user.internalLoginUser("commsHomeNobody")
-        const nobody = { page: render({}), out: sys(() => call("ironstone.CommsHomeServices.get#CommsHome", {})) }
+        const nobody = { page: render({}), out: sys(() => call("ironstone.comms.CommsHomeServices.get#CommsHome", {})) }
         login("john.doe")
         return { joe, nobody }
     },

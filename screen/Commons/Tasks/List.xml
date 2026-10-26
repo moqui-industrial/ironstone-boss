@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Tasks, the list (design-drawers-commons.md §8 Tasks; style-guide §3.2 List): the user's own slice of tasks
-    (service/ironstone/TaskServices.xml find#TaskRows). The smart lists are a chip row with their counts (All open, Today, Next
+    (service/ironstone/commons/TaskServices.xml find#TaskRows). The smart lists are a chip row with their counts (All open, Today, Next
     7 days, Overdue, Assigned to me, Created by me, Watching, Done); TaskFind narrows them (text, status, purpose, due period,
     project, the id of a record the task is on); the quick-add row at the top of the list makes a task for the user (name and
     due; Enter adds and stays, the cursor back in the name); the done check is the first column of each row; the due date and
@@ -49,7 +49,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== changes that show the list again, with the find of the keep field ========== -->
     <transition name="quickAdd">
         <actions>
-            <service-call name="ironstone.TaskServices.quickAdd#Task" out-map="addOut" in-map="{workEffortName:(workEffortName || ''),
+            <service-call name="ironstone.commons.TaskServices.quickAdd#Task" out-map="addOut" in-map="{workEffortName:(workEffortName || ''),
                     dueDate:(dueDate || null), list:list, rootWorkEffortId:(rootWorkEffortId || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(addOut.message, 'success')</script></if>
             <script><![CDATA[
@@ -67,7 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="toggleDone">
         <actions>
-            <service-call name="ironstone.TaskServices.toggle#TaskDone" out-map="doneOut" in-map="{workEffortId:workEffortId}"/>
+            <service-call name="ironstone.commons.TaskServices.toggle#TaskDone" out-map="doneOut" in-map="{workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(doneOut.message, 'success')</script></if>
             <script><![CDATA[
                 let kept = {}
@@ -84,7 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addToToday">
         <actions>
-            <service-call name="ironstone.TaskServices.add#TaskToToday" out-map="todayOut" in-map="{workEffortId:workEffortId}"/>
+            <service-call name="ironstone.commons.TaskServices.add#TaskToToday" out-map="todayOut" in-map="{workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(todayOut.message, 'success')</script></if>
             <script><![CDATA[
                 let kept = {}
@@ -102,7 +102,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the bulk actions: selectedTaskIds (a comma list) and the action of the form -->
     <transition name="bulkAction">
         <actions>
-            <service-call name="ironstone.TaskServices.bulk#Tasks" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedTaskIds || ''),
+            <service-call name="ironstone.commons.TaskServices.bulk#Tasks" out-map="bulkOut" in-map="{action:bulk, workEffortIds:(selectedTaskIds || ''),
                     assignToPartyId:(assignToPartyId || null), dueDate:(dueDate || ''), priority:(priority || null), rootWorkEffortId:(projectId || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
             <script><![CDATA[
@@ -122,7 +122,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== the in-place edits of a row (m-editable), as JSON ========== -->
     <transition name="updateTaskField">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: field,
+            const out = ec.service.sync().name('ironstone.commons.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: field,
                 value: value == null ? '' : value}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {valueText: out.valueText, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -130,7 +130,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="taskFieldValue" read-only="true">
         <actions><script><![CDATA[
-            const access = ec.service.sync().name('ironstone.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'view'}).call()
+            const access = ec.service.sync().name('ironstone.commons.TaskServices.get#TaskAccess').parameters({workEffortId: workEffortId, need: 'view'}).call()
             let value = ''
             if (!ec.message.hasError() && access.workEffort) {
                 const task = access.workEffort
@@ -145,7 +145,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a card moved to another column: the status, along the flow (set#TaskStatus) -->
     <transition name="moveTaskStatus">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TaskServices.set#TaskStatus').parameters({workEffortId: workEffortId, toStatusId: toStatusId}).call()
+            const out = ec.service.sync().name('ironstone.commons.TaskServices.set#TaskStatus').parameters({workEffortId: workEffortId, toStatusId: toStatusId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -156,7 +156,7 @@ along with this software (see the LICENSE.md file). If not, see
             // the date of the day the task went to (a task is a whole day on the calendar); never empty, which would clear it
             const day = estimatedCompletionDate == null ? '' : String(estimatedCompletionDate).trim().substring(0, 10)
             if (!day) { ec.message.addError(ec.l10n.localize('Drop the task on a day')); ec.web.sendJsonResponse({}); return }
-            const out = ec.service.sync().name('ironstone.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: day}).call()
+            const out = ec.service.sync().name('ironstone.commons.TaskServices.update#TaskField').parameters({workEffortId: workEffortId, field: 'due', value: day}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -165,7 +165,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="calendarAdd">
         <actions><script><![CDATA[
             const due = estimatedCompletionDate == null ? '' : String(estimatedCompletionDate).trim().substring(0, 16)
-            const out = ec.service.sync().name('ironstone.TaskServices.quickAdd#Task').parameters({workEffortName: workEffortName || '', dueDate: due || null,
+            const out = ec.service.sync().name('ironstone.commons.TaskServices.quickAdd#Task').parameters({workEffortName: workEffortName || '', dueDate: due || null,
                 list: list || 'all', rootWorkEffortId: rootWorkEffortId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -175,7 +175,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people of the reassign drop-down -->
     <transition name="assigneeSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -206,7 +206,7 @@ along with this software (see the LICENSE.md file). If not, see
             const rangeThru = millisOf(param('estimatedCompletionDate_thru'))
             if (rangeFrom != null && (dueFrom == null || rangeFrom > Number(String(dueFrom)))) dueFrom = new Date(rangeFrom)
             if (rangeThru != null && (dueThru == null || rangeThru + 1 < Number(String(dueThru)))) dueThru = new Date(rangeThru + 1)
-            const out = ec.service.sync().name('ironstone.TaskServices.find#TaskRows').parameters({list: list, text: text || null, statusId: statusId || null,
+            const out = ec.service.sync().name('ironstone.commons.TaskServices.find#TaskRows').parameters({list: list, text: text || null, statusId: statusId || null,
                 purposeEnumId: purposeEnumId || null, dueFrom: dueFrom, dueThru: dueThru, rootWorkEffortId: rootWorkEffortId || null, recordId: recordId || null,
                 orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 25, pageNoLimit: param('pageNoLimit') === 'true'}).call() || {}
             taskRows = Array.from(out.rowList || [])
@@ -229,7 +229,7 @@ along with this software (see the LICENSE.md file). If not, see
             listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
                 params: Object.assign({}, find, {list: key})}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
-            projectOptions = ec.service.sync().name('ironstone.TaskServices.get#ProjectOptions').call()?.projectList || []
+            projectOptions = ec.service.sync().name('ironstone.commons.TaskServices.get#ProjectOptions').call()?.projectList || []
             // the board's columns: the stages of design §8 and any other status a row of the page has, in the flow's order
             const shownStatuses = new Set(taskRows.map((row) => row.statusId).filter((id) => id))
             boardColumnOrder = ['WeInPlanning', 'WeApproved', 'WeInProgress', 'WeOnHold', 'WeComplete', 'WeClosed', 'WeCancelled']

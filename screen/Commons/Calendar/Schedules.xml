@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Rooms and equipment (design-drawers-commons.md §7 Schedules; impl-drawers-commons.md M7): the calendar in resource mode, a row
     per bookable meeting room and piece of equipment over the hours of a day or the days of a week, with each booking in its
     status color (waiting for approval in warning, booked in primary). A click or a drag on a row books it (a new event in the
-    user's calendar, booked at once or requested by the resource's policy: service/ironstone/ScheduleServices.xml); a booking
+    user's calendar, booked at once or requested by the resource's policy: service/ironstone/commons/ScheduleServices.xml); a booking
     of the user's can be cancelled; a resource's name opens ResourceDetail, its subscreen. The component is Schedules.qvue next
     to this file; its state (view, date, type) is in the URL. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -28,9 +28,9 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the resources, the user's time zone and today -->
     <transition name="resources" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ScheduleServices.get#Resources').parameters({resourceType: type || 'all', text: text || null,
+            const out = ec.service.sync().name('ironstone.commons.ScheduleServices.get#Resources').parameters({resourceType: type || 'all', text: text || null,
                 minCapacity: Number(minCapacity) > 0 ? Math.floor(Number(minCapacity)) : null}).call()
-            const defaults = ec.service.sync().name('ironstone.CalendarServices.get#CalendarDefaults').call()?.defaults || {}
+            const defaults = ec.service.sync().name('ironstone.commons.CalendarServices.get#CalendarDefaults').call()?.defaults || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {resourceList: out.resourceList, timeZone: ec.user.timeZone,
                 todayText: ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd'), workStart: defaults.workStart, workEnd: defaults.workEnd,
                 weekStart: defaults.weekStart})
@@ -40,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the bookings of the resources (keys) from start to end (days) -->
     <transition name="bookings" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ScheduleServices.get#ResourceBookings').parameters({start: start, end: end, keys: keys || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.ScheduleServices.get#ResourceBookings').parameters({start: start, end: end, keys: keys || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {bookingList: out.bookingList, failedSources: out.failedSources})
         ]]></script></actions>
         <default-response type="none"/>
@@ -51,7 +51,7 @@ along with this software (see the LICENSE.md file). If not, see
             const key = String(resource || '')
             const at = key.indexOf('|')
             const day = date ? String(date).substring(0, 10) : ''
-            const out = ec.service.sync().name('ironstone.ScheduleServices.book#ResourceSlot').parameters({resourceType: resourceType || (at > 0 ? key.substring(0, at) : ''),
+            const out = ec.service.sync().name('ironstone.commons.ScheduleServices.book#ResourceSlot').parameters({resourceType: resourceType || (at > 0 ? key.substring(0, at) : ''),
                 resourceId: resourceId || (at > 0 ? key.substring(at + 1) : ''), start: start || (day ? day + ' ' + (from || '09:00') : ''),
                 end: end || (day ? day + ' ' + (to || '10:00') : ''), purpose: purpose || null, notes: notes || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, statusId: out.statusId, requiresApproval: out.requiresApproval,
@@ -62,7 +62,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cancelBooking">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ScheduleServices.cancel#MyBooking').parameters({workEffortId: workEffortId || '',
+            const out = ec.service.sync().name('ironstone.commons.ScheduleServices.cancel#MyBooking').parameters({workEffortId: workEffortId || '',
                 resourceType: resourceType || '', resourceId: resourceId || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {eventCancelled: out.eventCancelled, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>

@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The terminal twin of Timeline (style-guide §4.8): Timeline.xml's tui text is a dynamic container of this screen. The project's
     milestones, releases and sprints with their dates, then the rows in the timeline's order (the tree indented), each with its
     start, due, progress and what it waits for (a broken dependency marked), from the same service as Timeline.qvue
-    (ironstone.PlanningServices.get#Timeline); plan and portfolio modes list their rows the same way. The terminal's changes
+    (ironstone.projects.PlanningServices.get#Timeline); plan and portfolio modes list their rows the same way. The terminal's changes
     (impl-projects.md P11), in the items mode for the project's team, over the services of Timeline.qvue's transitions: Move dates
     (a work item's, milestone's or release's start and due, or a shift by days, with its sub-items and its dependents scheduled
     after it when asked: move#TimelineItem), Add dependency (waits for, with a lag) and Remove dependency. Each dialog reloads this
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- Move dates, Add dependency and Remove dependency (as Timeline.xml's moveItem, saveDependency and removeDependency) -->
     <transition name="moveItem">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.move#TimelineItem').parameters({workEffortId: itemWorkEffortId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.move#TimelineItem').parameters({workEffortId: itemWorkEffortId || '',
                 startDay: shiftDays ? null : (startDay ?? null), dueDay: shiftDays ? null : (dueDay ?? null), shiftDays: shiftDays ? Number(shiftDays) : null,
                 moveSubtree: moveSubtree === 'Y', autoSchedule: autoSchedule === 'Y'}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
@@ -41,7 +41,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveDependency">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.save#TimelineDependency').parameters({workEffortId: dependentId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.save#TimelineDependency').parameters({workEffortId: dependentId || '',
                 toWorkEffortId: predecessorId || '', lagDays: lagDays || null}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -53,7 +53,7 @@ along with this software (see the LICENSE.md file). If not, see
             // the key is dependent and predecessor joined by a bar (indexOf: the screen lint reads a split's argument as a regex, F49)
             const key = String(dependencyKey || ''), bar = key.indexOf('|')
             const dependent = bar < 0 ? key : key.substring(0, bar), predecessor = bar < 0 ? '' : key.substring(bar + 1)
-            const out = ec.service.sync().name('ironstone.PlanningServices.remove#TimelineDependency').parameters({workEffortId: dependent || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.remove#TimelineDependency').parameters({workEffortId: dependent || '',
                 toWorkEffortId: predecessor || ''}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -66,9 +66,9 @@ along with this software (see the LICENSE.md file). If not, see
         const L = (text) => ec.l10n.localize(text)
         const theMode = ['items', 'plan', 'portfolio'].includes(mode) ? mode : 'items'
         let project = rootWorkEffortId || null
-        if (!project && theMode === 'items') project = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])[0]?.key || null
+        if (!project && theMode === 'items') project = Array.from(ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])[0]?.key || null
         if (!project && theMode === 'items') return
-        const out = ec.service.sync().name('ironstone.PlanningServices.get#Timeline').parameters({mode: theMode, rootWorkEffortId: project}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#Timeline').parameters({mode: theMode, rootWorkEffortId: project}).call() || {}
         ec.message.clearErrors()
         const timeline = out.timeline
         if (!timeline || timeline.notAvailable) return

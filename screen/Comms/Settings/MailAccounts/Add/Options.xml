@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     what its owner links; a shared one every match, said in plain words), whether it is personal or shared (the framework's
     update#EmailAccount rules: shared at any time, personal again only when one person is left on it; the filing follows the
     kind unless chosen), and for a shared account the people who share it and what they may do. Next saves them
-    (ironstone.MailSettingsServices.save#AccountOptions; each member added on its own). The folders the sync maps are shown
+    (ironstone.comms.MailSettingsServices.save#AccountOptions; each member added on its own). The folders the sync maps are shown
     after the test and on the account's page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Options" default-menu-index="4" menu-image="sym_o_tune" menu-image-type="icon">
@@ -25,7 +25,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="emailAccountId"/>
 
     <transition name="saveOptions">
-        <service-call name="ironstone.MailSettingsServices.save#AccountOptions" in-map="{emailAccountId:emailAccountId, accountName:accountName,
+        <service-call name="ironstone.comms.MailSettingsServices.save#AccountOptions" in-map="{emailAccountId:emailAccountId, accountName:accountName,
                 syncWindowDays:(syncWindowDays == 'all' ? '' : (syncWindowDays ?? null)), recordFilingEnumId:recordFilingEnumId, memberUserIds:(memberUserIds ?? null),
                 memberPermissionEnumId:memberPermissionEnumId, accountKindEnumId:(accountKindEnumId || null)}"/>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="searchUsers" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.shared.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.userList || []).filter((user) =&gt; user.value !== ec.user.userId).map((user) =&gt; ({value: user.value, label: user.label})))</script>
         </actions>
         <default-response type="none"/>
@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
         hasAccount = false
         memberRows = []
         if (!emailAccountId) return
-        const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
+        const detail = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
         if (ec.message.hasError() || !detail?.found) { optionsError = ec.message.getErrorsString(); ec.message.clearErrors(); return }
         if (!detail.account?.canManage) { optionsError = ec.l10n.localize('Only a manager of this account changes its options'); return }
         hasAccount = true

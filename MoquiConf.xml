@@ -15,7 +15,7 @@
             <token-route name="u" screen-location="component://mr-boss/screen/Unsubscribe.xml"
                     token-service="mantle.party.ConsentServices.check#UnsubscribeToken" title="Email preferences" post-transition="oneClick"/>
             <token-route name="cal" screen-location="component://mr-boss/screen/PublishedCalendar.xml"
-                    token-service="ironstone.CalendarServices.check#PublishedCalendarToken" title="Calendar"/>
+                    token-service="ironstone.commons.CalendarServices.check#PublishedCalendarToken" title="Calendar"/>
             <!-- a project's public request form (design-projects.md §6 RequestIntake; impl-projects.md P5) -->
             <token-route name="r" screen-location="component://mr-boss/screen/RequestIntake.xml"
                     token-service="mantle.request.RequestServices.check#IntakeToken" title="Send a request"/>

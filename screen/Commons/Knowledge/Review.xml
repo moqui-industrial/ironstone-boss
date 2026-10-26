@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Knowledge Review (design-drawers-commons.md §10 Review; style-guide §3.2 List): page versions waiting for a review, from
-    ironstone.KnowledgeServices.find#Reviews over WikiServices.find#WikiPageReviews (only pages the user may read): To do (the
+    ironstone.commons.KnowledgeServices.find#Reviews over WikiServices.find#WikiPageReviews (only pages the user may read): To do (the
     user's to decide), Requested by me, and All, open or of any status. A row opens the page on the review's compare (the
     requested version against the one published when it was asked); Approve publishes the version, Request changes sends a
     note back to the requester (decide#WikiPageReview, which checks the review is the user's to decide), and the requester
@@ -25,14 +25,14 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="status"/>
 
     <transition name="decideReview">
-        <service-call name="ironstone.KnowledgeServices.decide#Review" in-map="{wikiPageReviewId:wikiPageReviewId, decision:decision,
+        <service-call name="ironstone.commons.KnowledgeServices.decide#Review" in-map="{wikiPageReviewId:wikiPageReviewId, decision:decision,
                 decisionNote:decisionNote}" out-map="decideOut"/>
         <actions><if condition="!ec.message.hasError()">
             <message type="success">${decideOut.statusId == 'WprApproved' ? 'Approved and published' : 'Changes requested'}</message></if></actions>
         <default-response url="."><parameter name="filter"/><parameter name="status"/></default-response>
     </transition>
     <transition name="cancelReview">
-        <service-call name="ironstone.KnowledgeServices.cancel#Review" in-map="{wikiPageReviewId:wikiPageReviewId}"/>
+        <service-call name="ironstone.commons.KnowledgeServices.cancel#Review" in-map="{wikiPageReviewId:wikiPageReviewId}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Review request cancelled</message></if></actions>
         <default-response url="."><parameter name="filter"/><parameter name="status"/></default-response>
     </transition>
@@ -41,9 +41,9 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <set field="filter" from="['toDo', 'requested', 'all'].includes(filter) ? filter : 'toDo'"/>
         <set field="status" from="status == 'any' ? 'any' : 'open'"/>
-        <service-call name="ironstone.KnowledgeServices.find#Reviews" in-map="{filter:filter, statusId:(status == 'any' ? 'any' : 'WprRequested')}" out-map="found"/>
+        <service-call name="ironstone.commons.KnowledgeServices.find#Reviews" in-map="{filter:filter, statusId:(status == 'any' ? 'any' : 'WprRequested')}" out-map="found"/>
         <set field="reviewList" from="found.reviewList || []"/>
-        <service-call name="ironstone.KnowledgeServices.find#Reviews" in-map="{filter:'toDo'}" out-map="toDoOut"/>
+        <service-call name="ironstone.commons.KnowledgeServices.find#Reviews" in-map="{filter:'toDo'}" out-map="toDoOut"/>
         <set field="toDoCount" from="toDoOut.reviewCount || 0"/>
         <set field="filterLabel" from="{toDo:'to review', requested:'you asked to have reviewed', all:'in review'}[filter]"/>
     </actions>

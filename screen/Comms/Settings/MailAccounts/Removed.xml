@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The removed mail accounts of the account list (design-drawers-commons.md §17 MailAccounts): Removed.qvue next to this
     file, which the list loads in a dynamic-container when the user has one: the user's own accounts removed with their mail
-    kept here (ironstone.MailSettingsServices.get#RemovedMailAccounts, the owner's only), each with how much mail is kept and
+    kept here (ironstone.comms.MailSettingsServices.get#RemovedMailAccounts, the owner's only), each with how much mail is kept and
     "Delete with its mail" (asked first in a dialog; delete#RemovedMailAccount, which deletes only a removed account of the
     user's own). Nothing on the mail server is touched. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -22,14 +22,14 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="removedData" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.MailSettingsServices.get#RemovedMailAccounts').call()
+            const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#RemovedMailAccounts').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {removedList: out.removedList || []})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="deleteRemoved">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.MailSettingsServices.delete#RemovedMailAccount').parameter('emailAccountId', emailAccountId || '').call()
+            const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.delete#RemovedMailAccount').parameter('emailAccountId', emailAccountId || '').call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {deletedMessageCount: out.deletedMessageCount, keptMessageCount: out.keptMessageCount,
                 messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>

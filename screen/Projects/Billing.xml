@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Billing (design-projects.md §10): unbilled work, invoices and rates, opening on Unbilled, with the shared invoice detail
     (screen/Shared/InvoiceDetail.xml, in the Projects context) and its printed form (Billing/InvoicePrint.xml, also the PDF and the
     email's attachment), and the shared order detail (screen/Shared/OrderDetail.xml, impl-projects.md P8b). Managers only (the team is refused it), and in it only those who manage money
-    (ironstone.BillingServices.check#Money). A client (impl-projects.md P10b: PROJECT_CLIENT) opens Billing, Invoices, InvoiceDetail and
+    (ironstone.projects.BillingServices.check#Money). A client (impl-projects.md P10b: PROJECT_CLIENT) opens Billing, Invoices, InvoiceDetail and
     InvoicePrint only, read only, for its own sent invoices (BillingServices get#ClientInvoices), and lands on Invoices; Unbilled, Rates
     and OrderDetail are refused it (BOSS_PROJECTS_INTERNAL in data/BossSetupData.xml), and the team is refused all of Billing
     (BOSS_PROJECTS_BILLING). -->

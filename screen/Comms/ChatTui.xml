@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The terminal twin of Chat and of the tray's Chat tab (style-guide §4.8): Chat.tui.json and Panel/Chat.tui.json are dynamic
-    containers of this screen. With no chatRoomId, the user's rooms (ironstone.ChatServices.get#ChatData, as the rail and the
+    containers of this screen. With no chatRoomId, the user's rooms (ironstone.comms.ChatServices.get#ChatData, as the rail and the
     tab load them: pinned first, then by the last message; limit for the tab's short list) with their unread and mention
     counts and last message, each opening its room in Chat, and Mark all read. With chatRoomId, the room (get#RoomView, which
     refuses a room the user may not read: "not found") with its latest messages, a Send form posting through send#ChatMessage
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
             const escape = (line) => line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
             const text = String(bodyText || '').replace(/\r\n?/g, '\n').trim()
             if (!text) ec.message.addError(ec.l10n.localize('Write a message first'))
-            else ec.service.sync().name('ironstone.ChatServices.send#ChatMessage').parameters({chatRoomId: chatRoomId || '',
+            else ec.service.sync().name('ironstone.comms.ChatServices.send#ChatMessage').parameters({chatRoomId: chatRoomId || '',
                 body: text.split(/\n{2,}/).map((part) => '<p>' + part.split('\n').map(escape).join('<br>') + '</p>').join('')}).call()
         ]]></script></actions>
         <default-response url="../Chat"><parameter name="chatRoomId"/></default-response>
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="join">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.ChatServices.join#ChatRoom').parameter('chatRoomId', chatRoomId || '').call()
+            ec.service.sync().name('ironstone.comms.ChatServices.join#ChatRoom').parameter('chatRoomId', chatRoomId || '').call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Joined'), 'success')
         ]]></script></actions>
         <default-response url="../Chat"><parameter name="chatRoomId"/></default-response>
@@ -66,7 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
             canJoin = false
             unreadTotal = 0
             if (chatRoomId) {
-                const out = ec.service.sync().name('ironstone.ChatServices.get#RoomView').parameters({chatRoomId: chatRoomId, limit: 30}).call()
+                const out = ec.service.sync().name('ironstone.comms.ChatServices.get#RoomView').parameters({chatRoomId: chatRoomId, limit: 30}).call()
                 if (!ec.message.hasError() && out.room) {
                     room = out.room
                     canPost = !!(out.access && out.access.canPost)
@@ -89,7 +89,7 @@ along with this software (see the LICENSE.md file). If not, see
                     })
                 }
             } else {
-                const out = ec.service.sync().name('ironstone.ChatServices.get#ChatData').parameter('limit', limit ? Number(limit) : 200).call()
+                const out = ec.service.sync().name('ironstone.comms.ChatServices.get#ChatData').parameter('limit', limit ? Number(limit) : 200).call()
                 if (!ec.message.hasError()) {
                     unreadTotal = out.unreadTotal || 0
                     roomList = Array.from(out.roomList || []).map((item) => {

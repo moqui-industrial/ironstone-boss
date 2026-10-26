@@ -1,12 +1,12 @@
 // The public page of a published calendar (screen/PublishedCalendar.xml and PublishedCalendar.qvue at /cal/<token>, the
-// token-route "cal" of MoquiConf.xml). The route's token check (ironstone.CalendarServices.check#PublishedCalendarToken),
+// token-route "cal" of MoquiConf.xml). The route's token check (ironstone.commons.CalendarServices.check#PublishedCalendarToken),
 // then the page's events transition (get#PublishedCalendar) as a visitor who is not signed in: a good token, a bad one, an
 // ended link, a share that also names a user, a password (missing, wrong, right), and a free/busy link that shows Busy.
 // The demo Family calendar (CalendarDemoServices.load#CalendarDemo) is published here and unshared again at the end.
 // The token route itself (the 404 page, the public shell) is the framework's: crates/moqui-host/tests/gate3.rs.
 // Run: ./moq test mr-boss --spec PublishedCalendar
 const page = "component://mr-boss/screen/PublishedCalendar.xml"
-const CHECK = "ironstone.CalendarServices.check#PublishedCalendarToken"
+const CHECK = "ironstone.commons.CalendarServices.check#PublishedCalendarToken"
 const SHARE = "mantle.work.CalendarServices.share#Calendar"
 const UNSHARE = "mantle.work.CalendarServices.unshare#Calendar"
 const FAMILY = "BOSS_DEMO_CAL_FAMILY"
@@ -40,7 +40,7 @@ const titles = (answer) => (answer.json.eventList || []).map((event) => event.ti
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.CalendarDemoServices.load#CalendarDemo", {}))
+        sys(() => call("ironstone.commons.CalendarDemoServices.load#CalendarDemo", {}))
         logout()
     },
     cleanupSpec() {

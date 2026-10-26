@@ -73,7 +73,7 @@ feature("the demo: SUPP is unbilled for Brightwater, on Home and SUPP's header t
         return {
             unbilled: render("apps/Projects/Billing/Unbilled", {}),
             home: render("apps/Projects/Home", {}),
-            header: sys(() => call("ironstone.ProjectServices.get#ProjectHeader", { workEffortId: "SUPP" }).header),
+            header: sys(() => call("ironstone.projects.ProjectServices.get#ProjectHeader", { workEffortId: "SUPP" }).header),
             invoices: render("apps/Projects/Billing/Invoices", {}),
             detail: render("apps/Projects/Billing/InvoiceDetail", { invoiceId: made.demoInvoiceId }),
             invoice: one("mantle.account.invoice.Invoice", { invoiceId: made.demoInvoiceId }),
@@ -131,7 +131,7 @@ feature("the invoice dialog refuses nothing selected, and a project with no clie
             call("create#mantle.work.effort.WorkEffortParty", { workEffortId: PROJECT, partyId: "BIL_CLIENT", roleTypeId: "Customer", fromDate: "2027-01-01 00:00:00" })
         })
         const noneSelected = post("Billing/Unbilled/CreateInvoice/createInvoice", { workEffortId: PROJECT, entryGrouping: "entry" })
-        const joeSummary = as("joe.developer", () => sys(() => errorOf("ironstone.BillingServices.create#ProjectInvoice", { workEffortId: PROJECT })))
+        const joeSummary = as("joe.developer", () => sys(() => errorOf("ironstone.projects.BillingServices.create#ProjectInvoice", { workEffortId: PROJECT })))
         return { noClient, unbilled, noneSelected, joeSummary, invoiced: entries().filter((row) => row.invoiceId).length }
     },
     then({ noClient, unbilled, noneSelected, joeSummary, invoiced }) {
@@ -206,7 +206,7 @@ feature("the billing settings saved and shown again", {
             workerInvoicing: "ByProject" })
         const page = render("apps/Projects/Settings/Billing", {})
         const stored = JSON.parse(one("mantle.party.PartySetting", { partyId: "ORG_ZIZI_SERVICES", partySettingTypeId: "ProjBillingDefaults" }).settingValue)
-        const grouping = sys(() => call("ironstone.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }).draft.entryGrouping)
+        const grouping = sys(() => call("ironstone.projects.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }).draft.entryGrouping)
         return { saved, page, stored, grouping }
     },
     then({ saved, page, stored, grouping }) {

@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The work item import wizard of IronStone Projects (design-projects.md §5 WorkItemImport; impl-projects.md P4c), the shape of
+    Commons' contact import (ironstone.commons.ContactServices' import draft): between the steps the file and the choices are kept in the
+    user's own folder of the resource store, dbresource://ironstone/WorkItemImport/{userId}/{importId}/ (source.csv as UTF-8 text and
+    draft.json: file name, preset, character set, project, mapping, value maps, estimate unit, options, the result once imported).
+    The folder comes from the current user, never from a parameter, so an importId never opens another user's import. The Mantle
+    services (mantle.work.WorkItemImportServices) read the file by its location. The import is the managers' (the screen's
+    BOSS_PROJECTS_MANAGERS) into a project they may work in (ironstone.projects.ProjectServices.get#ProjectAccess update). -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="get" noun="ImportDraft">
+        <description>The draft of a work item import of the current user: the draft map (empty when there is none, or the id is not
+            a draft id), the location of its file, and the folder.</description>
+        <in-parameters><parameter name="importId"/></in-parameters>
+        <out-parameters>
+            <parameter name="draft" type="Map"/>
+            <parameter name="found" type="Boolean"/>
+            <parameter name="fileLocation"/>
+            <parameter name="folder"/>
+        </out-parameters>
+        <actions><script><![CDATA[
+            draft = {}
+            found = false
+            fileLocation = null
+            const userId = ec.user.userId
+            if (!userId || !importId || !/^[A-Za-z0-9_-]{1,40}$/.test(String(importId))) return
+            folder = `dbresource://ironstone/WorkItemImport/${userId}/${importId}`
+            const text = ec.resource.getLocationReference(folder + '/draft.json').getText()
+            if (!text) return
+            try { draft = JSON.parse(text) || {} } catch (err) { ec.logger.warn(`Work item import ${importId} of ${userId}: the draft does not read: ${err}`); draft = {}; return }
+            found = true
+            fileLocation = folder + '/source.csv'
+        ]]></script></actions>
+    </service>
+    <service verb="store" noun="ImportDraft" allow-remote="false">
+        <description>Merges the fields given into the draft of a work item import of the current user and saves it.</description>
+        <in-parameters><parameter name="importId" required="true"/><parameter name="fields" type="Map" required="true"/></in-parameters>
+        <out-parameters><parameter name="draft" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const out = ec.service.sync().name('ironstone.projects.WorkItemImportServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!out?.folder || !out.found) { ec.message.addError(ec.l10n.localize('This import is not available; start again from the file')); return }
+            draft = Object.assign({}, out.draft || {}, fields || {}, {importId: importId, updated: Number(String(ec.user.nowTimestamp))})
+            ec.resource.getLocationReference(out.folder + '/draft.json').putText(JSON.stringify(draft))
+        ]]></script></actions>
+    </service>
+    <service verb="get" noun="ImportProjectOptions" allow-remote="false">
+        <description>The projects a work item import may go into: the open projects the user may add work to (members and managers).</description>
+        <out-parameters><parameter name="projectList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            projectList = Array.from(ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])
+        ]]></script></actions>
+    </service>
+
+    <service verb="save" noun="ImportSource">
+        <description>The import's first step: the file (an upload, or the file already in the draft when none is given) read as text in
+            its character set (mantle.party.ContactImportServices.read#ContactFileText), kept as the draft's source file, and parsed
+            (mantle.work.WorkItemImportServices.parse#WorkItemFile) for its preset, columns, mapping and value maps, which start the
+            draft; the project the items go into, one the user may work in. A new import gets an id; the same importId replaces its
+            file (and its mapping, when the file or preset changed).</description>
+        <in-parameters>
+            <parameter name="importId"/>
+            <parameter name="workItemFile" type="org.apache.commons.fileupload2.core.FileItem"/>
+            <parameter name="presetId"/>
+            <parameter name="characterSet" default-value="UTF-8"/>
+            <parameter name="rootWorkEffortId"/>
+        </in-parameters>
+        <out-parameters><parameter name="importId"/><parameter name="rowCount" type="Integer"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const userId = ec.user.userId
+            if (!userId) { ec.message.addError(L('An import needs a user')); return }
+            if (!rootWorkEffortId) { ec.message.addValidationError(null, 'rootWorkEffortId', null, L('Choose the project the work items go into'), null); return }
+            ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectAccess').parameters({workEffortId: rootWorkEffortId, need: 'update'}).call()
+            if (ec.message.hasError()) return
+            let current = importId ? ec.service.sync().name('ironstone.projects.WorkItemImportServices.get#ImportDraft').parameters({importId: importId}).call() : null
+            if (!current?.found) {
+                importId = String(Number(String(ec.user.nowTimestamp))) + '-' + Math.floor(Math.random() * 1e6)
+                current = null
+            }
+            const hasUpload = workItemFile != null && Number(workItemFile.size || 0) > 0
+            if (!hasUpload && !current?.fileLocation) { ec.message.addValidationError(null, 'workItemFile', null, L('Choose a CSV file'), null); return }
+            const folder = `dbresource://ironstone/WorkItemImport/${userId}/${importId}`
+            let fileName = current?.draft?.fileName || null
+            const charset = String(characterSet || 'UTF-8').toUpperCase()
+            if (hasUpload) {
+                fileName = String(workItemFile.getName ? workItemFile.getName() : workItemFile.name || 'work-items.csv')
+                const read = ec.service.sync().name('mantle.party.ContactImportServices.read#ContactFileText').parameters({contactFile: workItemFile,
+                    characterSet: charset}).call()
+                if (ec.message.hasError()) return
+                ec.resource.getLocationReference(`${folder}/source.csv`).putText(String(read?.text ?? ''))
+            }
+            const preset = ['jira', 'redmine', 'github', 'generic'].includes(presetId) ? presetId : null
+            const parsed = ec.service.sync().name('mantle.work.WorkItemImportServices.parse#WorkItemFile').parameters({fileLocation: `${folder}/source.csv`,
+                presetId: preset, sampleSize: 3}).call()
+            if (ec.message.hasError()) return
+            rowCount = parsed.rowCount || 0
+            if (!rowCount) { ec.message.addError(L('The file has no work items')); return }
+            const keep = current?.draft && !hasUpload && (current.draft.chosenPresetId || null) === (presetId || null)
+            ec.resource.getLocationReference(folder + '/draft.json').putText(JSON.stringify(Object.assign({}, current?.draft || {}, {importId: importId,
+                fileName: fileName, presetId: parsed.presetId, chosenPresetId: presetId || null, characterSet: charset, rowCount: rowCount,
+                rootWorkEffortId: rootWorkEffortId, columnMapping: keep ? current.draft.columnMapping : (parsed.columnMapping || {}),
+                valueMaps: keep ? current.draft.valueMaps : null, estimateUnit: keep ? current.draft.estimateUnit : (parsed.estimateUnit || 'hours'),
+                result: null, status: 'source', created: current?.draft?.created || Number(String(ec.user.nowTimestamp))})))
+        ]]></script></actions>
+    </service>
+
+    <service verb="get" noun="ImportMappingInfo" allow-remote="false">
+        <description>The mapping step's data: the draft, the file's columns (name, count, first values), the target fields with the
+            column each takes now, the file's types, statuses and priorities each with the value it maps to, and the options of
+            each (the project's work item types, the statuses of its flow, priorities 1 to 9).</description>
+        <in-parameters><parameter name="importId"/></in-parameters>
+        <out-parameters><parameter name="info" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            info = null
+            const L = (text) => ec.l10n.localize(text)
+            const current = ec.service.sync().name('ironstone.projects.WorkItemImportServices.get#ImportDraft').parameters({importId: importId}).call() || {}
+            if (!current.found) return
+            const draft = current.draft
+            const parsed = ec.service.sync().name('mantle.work.WorkItemImportServices.parse#WorkItemFile').parameters({fileLocation: current.fileLocation,
+                presetId: draft.presetId, columnMapping: draft.columnMapping || null, valueMaps: draft.valueMaps || null, sampleSize: 3}).call()
+            if (ec.message.hasError()) return
+            const columns = Array.from(parsed.columnList || [])
+            const mapping = parsed.columnMapping || {}
+            const columnOptions = columns.map((column) => {
+                const samples = Array.from(column.sampleValues || []).map((value) => String(value).substring(0, 24))
+                return {key: column.columnName, text: column.columnName + (column.count > 1 ? ' (×' + column.count + ')' : '') + (samples.length ? ' · ' + samples.slice(0, 2).join(', ') : '')}
+            })
+            const targets = Array.from(parsed.targetFieldList || []).map((target) => ({fieldName: target.fieldName, description: target.description, column: mapping[target.fieldName] || ''}))
+            const used = parsed.valueMapsUsed || {type: {}, status: {}, priority: {}}
+            const values = (kind, limit) => Array.from(parsed.distinctValues?.[kind] || []).slice(0, limit).map((value) => ({value: value, mapped: String(used[kind]?.[value] ?? '')}))
+            const project = ec.entity.find('mantle.work.effort.WorkEffort').condition('workEffortId', draft.rootWorkEffortId || '').one()
+            const devFlow = project?.statusFlowId === 'WorkEffortDevelopment'
+            const statusIds = ['WeInPlanning', 'WeApproved', 'WeInProgress'].concat(devFlow ? ['WeInReview', 'WeInTesting'] : []).concat(['WeOnHold', 'WeComplete', 'WeClosed', 'WeCancelled'])
+            const statusOptions = statusIds.map((id) => ({key: id, text: ec.entity.find('moqui.basic.StatusItem').condition('statusId', id).useCache(true).one()?.description || id}))
+            let typeOptions = Array.from(ec.service.sync().name('ironstone.projects.ProjectServices.get#WorkItemTypes').parameters({rootWorkEffortId: draft.rootWorkEffortId || null}).call()?.offeredList || [])
+                    .map((type) => ({key: type.enumId, text: type.label}))
+            ec.message.clearErrors()
+            if (!typeOptions.length) typeOptions = [{key: 'WepTask', text: L('Task')}]
+            const priorityOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({key: String(n), text: n + (n <= 3 ? ' · ' + L('high') : n >= 7 ? ' · ' + L('low') : ' · ' + L('normal'))}))
+            const presets = {jira: 'Jira CSV', redmine: 'Redmine CSV', github: 'GitHub issues CSV', generic: 'CSV'}
+            info = {draft: draft, columnCount: columns.length, columnOptions: columnOptions, targets: targets, mappedCount: targets.filter((target) => target.column).length,
+                presetLabel: presets[parsed.presetId] || parsed.presetId, estimateUnit: draft.estimateUnit || parsed.estimateUnit || 'hours',
+                typeValues: values('type', 20), statusValues: values('status', 20), priorityValues: values('priority', 10),
+                typeOptions: typeOptions, statusOptions: statusOptions, priorityOptions: priorityOptions, projectName: project?.workEffortName || draft.rootWorkEffortId}
+        ]]></script></actions>
+    </service>
+
+    <service verb="run" noun="Import">
+        <description>The import's last step: mantle.work.WorkItemImportServices.import#WorkItems of the draft's file with its project,
+            mapping, value maps and options (each row in its own transaction: a row that fails is named with its reason and the rest
+            are imported), the result kept in the draft (counts, the failures with their reasons and values, the warnings) for the
+            result view and the failures download. A file of up to 100 rows is imported in the request; a larger one (or background
+            true) runs on as a job (run#ImportNow): the draft is running, the user gets the progress on the topic
+            workItemImportProgress (progressKey the importId), and the draft ends done or failed. An import running or done is not
+            started again.</description>
+        <in-parameters>
+            <parameter name="importId" required="true"/>
+            <parameter name="background" type="Boolean"/>
+        </in-parameters>
+        <out-parameters><parameter name="result" type="Map"/><parameter name="running" type="Boolean"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            running = false
+            const current = ec.service.sync().name('ironstone.projects.WorkItemImportServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found) { ec.message.addError(L('This import is not available; start again from the file')); return }
+            const draft = current.draft
+            if (draft.status === 'done') { result = draft.result; return }
+            if (draft.status === 'running') { running = true; return }
+            ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectAccess').parameters({workEffortId: draft.rootWorkEffortId || '', need: 'update'}).call()
+            if (ec.message.hasError()) return
+            const inBackground = background != null ? !!background : Number(draft.rowCount || 0) > 100
+            if (!inBackground) {
+                result = ec.service.sync().name('ironstone.projects.WorkItemImportServices.run#ImportNow').parameters({importId: importId}).call()?.result || null
+                return
+            }
+            ec.service.sync().name('ironstone.projects.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'running',
+                error: null, started: Number(String(ec.user.nowTimestamp))}}).call()
+            if (ec.message.hasError()) return
+            ec.service.async().name('ironstone.projects.WorkItemImportServices.run#ImportNow').parameters({importId: importId}).call()
+            running = true
+        ]]></script></actions>
+    </service>
+    <service verb="run" noun="ImportNow" allow-remote="false">
+        <description>Imports the draft's file now (for run#Import, in the request or as its job, as the user who started it), then the
+            draft done with its result. An import that stops (an error before the rows) leaves the draft failed with the error, never
+            running, so it can be run again.</description>
+        <in-parameters><parameter name="importId" required="true"/></in-parameters>
+        <out-parameters><parameter name="result" type="Map"/></out-parameters>
+        <actions><script><![CDATA[
+            const L = (text) => ec.l10n.localize(text)
+            const current = ec.service.sync().name('ironstone.projects.WorkItemImportServices.get#ImportDraft').parameters({importId: importId}).call()
+            if (!current?.found) { ec.message.addError(L('This import is not available; start again from the file')); return }
+            const draft = current.draft
+            if (draft.status === 'done') { result = draft.result; return }
+            const options = draft.options || {}
+            const fail = (error) => {
+                ec.logger.warn(`Work item import ${importId} of ${ec.user.userId} stopped: ${error}`)
+                ec.service.sync().name('ironstone.projects.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'failed',
+                    error: error, finished: Number(String(ec.user.nowTimestamp))}}).ignorePreviousError(true).requireNewTransaction(true).call()
+            }
+            let out = null
+            try {
+                out = ec.service.sync().name('mantle.work.WorkItemImportServices.import#WorkItems').parameters({fileLocation: current.fileLocation,
+                    presetId: draft.presetId, columnMapping: draft.columnMapping || null, valueMaps: draft.valueMaps || null, estimateUnit: draft.estimateUnit || null,
+                    rootWorkEffortId: draft.rootWorkEffortId, createMissing: options.createMissing !== false, existingPolicy: options.existingPolicy || 'skip',
+                    progressUserId: ec.user.userId, progressKey: importId}).call()
+            } catch (err) {
+                fail(String(err && err.message ? err.message : err)); throw err
+            }
+            if (ec.message.hasError()) { fail(ec.message.getErrorsString()); return }
+            result = {rootWorkEffortId: draft.rootWorkEffortId, rowCount: out.rowCount || 0, createdCount: out.createdCount || 0, updatedCount: out.updatedCount || 0,
+                skippedCount: out.skippedCount || 0, failedCount: out.failedCount || 0, failureList: Array.from(out.failureList || []),
+                warningList: Array.from(out.warningList || []).slice(0, 500), madeList: Array.from(out.madeList || []),
+                resultList: Array.from(out.resultList || []).slice(0, 1000)}
+            ec.service.sync().name('ironstone.projects.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {status: 'done', result: result,
+                error: null, finished: Number(String(ec.user.nowTimestamp))}}).call()
+        ]]></script></actions>
+    </service>
+</services>

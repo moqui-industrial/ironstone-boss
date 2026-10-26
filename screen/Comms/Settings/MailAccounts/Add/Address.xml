@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Add account step 1, the address (design-drawers-commons.md §17 AccountKind and AccountCredentials): the email address,
     your name as people see it, and whose mail it is (just mine, shared from another server, shared and delivered here, or
-    hosted here). Next looks the servers up (ironstone.MailSettingsServices.suggest#MailServer: a provider IronStone knows,
+    hosted here). Next looks the servers up (ironstone.comms.MailSettingsServices.suggest#MailServer: a provider IronStone knows,
     else Thunderbird autoconfig, DNS SRV records or guesses) and carries them to Connect in the URL, with the sign-in
     provider a lookup found the mail at (oauthProvider, for a company domain at Google or Microsoft); hosted, and shared
     delivered here, carry delivery=gateway and no servers. When the wizard already made the account for this address, its
@@ -54,12 +54,12 @@ along with this software (see the LICENSE.md file). If not, see
             // the account this wizard made for the same address: its own settings, not a new lookup
             let settings = null
             if (emailAccountId) {
-                const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
+                const detail = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
                 if (ec.message.hasError()) return
                 if (detail?.server && String(detail.account?.emailAddress || '').toLowerCase() === address.toLowerCase()) settings = Object.assign({source: 'saved'}, detail.server)
             }
             if (!settings) {
-                const out = ec.service.sync().name('ironstone.MailSettingsServices.suggest#MailServer').parameter('emailAddress', address).call()
+                const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.suggest#MailServer').parameter('emailAddress', address).call()
                 if (ec.message.hasError()) return
                 const suggestion = out?.suggestion || {}
                 if (suggestion.unsupported) { ec.message.addError(suggestion.warningText || L('This provider cannot be added here')); return }

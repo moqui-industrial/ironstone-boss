@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- EditTimeEntry (design-projects.md §8 TimeEntries): the dialog of TimeEntries' Log time (no timeEntryId: a new entry of the user,
     or for a manager of a person they approve) and of a row's Edit: the work item, the day, from and to or the hours, a break,
-    billable, the work type and the comment (ironstone.TimeServices.save#TimeEntry, which checks the week and the item), Delete;
+    billable, the work type and the comment (ironstone.projects.TimeServices.save#TimeEntry, which checks the week and the item), Delete;
     an entry the user may not change (invoiced, running, its week submitted, not theirs) is shown read only with why. For those
     who manage money (the Projects managers and ADMIN) the Rates box: the client and worker hour rates set by hand, or found again
     from the rates (store#TimeEntryRates), also on a submitted week's entry, never an invoiced one. Each change answers the list
@@ -28,7 +28,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveEntry">
         <actions>
-            <service-call name="ironstone.TimeServices.save#TimeEntry" out-map="saveOut" in-map="{timeEntryId:(timeEntryId || null), partyId:(partyId || null),
+            <service-call name="ironstone.projects.TimeServices.save#TimeEntry" out-map="saveOut" in-map="{timeEntryId:(timeEntryId || null), partyId:(partyId || null),
                     workEffortId:(entryItemId || null), day:(day || null), fromTime:(fromTime || null), thruTime:(thruTime || null), hours:(hours || null),
                     breakHours:(breakHours || null), billable:(billable || 'Y'), workTypeEnumId:(workTypeEnumId || null), comments:(comments || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveRates">
         <actions>
-            <service-call name="ironstone.TimeServices.store#TimeEntryRates" out-map="ratesOut" in-map="{timeEntryId:timeEntryId, clientHourRate:clientHourRate,
+            <service-call name="ironstone.projects.TimeServices.store#TimeEntryRates" out-map="ratesOut" in-map="{timeEntryId:timeEntryId, clientHourRate:clientHourRate,
                     vendorHourRate:vendorHourRate, reset:(reset == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ratesOut.message, 'success')</script></if>
         </actions>
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteEntry">
         <actions>
-            <service-call name="ironstone.TimeServices.delete#WeekEntry" out-map="deleteOut" in-map="{timeEntryId:timeEntryId}"/>
+            <service-call name="ironstone.projects.TimeServices.delete#WeekEntry" out-map="deleteOut" in-map="{timeEntryId:timeEntryId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(deleteOut.message, 'success')</script></if>
         </actions>
         <default-response url=".."><parameter name="workEffortId"/></default-response>
@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.TimeServices.get#TimeEntryEdit" out-map="editOut"
+        <service-call name="ironstone.projects.TimeServices.get#TimeEntryEdit" out-map="editOut"
                 in-map="{timeEntryId:(timeEntryId || null), workEffortId:(itemId || null), partyId:(partyId || null)}"/>
         <script><![CDATA[
             ec.message.clearErrors()

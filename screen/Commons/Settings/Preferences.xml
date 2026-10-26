@@ -13,15 +13,15 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Preferences (design-drawers-commons.md §11; style-guide §3.9 Settings): Appearance (dark mode QUASAR_DARK, the app menu
-    QUASAR_LEFT_OPEN, density SHELL_DENSITY, the start app SHELL_START_APP; ironstone.CommonsServices.set#Appearance) and the
+    QUASAR_LEFT_OPEN, density SHELL_DENSITY, the start app SHELL_START_APP; ironstone.commons.CommonsServices.set#Appearance) and the
     Keymap: every binding of the shell and of the keymap providers of the apps the user may open, as editable rows whose
     keys change the KEYMAP preference (JSON {scope: {action or keys: keys}}, set#KeymapOverride), which the shell reads when
     a page loads; and CalendarDefaults: how the calendar opens and new events start (the default view, the first day of the week, the
     working days and hours, the length and reminder of a new event, the default calendar, declined events and week numbers;
-    ironstone.CalendarServices.set#CalendarDefaults, which Calendar.qvue reads); and MailDefaults: where the reading pane goes,
+    ironstone.commons.CalendarServices.set#CalendarDefaults, which Calendar.qvue reads); and MailDefaults: where the reading pane goes,
     whether archive opens the next conversation, when an open message is marked read, how long Undo send waits, whether
     pictures in mail show at once, threads or messages, the default account, where the signature goes and the two phone
-    swipe actions (ironstone.MailSettingsServices.set#MailDefaults, the preferences the Inbox and Compose read). Sound
+    swipe actions (ironstone.comms.MailSettingsServices.set#MailDefaults, the preferences the Inbox and Compose read). Sound
     defaults come later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Preferences" default-menu-index="2" server-static="qvt" menu-image="sym_o_tune" menu-image-type="icon">
@@ -29,7 +29,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the page loads again, so the shell takes dark mode and the menu -->
     <transition name="saveAppearance">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.CommonsServices.set#Appearance').parameters({darkMode: darkMode, leftOpen: leftOpen,
+            ec.service.sync().name('ironstone.commons.CommonsServices.set#Appearance').parameters({darkMode: darkMode, leftOpen: leftOpen,
                 density: density, startApp: startApp}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {redirectUrl: '/qapps/Commons/Settings/Preferences',
                 messageInfos: [{type: 'success', message: ec.l10n.localize('Appearance saved')}]})
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="saveCalendarDefaults">
         <actions>
-            <service-call name="ironstone.CalendarServices.set#CalendarDefaults" out-map="calendarOut" in-map="{view:view, weekStart:weekStart, workStart:workStart,
+            <service-call name="ironstone.commons.CalendarServices.set#CalendarDefaults" out-map="calendarOut" in-map="{view:view, weekStart:weekStart, workStart:workStart,
                     workEnd:workEnd, workDays:(workDays ?? null), defaultDuration:defaultDuration, defaultReminder:(defaultReminder ?? null),
                     showDeclined:(view != null ? (showDeclined || 'N') : null), showWeekNumbers:(view != null ? (showWeekNumbers || 'N') : null),
                     defaultCalendarId:(defaultCalendarId || null)}"/>
@@ -48,7 +48,7 @@ along with this software (see the LICENSE.md file). If not, see
         <error-response url="."/>
     </transition>
     <transition name="saveMailDefaults">
-        <service-call name="ironstone.MailSettingsServices.set#MailDefaults" in-map="{readingPane:readingPane, archiveOpensNext:(archiveOpensNext == 'Y' ? 'Y' : 'N'),
+        <service-call name="ironstone.comms.MailSettingsServices.set#MailDefaults" in-map="{readingPane:readingPane, archiveOpensNext:(archiveOpensNext == 'Y' ? 'Y' : 'N'),
                 markReadSeconds:markReadSeconds, undoSeconds:undoSeconds, remoteImages:(remoteImages == 'always' ? 'always' : 'ask'),
                 conversationView:conversationView, defaultAccountId:defaultAccountId, signaturePlacement:signaturePlacement,
                 swipeLeft:swipeLeft, swipeRight:swipeRight}"/>
@@ -57,12 +57,12 @@ along with this software (see the LICENSE.md file). If not, see
         <error-response url="."/>
     </transition>
     <transition name="setKey">
-        <service-call name="ironstone.CommonsServices.set#KeymapOverride" in-map="{scope:scope, id:id, keys:keys, defaultKeys:defaultKeys}"/>
+        <service-call name="ironstone.commons.CommonsServices.set#KeymapOverride" in-map="{scope:scope, id:id, keys:keys, defaultKeys:defaultKeys}"/>
         <actions><message type="success">Saved; the keys apply when the next page loads</message></actions>
         <default-response url="."/>
     </transition>
     <transition name="resetKey">
-        <service-call name="ironstone.CommonsServices.set#KeymapOverride" in-map="{scope:scope, id:id, keys:''}"/>
+        <service-call name="ironstone.commons.CommonsServices.set#KeymapOverride" in-map="{scope:scope, id:id, keys:''}"/>
         <default-response url="."/>
     </transition>
 
@@ -79,11 +79,11 @@ along with this software (see the LICENSE.md file). If not, see
                 leftOpen: ec.user.getPreference('QUASAR_LEFT_OPEN') == 'true' ? 'Y' : 'N',
                 density: ec.user.getPreference('SHELL_DENSITY') || 'comfortable', startApp: ec.user.getPreference('SHELL_START_APP') || ''}
         ]]></script>
-        <service-call name="ironstone.CommonsServices.get#KeymapRows" in-map="{keymaps:appKeymaps}" out-map="context"/>
+        <service-call name="ironstone.commons.CommonsServices.get#KeymapRows" in-map="{keymaps:appKeymaps}" out-map="context"/>
         <!-- the calendar defaults and the user's own personal calendars, one of which is the default -->
-        <service-call name="ironstone.CalendarServices.get#CalendarDefaults" out-map="calendarDefaultsOut"/>
+        <service-call name="ironstone.commons.CalendarServices.get#CalendarDefaults" out-map="calendarDefaultsOut"/>
         <service-call name="mantle.work.CalendarServices.get#UserCalendars" out-map="userCalendarsOut"/>
-        <service-call name="ironstone.MailSettingsServices.get#MailDefaults" out-map="mailDefaultsOut"/>
+        <service-call name="ironstone.comms.MailSettingsServices.get#MailDefaults" out-map="mailDefaultsOut"/>
         <script><![CDATA[
             const defaults = calendarDefaultsOut.defaults || {}
             calendarDefaults = {view: defaults.view, weekStart: String(defaults.weekStart ?? 0), workStart: defaults.workStart, workEnd: defaults.workEnd,

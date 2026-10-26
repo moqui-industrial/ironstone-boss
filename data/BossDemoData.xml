@@ -70,18 +70,18 @@ along with this software (see the LICENSE.md file). If not, see
             emailSubject="Open tasks" userId="EX_JOHN_DOE"/>
 
     <!-- M2: Today, notifications and approvals for john.doe. The demo approval topic: a purchase to approve, whose decision
-        services (service/ironstone/DemoServices.xml) put a note on the record; a refuse needs a reason. -->
+        services (service/ironstone/commons/DemoServices.xml) put a note on the record; a refuse needs a reason. -->
     <moqui.security.user.NotificationTopic topic="BossDemoApproval" description="Purchase Approval (demo)" typeString="info"
             showAlert="Y" persistOnSend="Y" receiveNotifications="Y" isPrivate="N" inboxEnumId="NinNotifications"
-            approveServiceName="ironstone.DemoServices.approve#DemoPurchase" refuseServiceName="ironstone.DemoServices.refuse#DemoPurchase"
+            approveServiceName="ironstone.commons.DemoServices.approve#DemoPurchase" refuseServiceName="ironstone.commons.DemoServices.refuse#DemoPurchase"
             refuseReasonRequired="Y" titleTemplate="Approve ${summary}: ${amount}" linkTemplate=""/>
     <!-- the tasks, activity, meeting and notifications, dated from the day the data is loaded (after the records above, which
         it changes: the demo request's response is due today) -->
-    <ironstone.DemoServices.load-CommonsDemo/>
+    <ironstone.commons.DemoServices.load-CommonsDemo/>
 
     <!-- M3: the Chatter and files of the demo request, task and event (notes, an email, activities done and planned, a status
         change, files and followers), after the records above and the Today demo, whose planned call is on the request -->
-    <ironstone.DemoServices.load-ChatterDemo/>
+    <ironstone.commons.DemoServices.load-ChatterDemo/>
     <!-- M4: contact books and personal contacts (design-drawers-commons.md §6). john.doe's personal book with its groups and
         three personal contacts (Mary Doe in Family and starred, Robin Fischer in Friends, Tom Pipes of Pipes and Sons in no
         group) and the directory's Bob Acme (Clients, starred); the shared book Team Contacts (john.doe manages it, Joe
@@ -204,10 +204,10 @@ along with this software (see the LICENSE.md file). If not, see
             toPartyId="ORG_ZIZI_JD" fromDate="2026-10-01 09:00:00"/>
 
     <!-- the messages Recently contacted lists, dated from the load -->
-    <ironstone.DemoServices.load-ContactsDemo/>
+    <ironstone.commons.DemoServices.load-ContactsDemo/>
 
     <!-- M6: tasks and requests for every smart list of john.doe (design-drawers-commons.md §8): a project with a task, its
         sub-tasks and time, a task john.doe watches, one Joe Developer gave him, and requests raised, assigned, watched and
-        closed, dated from the load (service/ironstone/DemoServices.xml load#TasksDemo) -->
-    <ironstone.DemoServices.load-TasksDemo/>
+        closed, dated from the load (service/ironstone/commons/DemoServices.xml load#TasksDemo) -->
+    <ironstone.commons.DemoServices.load-TasksDemo/>
 </entity-facade-xml>

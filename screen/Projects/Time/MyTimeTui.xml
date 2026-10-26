@@ -13,11 +13,11 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The terminal twin of MyTime (style-guide §4.8): MyTime.xml's tui text is a dynamic container of this screen. The week from the
-    same service as MyTime.qvue (ironstone.TimeServices.get#MyWeek): the week with the previous and next, the timesheet's status and
+    same service as MyTime.qvue (ironstone.projects.TimeServices.get#MyWeek): the week with the previous and next, the timesheet's status and
     reason, the total against the working hours, the running timer, then each day with its entries (from, to, work item, hours,
     comment) and its total. The terminal's changes (impl-projects.md P11), over the services of MyTime.qvue's transitions: the timer
     started on a work item or stopped (own week), Log time (an entry in full: item, day, hours, billable, work type, comment;
-    ironstone.TimeServices.save#TimeEntry), an entry's Edit (TimeEntries' EditEntry dialog, which goes on to Time entries) and
+    ironstone.projects.TimeServices.save#TimeEntry), an entry's Edit (TimeEntries' EditEntry dialog, which goes on to Time entries) and
     Delete, and the week's Submit, Approve, Return and Reopen (decide#Week, which checks who may). Each change answers My time again
     on the same week. The grid's typing in cells, Add row and Copy last week's rows stay the browser's: Log time covers them; a work
     item opens WorkItemDetail. -->
@@ -33,14 +33,14 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the work items to log on: mine and recent, or by key or name (as MyTime's itemOptions) -->
     <transition name="itemOptions" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.search#TimeItems').parameters({term: term || null}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.search#TimeItems').parameters({term: term || null}).call() || {}
             ec.web.sendJsonResponse(Array.from(out.optionList || []))
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="logTime">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.save#TimeEntry').parameters({partyId: partyId || null, workEffortId: entryItemId || null,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.save#TimeEntry').parameters({partyId: partyId || null, workEffortId: entryItemId || null,
                 day: day || null, hours: hours || null, billable: billable || 'Y', workTypeEnumId: workTypeEnumId || null, comments: comments || null}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -49,7 +49,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteEntry">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.delete#WeekEntry').parameters({timeEntryId: timeEntryId || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.delete#WeekEntry').parameters({timeEntryId: timeEntryId || ''}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
         <default-response url="../MyTime"><parameter name="partyId"/><parameter name="weekDate"/></default-response>
@@ -57,7 +57,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="startTimer">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.start#Timer').parameters({workEffortId: timerItemId || '', comments: comments || null}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.start#Timer').parameters({workEffortId: timerItemId || '', comments: comments || null}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
         <default-response url="../MyTime"><parameter name="weekDate"/></default-response>
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- submit, approve, return (a reason), reopen -->
     <transition name="decide">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.decide#Week').parameters({action: action || '', timesheetId: timesheetId || null,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.decide#Week').parameters({action: action || '', timesheetId: timesheetId || null,
                 weekDate: weekDate || null, reason: reason || null}).call() || {}
             if (!ec.message.hasError() && out.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         weekFound = false; dayList = []
         const L = (text) => ec.l10n.localize(text)
-        const out = ec.service.sync().name('ironstone.TimeServices.get#MyWeek').parameters({partyId: partyId || null, weekDate: weekDate || null}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.TimeServices.get#MyWeek').parameters({partyId: partyId || null, weekDate: weekDate || null}).call() || {}
         ec.message.clearErrors()
         const week = out.myWeek
         if (!week) return
@@ -114,7 +114,7 @@ along with this software (see the LICENSE.md file). If not, see
         workTypeOptions = Array.from(week.workTypeOptions || []).map((type) => ({key: type.value, text: type.label}))
         // the items to start the timer on or log time on: the week's rows first, then the user's open and recent items
         const itemOptions = Array.from(week.rowList || []).filter((row) => row.workEffortId).map((row) => ({key: row.workEffortId, text: row.workEffortId + ' ' + (row.workEffortName || '')}))
-        if (isMine) for (const option of Array.from(ec.service.sync().name('ironstone.TimeServices.search#TimeItems').call()?.optionList || []))
+        if (isMine) for (const option of Array.from(ec.service.sync().name('ironstone.projects.TimeServices.search#TimeItems').call()?.optionList || []))
             if (!itemOptions.some((one) => one.key === option.value)) itemOptions.push({key: option.value, text: option.label})
         ec.message.clearErrors()
         itemOptionList = itemOptions

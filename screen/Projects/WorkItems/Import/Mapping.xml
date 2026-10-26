@@ -29,7 +29,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="saveMapping">
         <actions><script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
-            const out = ec.service.sync().name('ironstone.WorkItemImportServices.get#ImportMappingInfo').parameters({importId: importId}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.WorkItemImportServices.get#ImportMappingInfo').parameters({importId: importId}).call() || {}
             const info = out.info
             if (!info) { ec.message.addError(L('This import is not available; start again from the file')); return }
             const columnMapping = {}
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
             info.typeValues.forEach((entry, index) => { const value = context.get('vt_' + index); if (value) valueMaps.type[entry.value] = String(value) })
             info.statusValues.forEach((entry, index) => { const value = context.get('vs_' + index); if (value) valueMaps.status[entry.value] = String(value) })
             info.priorityValues.forEach((entry, index) => { const value = context.get('vp_' + index); if (value) valueMaps.priority[entry.value] = Number(value) })
-            ec.service.sync().name('ironstone.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: columnMapping,
+            ec.service.sync().name('ironstone.projects.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: columnMapping,
                 valueMaps: valueMaps, estimateUnit: estimateUnit === 'seconds' ? 'seconds' : 'hours', status: 'mapped'}}).call()
         ]]></script></actions>
         <default-response url="."><parameter name="importId"/></default-response>
@@ -51,14 +51,14 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- back to the preset's mapping and the value maps from the words -->
     <transition name="autoMap">
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: null, valueMaps: null}}).call()
+            ec.service.sync().name('ironstone.projects.WorkItemImportServices.store#ImportDraft').parameters({importId: importId, fields: {columnMapping: null, valueMaps: null}}).call()
             if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Mapped from the file kind'), 'success')
         ]]></script></actions>
         <default-response url="."><parameter name="importId"/></default-response>
     </transition>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.WorkItemImportServices.get#ImportMappingInfo').parameters({importId: importId}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.WorkItemImportServices.get#ImportMappingInfo').parameters({importId: importId}).call() || {}
         if (ec.message.hasError()) { parseError = ec.message.getErrorsString(); ec.message.clearErrors() }
         info = out.info || null
         hasDraft = !!info

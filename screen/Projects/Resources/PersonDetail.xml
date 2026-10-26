@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- PersonDetail (design-projects.md §9 PersonDetail; style-guide §3.4 360): a person as Projects sees them, until the Employee 360 of
     design-crosscut exists (design §16). Seen by the person, ADMIN and those who see a project the person is on or allocated to
-    (service/ironstone/ResourceServices.xml get#PersonAccess); else "not available". The title row: the avatar, the name, their
+    (service/ironstone/projects/ResourceServices.xml get#PersonAccess); else "not available". The title row: the avatar, the name, their
     organizations, New allocation (for those who may request one; the dialog is Allocations/EditAllocation.xml, mounted here) and the
     team planner on the person. The tabs, each with the person as its context: Overview (the directory card, position, line managers,
     skills, working hours, the next weeks' load), Allocations, Work items (assigned, open), Time (entries and timesheets, as the viewer
@@ -26,7 +26,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <!-- the person for the tabs, which the client loads on their own (impl-projects.md F18) -->
     <always-actions><script><![CDATA[
-        const personAccess = ec.service.sync().name('ironstone.ResourceServices.get#PersonAccess').parameters({partyId: partyId || ''}).call() || {}
+        const personAccess = ec.service.sync().name('ironstone.projects.ResourceServices.get#PersonAccess').parameters({partyId: partyId || ''}).call() || {}
         ec.message.clearErrors()
         personFound = !!personAccess.canView
         person = personAccess.person || null

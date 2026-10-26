@@ -16,21 +16,21 @@ along with this software (see the LICENSE.md file). If not, see
     ProjWorkItemTypes: the types offered in their order and the icons chosen), each type's icon, label, whether it is offered and
     its place (Offer or Stop offering, Up and Down, Icon), and NewType: a type of the organization's own (a WorkEffortPurpose under
     WetTask). A project offers these unless it chooses its own in its settings (WstWorkItemTypes); QuickCreate and the WorkItems
-    quick add offer them. Service: ironstone.ProjectServices get#WorkItemTypes, store#WorkItemTypes, create#WorkItemType. -->
+    quick add offer them. Service: ironstone.projects.ProjectServices get#WorkItemTypes, store#WorkItemTypes, create#WorkItemType. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Work item types" default-menu-index="1" menu-image="sym_o_category" menu-image-type="icon">
 
     <!-- a change of the offered list: offer or stop offering a type, move it up or down, or its icon -->
     <transition name="changeType">
         <actions><script><![CDATA[
-            const info = ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').call() || {}
+            const info = ec.service.sync().name('ironstone.projects.ProjectServices.get#WorkItemTypes').call() || {}
             const offered = Array.from(info.offeredList || []).map((row) => row.enumId)
             const at = offered.indexOf(enumId)
             if (change === 'offer' && at < 0) offered.push(enumId)
             else if (change === 'stop' && at >= 0) offered.splice(at, 1)
             else if (change === 'up' && at > 0) offered.splice(at - 1, 0, offered.splice(at, 1)[0])
             else if (change === 'down' && at >= 0 && at < offered.length - 1) offered.splice(at + 1, 0, offered.splice(at, 1)[0])
-            const out = ec.service.sync().name('ironstone.ProjectServices.store#WorkItemTypes').parameters({offered: offered,
+            const out = ec.service.sync().name('ironstone.projects.ProjectServices.store#WorkItemTypes').parameters({offered: offered,
                 icons: change === 'icon' ? Object.fromEntries([[enumId, icon || '']]) : null}).call()
             if (!ec.message.hasError()) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
         <error-response url="."/>
     </transition>
     <transition name="createType">
-        <service-call name="ironstone.ProjectServices.create#WorkItemType" in-map="{label:label, icon:icon}" out-map="typeOut"/>
+        <service-call name="ironstone.projects.ProjectServices.create#WorkItemType" in-map="{label:label, icon:icon}" out-map="typeOut"/>
         <actions><if condition="!ec.message.hasError()"><script>ec.message.addMessage(typeOut.message, 'success')</script></if></actions>
         <default-response url="."/>
         <error-response url="."/>
@@ -46,7 +46,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const info = ec.service.sync().name('ironstone.ProjectServices.get#WorkItemTypes').call() || {}
+            const info = ec.service.sync().name('ironstone.projects.ProjectServices.get#WorkItemTypes').call() || {}
             const offeredCount = Array.from(info.offeredList || []).length
             typeList = Array.from(info.typeList || []).map((row) => Object.assign({}, row, {isFirst: row.sequence === 1, isLast: row.sequence === offeredCount}))
             hasOrganization = !!info.organizationPartyId

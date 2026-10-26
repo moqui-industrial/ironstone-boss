@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- MyTime (design-projects.md §8 MyTime; style-guide §4.8 .qvue): one person's week, the component MyTime.qvue next to this file. The
     user's own week, or (partyId) a person whose week the user approves; weekDate any day of the week, default this week. Every read
-    and change is a JSON transition below over service/ironstone/TimeServices.xml and mantle.work.TimesheetServices: the week (rows by
+    and change is a JSON transition below over service/ironstone/projects/TimeServices.xml and mantle.work.TimesheetServices: the week (rows by
     work item and day, totals against the working hours, the timesheet's status, the running timer), a cell's hours, one entry in
     full, a row added or removed, last week's rows copied, the timer started, stopped or commented, and the week submitted, approved,
     returned or reopened. The terminal: MyTimeTui beside this file, the week by day with the timer, Log time, an entry's Edit and
@@ -28,7 +28,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the week -->
     <transition name="week" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.get#MyWeek').parameters({partyId: partyId || null, weekDate: weekDate || null}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.get#MyWeek').parameters({partyId: partyId || null, weekDate: weekDate || null}).call() || {}
             if (ec.message.hasError() || !out.myWeek) { ec.message.clearErrors(); ec.web.sendJsonResponse({notAvailable: true}); return }
             ec.web.sendJsonResponse({week: out.myWeek})
         ]]></script></actions>
@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a cell of the grid: the hours of an item on a day -->
     <transition name="saveCell">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.save#WeekCell').parameters({partyId: partyId || null, workEffortId: workEffortId || null,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.save#WeekCell').parameters({partyId: partyId || null, workEffortId: workEffortId || null,
                 day: day || '', hours: hours ?? '', billable: billable || null, workTypeEnumId: workTypeEnumId ?? null, comments: comments ?? null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timeEntryId: out.timeEntryId || null, hours: out.hours})
         ]]></script></actions>
@@ -46,7 +46,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- one entry in full (EntryForm) -->
     <transition name="saveEntry">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.save#TimeEntry').parameters({timeEntryId: timeEntryId || null, partyId: partyId || null,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.save#TimeEntry').parameters({timeEntryId: timeEntryId || null, partyId: partyId || null,
                 workEffortId: workEffortId || null, day: day || null, fromTime: fromTime || null, thruTime: thruTime || null, hours: hours || null,
                 breakHours: breakHours || null, billable: billable || 'Y', workTypeEnumId: workTypeEnumId || null, comments: comments || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timeEntryId: out.timeEntryId, messageInfos: [{type: 'success', message: out.message}]})
@@ -55,7 +55,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteEntry">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.delete#WeekEntry').parameters({timeEntryId: timeEntryId || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.delete#WeekEntry').parameters({timeEntryId: timeEntryId || ''}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {deleted: true, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -63,7 +63,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- Add row, a row's Remove, Copy last week's rows -->
     <transition name="rows">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.change#WeekRows').parameters({change: change || '', weekDate: weekDate || null,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.change#WeekRows').parameters({change: change || '', weekDate: weekDate || null,
                 workEffortId: workEffortId || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {addedCount: out.addedCount, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -72,7 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the work items to log on: mine and recent, or by key or name -->
     <transition name="itemOptions" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.search#TimeItems').parameters({term: term || null}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.search#TimeItems').parameters({term: term || null}).call() || {}
             ec.web.sendJsonResponse(Array.from(out.optionList || []))
         ]]></script></actions>
         <default-response type="none"/>
@@ -80,7 +80,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the timer -->
     <transition name="startTimer">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.start#Timer').parameters({workEffortId: workEffortId || '', comments: comments || null}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.start#Timer').parameters({workEffortId: workEffortId || '', comments: comments || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timeEntryId: out.timeEntryId, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -102,7 +102,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- submit, approve, return, reopen -->
     <transition name="decide">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.TimeServices.decide#Week').parameters({action: action || '', timesheetId: timesheetId || null,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.decide#Week').parameters({action: action || '', timesheetId: timesheetId || null,
                 weekDate: weekDate || null, reason: reason || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {timesheetId: out.timesheetId, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>

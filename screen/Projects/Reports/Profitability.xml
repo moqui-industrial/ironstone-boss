@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
         const pct = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 10) / 10, '#,##0.#') + '%'
-        managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+        managesMoney = !!ec.service.sync().name('ironstone.projects.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
         ec.message.clearErrors()
         if (!basis) basis = 'billable'
         projectRows = []; clientRows = []; projectRowsCount = 0; clientRowsCount = 0; rowsFound = false; hasChart = false; chartHtml = ''; chartTui = {t: 'text', text: ''}
@@ -44,7 +44,7 @@ along with this software (see the LICENSE.md file). If not, see
         const query = {fromDate: fromDate || '', thruDate: thruDate || '', clientPartyId: clientPartyId || '', rootWorkEffortId: rootWorkEffortId || '', basis: basis}
         printUrl = '/apps/Projects/Reports/Profitability?renderMode=html-print&' + Object.entries(query).filter(([key, value]) => value).map(([key, value]) => key + '=' + encodeURIComponent(value)).join('&')
         if (!managesMoney) return
-        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        const options = ec.service.sync().name('ironstone.projects.ReportServices.get#ReportOptions').call() || {}
         ec.message.clearErrors()
         projectOptions = Array.from(options.projectOptions || [])
         clientOptions = Array.from(options.clientOptions || [])
@@ -81,7 +81,7 @@ along with this software (see the LICENSE.md file). If not, see
         // the chart: billable value against cost by project, the margin as a line (the twelve largest by value)
         const charted = projects.slice().sort((a, b) => Number(b.billableValue || 0) - Number(a.billableValue || 0)).slice(0, 12)
         hasChart = charted.length > 0
-        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'ProfitabilityChart', type: 'bar',
+        const chart = hasChart ? ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'ProfitabilityChart', type: 'bar',
             labels: charted.map((row) => row.workEffortName), series: [
                 {name: L('Billable value'), data: charted.map((row) => row.billableValue)},
                 {name: L('Cost'), data: charted.map((row) => row.cost)},

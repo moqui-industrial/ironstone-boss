@@ -32,7 +32,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="openNotification">
         <parameter name="notificationMessageId" required="true"/>
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CommonsServices.open#Notification').parameters({notificationMessageId: notificationMessageId}).call()
+            const out = ec.service.sync().name('ironstone.commons.CommonsServices.open#Notification').parameters({notificationMessageId: notificationMessageId}).call()
             const answer = {}
             if (!ec.message.hasError()) {
                 if (out.screenUrl) answer.screenUrl = out.screenUrl
@@ -46,14 +46,14 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="markRead">
         <parameter name="notificationMessageId" required="true"/>
         <actions><script><![CDATA[
-            ec.service.sync().name('ironstone.CommonsServices.mark#NotificationsRead').parameters({notificationMessageId: notificationMessageId}).call()
+            ec.service.sync().name('ironstone.commons.CommonsServices.mark#NotificationsRead').parameters({notificationMessageId: notificationMessageId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: ec.l10n.localize('Marked read')}]})
         ]]></script></actions>
         <default-response type="none"/>
     </transition>
     <transition name="markAllRead">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CommonsServices.mark#InboxRead').parameters({inboxEnumId: inboxEnumId || 'NinNotifications'}).call()
+            const out = ec.service.sync().name('ironstone.commons.CommonsServices.mark#InboxRead').parameters({inboxEnumId: inboxEnumId || 'NinNotifications'}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {viewedCount: out.viewedCount, messageInfos: [{type: 'success',
                 message: ec.resource.expand('${count} marked read', '', {count: out.viewedCount || 0})}]})
         ]]></script></actions>
@@ -90,7 +90,7 @@ along with this software (see the LICENSE.md file). If not, see
             appTitles = titles
             const L = (text) => ec.l10n.localize(text)
             const get = (parameters) => ec.service.sync().name('org.moqui.impl.NotificationServices.get#UserNotifications').parameters(parameters).call() || {}
-            const decorate = (list) => Array.from(ec.service.sync().name('ironstone.CommonsServices.decorate#Notifications')
+            const decorate = (list) => Array.from(ec.service.sync().name('ironstone.commons.CommonsServices.decorate#Notifications')
                     .parameters({notificationList: list || [], appTitles: titles}).call()?.rows || [])
             const filters = {inboxEnumId: inboxEnumId, reasonEnumId: reasonEnumId || null, appName: appName || null}
             const unread = get(Object.assign({viewed: 'N', pageSize: 50}, filters))

@@ -1,4 +1,4 @@
-// Commons Calendar/EventDetail (screen/Commons/Calendar/EventDetail.xml, service/ironstone/EventServices.xml; impl-drawers-commons.md
+// Commons Calendar/EventDetail (screen/Commons/Calendar/EventDetail.xml, service/ironstone/commons/EventServices.xml; impl-drawers-commons.md
 // M7, design-drawers-commons.md §7 EventDetail): one event as john.doe sees and changes it, on the calendar demo
 // (data/BossCalendarDemoData.xml, loaded again here). The screen renders the weekly sync's instance with its header, repeat and
 // tabs, and Joe Developer's planning with john.doe's RSVP; When and Overview save by scope, a changed instance shows itself; the
@@ -48,7 +48,7 @@ const userText = (value) => ec.l10n.format(value, "yyyy-MM-dd HH:mm")
 const notices = (userId, topic) => sys(() => Array.from(ec.entity.find("moqui.security.user.NotificationMessageUser").condition("userId", userId).list())
         .map((row) => ec.entity.find("moqui.security.user.NotificationMessage").condition("notificationMessageId", row.notificationMessageId).one())
         .filter((notice) => notice && notice.topic === topic))
-const detail = (id, extra) => sys(() => call("ironstone.EventServices.get#EventDetail", Object.assign({ workEffortId: id }, extra || {})))
+const detail = (id, extra) => sys(() => call("ironstone.commons.EventServices.get#EventDetail", Object.assign({ workEffortId: id }, extra || {})))
 function quickEvent(name, start, end, extra) {
     const answer = post("Calendar/createEvent", Object.assign({ workEffortName: name, start, end, calendarId: "BOSS_DEMO_CAL_JD" }, extra || {}))
     return answer.json.workEffortId
@@ -57,7 +57,7 @@ function quickEvent(name, start, end, extra) {
 spec({
     setupSpec() {
         login("john.doe")
-        sys(() => call("ironstone.CalendarDemoServices.load#CalendarDemo", {}))
+        sys(() => call("ironstone.commons.CalendarDemoServices.load#CalendarDemo", {}))
         login("john.doe")
         D = ec.l10n.format(ec.user.nowTimestamp, "yyyy-MM-dd")
     },
@@ -137,8 +137,8 @@ feature("the repeat editor: weekly on Monday and Wednesday until a day, then fiv
         const id = quickEvent("BOSS_TEST repeat", day(1) + " 07:00", day(1) + " 07:30")
         const weekly = detailPost("saveRecurrence", { workEffortId: id, freq: "WEEKLY", interval: "2", byDay: ["MO", "WE"], ends: "until", untilDate: day(60) })
         const weeklyRule = (one("mantle.work.effort.WorkEffortRecurrence", { workEffortId: id }) || {}).rrule
-        const parsed = sys(() => call("ironstone.CalendarServices.parse#RRule", { rrule: weeklyRule })).fields
-        const weeklyText = sys(() => call("ironstone.CalendarServices.describe#RRule", { rrule: weeklyRule, startText: day(1) })).text
+        const parsed = sys(() => call("ironstone.commons.CalendarServices.parse#RRule", { rrule: weeklyRule })).fields
+        const weeklyText = sys(() => call("ironstone.commons.CalendarServices.describe#RRule", { rrule: weeklyRule, startText: day(1) })).text
         const monthly = detailPost("saveRecurrence", { workEffortId: id, freq: "MONTHLY", monthlyBy: "weekday", ends: "count", count: "5" })
         const monthlyRule = (one("mantle.work.effort.WorkEffortRecurrence", { workEffortId: id }) || {}).rrule
         const none = detailPost("saveRecurrence", { workEffortId: id, freq: "NONE" })

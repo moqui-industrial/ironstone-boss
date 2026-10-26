@@ -18,6 +18,6 @@ along with this software (see the LICENSE.md file). If not, see
         confirmation), the October news sent to its members, and unsubscribe links with known demo tokens (BossDemoUnsubNews2026,
         BossDemoUnsubUpdates2026 with the code BossDemoVerify2026, the ended BossDemoUnsubExpired2026), so Comms Consent, the
         contact record's Consent tab and the public page /u/<token> show and test with content
-        (service/ironstone/ConsentDemoServices.xml load#ConsentDemo says what is in it). -->
-    <ironstone.ConsentDemoServices.load-ConsentDemo/>
+        (service/ironstone/comms/ConsentDemoServices.xml load#ConsentDemo says what is in it). -->
+    <ironstone.comms.ConsentDemoServices.load-ConsentDemo/>
 </entity-facade-xml>

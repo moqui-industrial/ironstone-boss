@@ -20,8 +20,8 @@ along with this software (see the LICENSE.md file). If not, see
     and Days left. The boxes: Burndown (the remaining work by day against the ideal line, m-chart with its table), Items (as
     WorkItems shows them, with a board by status whose drag moves an item along its flow; a completed sprint shows what became of
     each), Scope changes (items added or taken out after the start, when and by whom); Chatter, the retrospective, as the right
-    column from 1440 px. Services: ironstone.PlanningServices get#SprintDetail, save#, start#, complete#Sprint;
-    ironstone.WorkItemServices.move#WorkItemCard. A sprint of a project the user does not see is "not available". -->
+    column from 1440 px. Services: ironstone.projects.PlanningServices get#SprintDetail, save#, start#, complete#Sprint;
+    ironstone.projects.WorkItemServices.move#WorkItemCard. A sprint of a project the user does not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Sprint" default-menu-include="false">
 
@@ -30,7 +30,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="workItemDetail"><default-response url="../WorkItemDetail"/></transition>
     <transition name="saveSprint">
         <actions>
-            <service-call name="ironstone.PlanningServices.save#Sprint" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+            <service-call name="ironstone.projects.PlanningServices.save#Sprint" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
                     description:description, startDay:startDay, endDay:endDay, capacity:(capacity ?? '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
         </actions>
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="startSprint">
         <actions>
-            <service-call name="ironstone.PlanningServices.start#Sprint" out-map="startOut" in-map="{workEffortId:workEffortId, description:description,
+            <service-call name="ironstone.projects.PlanningServices.start#Sprint" out-map="startOut" in-map="{workEffortId:workEffortId, description:description,
                     startDay:startDay, endDay:endDay}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(startOut.message, 'success')</script></if>
         </actions>
@@ -48,7 +48,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="completeSprint">
         <actions>
-            <service-call name="ironstone.PlanningServices.complete#Sprint" out-map="completeOut" in-map="{workEffortId:workEffortId, carryTo:carryTo,
+            <service-call name="ironstone.projects.PlanningServices.complete#Sprint" out-map="completeOut" in-map="{workEffortId:workEffortId, carryTo:carryTo,
                     newSprintName:newSprintName}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(completeOut.message, 'success')</script></if>
         </actions>
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the board: a card moved to another status column, along the item's flow -->
     <transition name="moveCard">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.WorkItemServices.move#WorkItemCard').parameters({workEffortId: ec.web.parameters.workEffortId || '',
+            const out = ec.service.sync().name('ironstone.projects.WorkItemServices.move#WorkItemCard').parameters({workEffortId: ec.web.parameters.workEffortId || '',
                 groupField: groupField || 'statusId', value: ec.web.parameters[groupField || 'statusId'] ?? ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -66,7 +66,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId || ''}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId || ''}).call() || {}
         ec.message.clearErrors()
         recordFound = !!out.detail
         if (!recordFound) return

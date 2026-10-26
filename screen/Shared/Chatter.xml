@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     a record screen loads it there as its own request, <app>/Chatter.qvue?recordEntity=&recordId=&appRoot=&defaultTab=&hide=,
     so the app's authorization and entity filters apply (IronStone R5). The component is Chatter.qvue next to this file; it
     reads the record and the hints with inject: ['mRecordPanel'] and calls the JSON transitions below, each of which first
-    finds the record under the user's filters (service/ironstone/ChatterServices.xml): a read answers {visible: false} and the
+    finds the record under the user's filters (service/ironstone/shared/ChatterServices.xml): a read answers {visible: false} and the
     panel shows nothing, a write is refused. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Chatter" default-menu-include="false" render-modes="vue,qvue,tui" server-static="vue,qvue">
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the panel apart from the timeline: record, user, followers, planned activities, files strip, parties -->
     <transition name="chatterData" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.get#ChatterData').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.get#ChatterData').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || ''}).call()
             if (ec.message.hasError()) ec.web.sendJsonResponse({})
             else if (!out.visible) ec.web.sendJsonResponse({visible: false})
@@ -48,7 +48,7 @@ along with this software (see the LICENSE.md file). If not, see
         millis) and seenKeys (comma separated), the nextBeforeDate and nextSeenKeys of the page before -->
     <transition name="timeline" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.get#Timeline').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.get#Timeline').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', kinds: kinds || null, beforeDate: beforeDate || null, seenKeys: seenKeys || null, pageSize: pageSize || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {entryList: out.entryList, hasMore: out.hasMore, nextBeforeDate: out.nextBeforeDate,
                 nextSeenKeys: out.nextSeenKeys, failedSources: out.failedSources})
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the # record links: search#LinkRecords (term of 2 or more) reshaped to {id, label, entity} for the editor -->
     <transition name="searchRecords" read-only="true">
         <actions>
-            <service-call name="ironstone.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.comms.InboxServices.search#LinkRecords" in-map="{term:term}" out-map="found"/>
             <script><![CDATA[
                 const list = (found && found.optionList) || []
                 ec.web.sendJsonResponse(list.map((row) => ({id: row.recordId, label: row.label, entity: row.recordEntityName})))
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the people of the @ mentions (GET) and of the user drop-downs (POST): [{id, value, label, partyId}] -->
     <transition name="searchUsers" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.shared.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.userList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -77,16 +77,16 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the card of a record for m-record-card (webroot js/README.md, Record cards) -->
     <transition name="recordCard" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.get#RecordCard" in-map="{recordEntityName:recordEntity, recordId:recordId}" out-map="cardOut"/>
+            <service-call name="ironstone.shared.ChatterServices.get#RecordCard" in-map="{recordEntityName:recordEntity, recordId:recordId}" out-map="cardOut"/>
             <script>ec.web.sendJsonResponse(ec.message.hasError() ? {} : (cardOut.card || {}))</script>
         </actions>
         <default-response type="none"/>
     </transition>
-    <!-- the face image of an author or follower the user may see (ironstone.ContactServices.get#ContactAvatar: the entity
+    <!-- the face image of an author or follower the user may see (ironstone.commons.ContactServices.get#ContactAvatar: the entity
         filters, and a personal contact only its owner's), inline; 404 without one, so m-avatar shows the initials -->
     <transition name="avatar" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = partyId ? ec.service.sync().name('ironstone.ContactServices.get#ContactAvatar').parameters({partyId: partyId}).call() : null
+            const out = partyId ? ec.service.sync().name('ironstone.commons.ContactServices.get#ContactAvatar').parameters({partyId: partyId}).call() : null
             if (out?.contentLocation) ec.web.sendResourceResponse(out.contentLocation, true)
             else ec.web.sendJsonError(404, ec.l10n.localize('No picture'))
         ]]></script></actions>
@@ -95,7 +95,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a file of the record (its contentKey), inline for an image or a PDF when asked, else as a download -->
     <transition name="downloadFile" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFile').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.get#RecordFile').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', contentKey: contentKey || ''}).call()
             if (!ec.message.hasError() && !out.contentLocation) ec.message.addError(ec.l10n.localize('This file has no content'))
             if (ec.message.hasError()) ec.web.sendJsonResponse({})
@@ -106,7 +106,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- an attachment of a message or note on the record -->
     <transition name="attachment" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.get#Attachment').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.get#Attachment').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', communicationEventContentId: communicationEventContentId || ''}).call()
             if (ec.message.hasError()) ec.web.sendJsonResponse({})
             else ec.web.sendResourceResponse(out.contentLocation, String(inline) === 'true' && out.inlineAllowed)
@@ -118,7 +118,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="logNote">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.log#Note').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.log#Note').parameters({recordEntityName: recordEntity, recordId: recordId,
                 body: body, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
                 messageInfos: [{type: 'success', message: out.message}]})
@@ -132,7 +132,7 @@ along with this software (see the LICENSE.md file). If not, see
             const forClient = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
             const out = forClient ? ec.service.sync().name('ironstone.client.ClientServices.send#ChatterMessage').parameters({recordEntityName: recordEntity,
                     recordId: recordId, subject: subject || null, body: body, recordUrl: recordUrl || null}).call()
-                : ec.service.sync().name('ironstone.ChatterServices.send#Message').parameters({recordEntityName: recordEntity, recordId: recordId,
+                : ec.service.sync().name('ironstone.shared.ChatterServices.send#Message').parameters({recordEntityName: recordEntity, recordId: recordId,
                 toUserIds: toUserIds || null, subject: subject || null, body: body, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
                 messageInfos: [{type: 'success', message: out.message}]})
@@ -142,7 +142,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="reply">
         <actions><script><![CDATA[
             const forClient = !!ec.user.userId && ec.user.hasPermission('PROJECT_CLIENT')
-            const out = ec.service.sync().name(forClient ? 'ironstone.client.ClientServices.reply#ChatterMessage' : 'ironstone.ChatterServices.reply#Entry')
+            const out = ec.service.sync().name(forClient ? 'ironstone.client.ClientServices.reply#ChatterMessage' : 'ironstone.shared.ChatterServices.reply#Entry')
                 .parameters({recordEntityName: recordEntity, recordId: recordId, parentCommEventId: parentCommEventId, body: body, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId,
                 messageInfos: [{type: 'success', message: out.message}]})
@@ -151,7 +151,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlink">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.unlink#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.unlink#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
                 communicationEventId: communicationEventId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {unlinked: out.unlinked,
                 messageInfos: [{type: out.unlinked ? 'success' : 'warning', message: out.message}]})
@@ -161,7 +161,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a note's author changes its text; its author or a user in the ADMIN group deletes it (no replies) -->
     <transition name="editEntry">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.edit#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.edit#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
                 communicationEventId: communicationEventId, body: body, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {mentionedUserIds: out.mentionedUserIds, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -169,7 +169,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="deleteEntry">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.delete#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.delete#Entry').parameters({recordEntityName: recordEntity, recordId: recordId,
                 communicationEventId: communicationEventId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {deleted: out.deleted, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -177,7 +177,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="scheduleActivity">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.schedule#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.schedule#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
                 activityType: activityType, workEffortName: workEffortName, dueDate: dueDate || null, endDate: endDate || null,
                 assignToPartyId: assignToPartyId || null, description: description || null, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
@@ -188,7 +188,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="markDone">
         <actions><script><![CDATA[
             const next = scheduleNext === 'Y'
-            const out = ec.service.sync().name('ironstone.ChatterServices.complete#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.complete#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
                 workEffortId: workEffortId, feedback: feedback || null, nextActivityType: next ? (nextActivityType || null) : null,
                 nextName: next ? (nextName || null) : null, nextDueDate: next ? (nextDueDate || null) : null, recordUrl: recordUrl || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId, nextWorkEffortId: out.nextWorkEffortId,
@@ -198,7 +198,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="updateActivity">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.update#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.update#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
                 workEffortId: workEffortId, workEffortName: workEffortName, dueDate: dueDate || null, endDate: endDate || null,
                 description: description || null, assignToPartyId: assignToPartyId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
@@ -207,7 +207,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cancelActivity">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.cancel#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.cancel#Activity').parameters({recordEntityName: recordEntity, recordId: recordId,
                 workEffortId: workEffortId}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -215,7 +215,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="follow">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.follow#Record').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.follow#Record').parameters({recordEntityName: recordEntity, recordId: recordId,
                 kinds: kinds || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -223,7 +223,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unfollow">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.unfollow#Record').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.unfollow#Record').parameters({recordEntityName: recordEntity, recordId: recordId,
                 userId: userId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -231,7 +231,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addFollowers">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ChatterServices.add#Followers').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.add#Followers').parameters({recordEntityName: recordEntity, recordId: recordId,
                 userIds: userIds || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {addedUserIds: out.addedUserIds, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>

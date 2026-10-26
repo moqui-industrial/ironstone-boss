@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
         default-menu-title="Search" default-menu-include="false">
     <!-- One search box over the authorized Mantle documents (mantle.search.UniversalSearchServices.search#Universal), and the
         files of the drives the user may open by name, tag and the text in them (PDFs, spreadsheets and text files:
-        ironstone.DriveServices.find#FileRows over FileServices.find#Resources) on the first page, without a type filter. -->
+        ironstone.commons.DriveServices.find#FileRows over FileServices.find#Resources) on the first page, without a type filter. -->
 
     <parameter name="q"/><parameter name="entityType"/><parameter name="mode"/><parameter name="pageIndex"/>
 
@@ -51,7 +51,7 @@ along with this software (see the LICENSE.md file). If not, see
             if (q && !entityType && pageIndexNum === 0) {
                 ec.message.pushErrors()
                 try {
-                    const found = ec.service.sync().name('ironstone.DriveServices.find#FileRows').parameters({view: 'search', text: q, limit: 8}).call()
+                    const found = ec.service.sync().name('ironstone.commons.DriveServices.find#FileRows').parameters({view: 'search', text: q, limit: 8}).call()
                     if (!ec.message.hasError()) fileHits = Array.from(found.fileList || []).slice(0, 8).map((row) => Object.assign({}, row,
                         {placeText: [row.driveName, row.folderPath].filter((part) => part).join(' / '),
                             url: `/qapps/Commons/Files?drive=${encodeURIComponent(row.driveId)}&path=${encodeURIComponent(row.isDirectory ? row.path : (row.folderPath || ''))}`

@@ -1,5 +1,5 @@
 // Sharing in Commons Files (screen/Commons/Files.xml share, revokeShare, answerShare; Files/Shares.xml;
-// service/ironstone/DriveServices.xml share#Item, get#SharesData; impl-drawers-commons.md M8): john.doe shares a folder with
+// service/ironstone/commons/DriveServices.xml share#Item, get#SharesData; impl-drawers-commons.md M8): john.doe shares a folder with
 // joe.developer, who is told on the FileShare topic with a link into Files, sees it waiting in Shared with me, accepts it and
 // opens it; a share to a group reaches its members; a link comes back once with its address, is listed without it, and once
 // revoked no longer opens; the Shares screen lists what is shared both ways; joe.developer cannot share what he may only view.
@@ -28,7 +28,7 @@ const notifications = (userId) => sys(() => Array.from(ec.entity.find("moqui.sec
 
 spec({
     setupSpec() {
-        sys(() => call("ironstone.FilesDemoServices.load#FilesDemo", {}))
+        sys(() => call("ironstone.commons.FilesDemoServices.load#FilesDemo", {}))
         login("john.doe")
         personalDriveId = sys(() => call(`${FILES}.ensure#PersonalDrive`, {})).driveId
         post("newFolder", { driveId: personalDriveId, path: "", name: "Share spec" })
@@ -126,7 +126,7 @@ feature("a link: its address once, listed without it, opened through its token, 
         const check = call(`${FILES}.check#PublicShareToken`, { token })
         const revoked = post("revokeShare", { shareId: link.shareId })
         const after = call(`${FILES}.check#PublicShareToken`, { token })
-        const shares = sys(() => call("ironstone.DriveServices.get#SharesData", {}))
+        const shares = sys(() => call("ironstone.commons.DriveServices.get#SharesData", {}))
         return { made, token, detail, link, check, revoked, after, shares }
     },
     then({ made, token, detail, link, check, revoked, after, shares }) {

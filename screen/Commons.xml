@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- What Commons offers the suite shell (design-drawers-commons.md §1.2, §1.5, §1.7; impl R3): the + menu kinds (each
         opens the theme's STRT_QUICK_CREATE screen, Commons/QuickCreate, with its kind and the record of the screen context), the
         document types and groups of
-        the palette (service/ironstone/PaletteServices.xml), the go-to keys, the account menu's Preferences and Account,
+        the palette (service/ironstone/commons/PaletteServices.xml), the go-to keys, the account menu's Preferences and Account,
         and the notification topics whose messages the Notifications tab lists. Screen paths are under the apps root. -->
     <shell-providers>
         <quick-create kind="task" label="Task" icon="sym_o_task_alt" sequence="10"/>
@@ -58,13 +58,13 @@ along with this software (see the LICENSE.md file). If not, see
         <palette-type doc-type="MantleWikiPage"/>
         <palette-type doc-type="MantleCommunicationEvent"/>
         <!-- an id (with a digit and no spaces, or an upper case id such as BOSS_DEMO_REQUEST) goes to its record first -->
-        <palette-source group="IdLookup" label="Go to id" icon="sym_o_tag" service="ironstone.PaletteServices.lookup#Id"
+        <palette-source group="IdLookup" label="Go to id" icon="sym_o_tag" service="ironstone.commons.PaletteServices.lookup#Id"
                 id-pattern="\S*\d\S*|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+" sequence="5"/>
-        <palette-source group="Records" label="Records" icon="sym_o_search" service="ironstone.PaletteServices.search#Records" sequence="10"/>
-        <palette-source group="People" label="People" icon="sym_o_person" prefix="@" service="ironstone.PaletteServices.search#People" sequence="20"/>
-        <palette-source group="Pages" label="Pages and files" icon="sym_o_description" service="ironstone.PaletteServices.search#Pages" sequence="40"/>
-        <palette-source group="Files" label="Files" icon="sym_o_folder" service="ironstone.DriveServices.search#PaletteFiles" sequence="45"/>
-        <palette-source group="Events" label="Events" icon="sym_o_event" service="ironstone.PaletteServices.search#Events" sequence="50"/>
+        <palette-source group="Records" label="Records" icon="sym_o_search" service="ironstone.commons.PaletteServices.search#Records" sequence="10"/>
+        <palette-source group="People" label="People" icon="sym_o_person" prefix="@" service="ironstone.commons.PaletteServices.search#People" sequence="20"/>
+        <palette-source group="Pages" label="Pages and files" icon="sym_o_description" service="ironstone.commons.PaletteServices.search#Pages" sequence="40"/>
+        <palette-source group="Files" label="Files" icon="sym_o_folder" service="ironstone.commons.DriveServices.search#PaletteFiles" sequence="45"/>
+        <palette-source group="Events" label="Events" icon="sym_o_event" service="ironstone.commons.PaletteServices.search#Events" sequence="50"/>
 
         <!-- Today: the requests assigned to the user with a response due, beside the tasks, activities and events -->
         <today-source service="mantle.request.RequestServices.get#UserTodayRequests" label="Requests"/>

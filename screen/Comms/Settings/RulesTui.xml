@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The terminal twin of Rules (style-guide §4.8): Rules.tui.json is a dynamic container of this screen. The user's mail rules
     in order, each with its conditions and actions in words, its account and how often it matched, from the same
-    ironstone.MailSettingsServices.get#RulesView the Rules.qvue client calls; Turn on or off and Delete through the framework's
+    ironstone.comms.MailSettingsServices.get#RulesView the Rules.qvue client calls; Turn on or off and Delete through the framework's
     update and delete#EmailRule, which check that the user may change the rule; and the blocked senders with Unblock. Writing a
     rule's conditions and actions, the order, Test and Run now are the browser's. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const out = ec.service.sync().name('ironstone.MailSettingsServices.get#RulesView').call()
+            const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#RulesView').call()
             const failed = ec.message.hasError()
             ruleList = failed ? [] : Array.from(out.ruleList || []).map((rule) => ({emailRuleId: rule.emailRuleId, ruleName: rule.ruleName || rule.emailRuleId,
                 accountName: rule.accountName || '', enabled: rule.enabled === true, enabledText: ec.l10n.localize(rule.enabled ? 'On' : 'Off'),

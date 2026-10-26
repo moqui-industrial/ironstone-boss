@@ -29,10 +29,10 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             if (!draftProject) return
             const L = (text) => ec.l10n.localize(text)
-            const header = ec.service.sync().name('ironstone.ProjectServices.get#ProjectHeader').parameters({workEffortId: workEffortId}).call()?.header || {}
+            const header = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectHeader').parameters({workEffortId: workEffortId}).call()?.header || {}
             const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}
-            const team = ec.service.sync().name('ironstone.ProjectServices.get#ProjectTeam').parameters({workEffortId: workEffortId}).call() || {}
-            const rates = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
+            const team = ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectTeam').parameters({workEffortId: workEffortId}).call() || {}
+            const rates = Array.from(ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
             const moduleNames = {backlog: 'Backlog and sprints', requests: 'Requests', code: 'Code', docs: 'Docs', time: 'Time', money: 'Money', client: 'Client access'}
             const repos = Array.from(ec.entity.find('mantle.work.effort.WorkEffortGitRepository').condition('workEffortId', workEffortId)
                     .conditionDate('fromDate', 'thruDate', null).list()).map((row) => row.repositoryId)

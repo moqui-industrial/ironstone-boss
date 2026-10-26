@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- TimesheetDetail (design-projects.md §8 TimesheetDetail; style-guide §3.3 Detail): one person's week
-    (service/ironstone/TimeServices.xml get#TimesheetDetail over mantle.work.TimesheetServices.get#TimesheetSummary), for its person,
+    (service/ironstone/projects/TimeServices.xml get#TimesheetDetail over mantle.work.TimesheetServices.get#TimesheetSummary), for its person,
     its approvers and ADMIN; anyone else gets "not available". The title row: the person, the week, the status-bar (Open,
     Submitted, Approved; read only, the moves are the actions), the return reason or who approved; Approve (primary for its
     approver), Return and Reopen (each with a reason), Submit (its person), Open the week (MyTime, where its person or approver
@@ -28,7 +28,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="decide">
         <actions>
-            <service-call name="ironstone.TimeServices.decide#Week" out-map="decideOut" in-map="{action:action, timesheetId:timesheetId, reason:(reason || null)}"/>
+            <service-call name="ironstone.projects.TimeServices.decide#Week" out-map="decideOut" in-map="{action:action, timesheetId:timesheetId, reason:(reason || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(decideOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="timesheetId"/></default-response>
@@ -36,7 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.TimeServices.get#TimesheetDetail').parameters({timesheetId: timesheetId || ''}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.TimeServices.get#TimesheetDetail').parameters({timesheetId: timesheetId || ''}).call() || {}
         ec.message.clearErrors()
         recordFound = !!out.detail
         if (!recordFound) return

@@ -23,20 +23,20 @@ along with this software (see the LICENSE.md file). If not, see
     (granted or withdrawn with its source and evidence; allowSolicitation follows a marketing purpose); the lists with the
     status, Subscribe and Unsubscribe with a note of where the request came from, and Add to a list; the consent of the
     contact as a whole (data processing); Record consent; and the history. Everyone who may see the contact reads the state;
-    the changes, the history and the export are for contact admins (ironstone.ConsentServices). -->
+    the changes, the history and the export are for contact admins (ironstone.comms.ConsentServices). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-include="false">
 
     <transition name="consentRecord">
         <actions>
-            <service-call name="ironstone.ConsentServices.record#Consent" in-map="context"/>
+            <service-call name="ironstone.comms.ConsentServices.record#Consent" in-map="context"/>
             <if condition="!ec.message.hasError()"><message type="success">Consent recorded</message></if>
         </actions>
         <default-response url="."/>
     </transition>
     <transition name="consentListSet">
         <actions>
-            <service-call name="ironstone.ConsentServices.set#ListSubscription" out-map="setOut"
+            <service-call name="ironstone.comms.ConsentServices.set#ListSubscription" out-map="setOut"
                     in-map="{partyId:partyId, contactListId:contactListId, subscribe:(subscribe == 'Y'), contactMechId:(contactMechId || null), evidenceText:evidenceText}"/>
             <if condition="!ec.message.hasError()"><message type="success">${subscribe == 'Y' ? 'Subscribed' : 'Unsubscribed'}${setOut.changed ? '' : ' (no change)'}</message></if>
         </actions>
@@ -45,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the contact's whole history as CSV, for a data request -->
     <transition name="consentHistoryExport">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ConsentServices.export#ConsentHistory').parameters({partyId: partyId}).call()
+            const out = ec.service.sync().name('ironstone.comms.ConsentServices.export#ConsentHistory').parameters({partyId: partyId}).call()
             if (!ec.message.hasError() && out?.csvText) ec.web.sendTextResponse(out.csvText, 'text/csv', out.fileName)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>
@@ -60,7 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
                     ec.message.pushErrors()
                     let found = null
                     try {
-                        found = ec.service.sync().name('ironstone.ConsentServices.get#ContactConsent').parameters({partyId: consentPartyId,
+                        found = ec.service.sync().name('ironstone.comms.ConsentServices.get#ContactConsent').parameters({partyId: consentPartyId,
                             includeHistory: !!consentFull, historyPageIndex: Number(pageIndex || 0) || 0}).call()
                         if (ec.message.hasError()) found = null
                     } finally {

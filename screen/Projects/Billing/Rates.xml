@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Rates (design-projects.md §10 Rates; style-guide §3.2 List; impl-projects.md P8a): the versioned hour rates (RateAmount) of client
-    billing and worker pay, for those who manage money (service/ironstone/BillingServices.xml find#RateRows, store#Rate, end#Rate,
+    billing and worker pay, for those who manage money (service/ironstone/projects/BillingServices.xml find#RateRows, store#Rate, end#Rate,
     get#WhichRate). The chips: Client billing (the default) and Worker pay, with their counts. The find (the list's dialog): project,
     person, work type, rate type, effective on a day, and the ended ones. Each row: the rate type, project (or any), person (or anyone),
     work type, position class, from, thru, the amount an hour, current, coming or ended; Edit (from, thru and the amount: a rate's scope
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveRate">
         <actions>
-            <service-call name="ironstone.BillingServices.store#Rate" out-map="saveOut" in-map="{rateAmountId:(rateAmountId || null), ratePurposeEnumId:(ratePurposeEnumId || null),
+            <service-call name="ironstone.projects.BillingServices.store#Rate" out-map="saveOut" in-map="{rateAmountId:(rateAmountId || null), ratePurposeEnumId:(ratePurposeEnumId || null),
                     rateTypeEnumId:(newRateTypeEnumId || null), workEffortId:(rateWorkEffortId || null), partyId:(ratePartyId || null), emplPositionClassId:(emplPositionClassId || null),
                     workTypeEnumId:(rateWorkTypeEnumId || null), fromDate:(fromDate || null), thruDate:(thruDate || null), rateAmount:(rateAmount ?? ''), rateCurrencyUomId:(rateCurrencyUomId || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
@@ -48,7 +48,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="endRate">
         <actions>
-            <service-call name="ironstone.BillingServices.end#Rate" out-map="endOut" in-map="{rateAmountId:rateAmountId}"/>
+            <service-call name="ironstone.projects.BillingServices.end#Rate" out-map="endOut" in-map="{rateAmountId:rateAmountId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(endOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="purpose"/></default-response>
@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="people" read-only="true">
         <actions>
-            <service-call name="ironstone.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.projects.ResourceServices.search#AllocationPeople" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -71,17 +71,17 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             if (!['RaprClient', 'RaprVendor'].includes(purpose)) purpose = 'RaprClient'
-            managesMoney = !!ec.service.sync().name('ironstone.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
+            managesMoney = !!ec.service.sync().name('ironstone.projects.BillingServices.check#Money').parameters({need: 'none'}).call()?.managesMoney
             rateRows = []
             if (!managesMoney) return
-            const out = ec.service.sync().name('ironstone.BillingServices.find#RateRows').parameters({ratePurposeEnumId: purpose, rootWorkEffortId: rootWorkEffortId || null,
+            const out = ec.service.sync().name('ironstone.projects.BillingServices.find#RateRows').parameters({ratePurposeEnumId: purpose, rootWorkEffortId: rootWorkEffortId || null,
                 partyId: partyId || null, workTypeEnumId: workTypeEnumId || null, rateTypeEnumId: rateTypeEnumId || null, effectiveOn: effectiveOn || null,
                 showEnded: showEnded === 'Y'}).call() || {}
             ec.message.clearErrors()
             rateRows = Array.from(out.rowList || [])
             rateRowsCount = rateRows.length
             const counts = out.counts || {}
-            const options = ec.service.sync().name('ironstone.BillingServices.get#RateOptions').call() || {}
+            const options = ec.service.sync().name('ironstone.projects.BillingServices.get#RateOptions').call() || {}
             projectOptions = Array.from(options.projectOptions || [])
             workTypeOptions = Array.from(options.workTypeOptions || [])
             positionOptions = Array.from(options.positionOptions || [])
@@ -102,7 +102,7 @@ along with this software (see the LICENSE.md file). If not, see
                 whichDate: whichDate || ec.l10n.format(ec.user.nowTimestamp, 'yyyy-MM-dd')}
             whichAnswer = null
             if (whichAsked) {
-                whichAnswer = ec.service.sync().name('ironstone.BillingServices.get#WhichRate').parameters({partyId: whichPartyId || null, workEffortId: whichWorkEffortId || null,
+                whichAnswer = ec.service.sync().name('ironstone.projects.BillingServices.get#WhichRate').parameters({partyId: whichPartyId || null, workEffortId: whichWorkEffortId || null,
                     workTypeEnumId: whichWorkTypeEnumId || null, onDate: whichDate || null}).call()?.answer || null
                 whichError = ec.message.hasError() ? ec.message.getErrorsString() : ''
                 ec.message.clearErrors()

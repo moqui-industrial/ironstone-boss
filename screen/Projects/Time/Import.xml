@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     the step screens in Import/: Source (the file, its character set and the person of rows with none), Preview (the first 50 rows
     as they will be made, each with its problems, and the counts) and Import (run it, then the result with the failed rows and their
     reasons). Next submits a step's form to its transition, whose answer carries importId on to the next step; the file and the
-    choices are kept in the user's own import folder between the steps (service/ironstone/TimeImportServices.xml). Each row goes
+    choices are kept in the user's own import folder between the steps (service/ironstone/projects/TimeImportServices.xml). Each row goes
     through store#TimeEntry on its own: a bad row is named, the others are imported; a row of a submitted week fails. Opened from
     TimeEntries' Import; for every internal user (their own time, and the time of those whose weeks they approve). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"

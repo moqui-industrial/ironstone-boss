@@ -36,7 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
         const L = (text) => ec.l10n.localize(text)
         const fmt = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value)) * 100) / 100, '#,##0.##')
         const pct = (value) => value == null ? '' : ec.l10n.format(Math.round(Number(String(value))), '#,##0') + '%'
-        const options = ec.service.sync().name('ironstone.ReportServices.get#ReportOptions').call() || {}
+        const options = ec.service.sync().name('ironstone.projects.ReportServices.get#ReportOptions').call() || {}
         ec.message.clearErrors()
         projectOptions = Array.from(options.projectOptions || [])
         if (!depth) depth = '1'
@@ -95,7 +95,7 @@ along with this software (see the LICENSE.md file). If not, see
         // the chart: the first level's estimate against actual and remaining
         const first = Array.from(out.rowList || []).filter((row) => row.level === 1 || String(row.level) === '1').slice(0, 20)
         hasChart = first.length > 0
-        const chart = hasChart ? ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'ProgressChart', type: 'bar',
+        const chart = hasChart ? ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'ProgressChart', type: 'bar',
             labels: first.map((row) => row.workEffortId), series: [
                 {name: L('Estimated'), data: first.map((row) => row.estimatedWorkTime)},
                 {name: L('Actual'), data: first.map((row) => row.actualWorkTime)},

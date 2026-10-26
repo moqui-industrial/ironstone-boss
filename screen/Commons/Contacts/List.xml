@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     The URL holds partyId (and the record's tab); the side list's find (scope, group, text, letter) is kept in the session
     (bossContactsFind) when a find gives it (find=Y, or a scope or text in the URL), so choosing a row or editing the record
-    keeps the list as it was. The rows come from ironstone.ContactServices.find#ContactRows (Mantle's find#Party and the book
+    keeps the list as it was. The rows come from ironstone.commons.ContactServices.find#ContactRows (Mantle's find#Party and the book
     services, with the personal-contact condition): another user's personal contact is never one of them. Print opens the
     list as found with renderMode=html-print, a contact sheet (name, organization, email, phone) of up to 200 rows. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -96,7 +96,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="bulkExport">
         <actions><script><![CDATA[
             const ids = String(selectedPartyIds || '').split(',').map((id) => id.trim()).filter((id) => id)
-            const out = ec.service.sync().name('ironstone.ContactServices.export#ContactFile').parameters({partyIdList: ids, format: format === 'csv' ? 'csv' : 'vcard'}).call()
+            const out = ec.service.sync().name('ironstone.commons.ContactServices.export#ContactFile').parameters({partyIdList: ids, format: format === 'csv' ? 'csv' : 'vcard'}).call()
             if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>
@@ -146,7 +146,7 @@ along with this software (see the LICENSE.md file). If not, see
             findText = state.text || ''
             findLetter = state.letter || ''
             const isPrint = sri.getRenderMode() == 'html-print'
-            const out = ec.service.sync().name('ironstone.ContactServices.find#ContactRows').parameters({scope: findScope, contactBookGroupId: findGroupId,
+            const out = ec.service.sync().name('ironstone.commons.ContactServices.find#ContactRows').parameters({scope: findScope, contactBookGroupId: findGroupId,
                 text: findText || null, letter: findLetter || null, limit: isPrint ? 200 : 50}).call() || {}
             findScope = out.scope || 'all'
             const rows = Array.from(out.rowList || [])

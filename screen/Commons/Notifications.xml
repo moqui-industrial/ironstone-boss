@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     and app chips with counts; NotificationFind (reason, app, read state, date period, text); the Approvals list first (with
     bulk approve), then the other notifications (with bulk mark read). Open (marks read), mark read, mark all read, approve,
     refuse and the notification settings. The current user's own notifications only, through
-    org.moqui.impl.NotificationServices; the rows are decorated by ironstone.CommonsServices.decorate#Notifications. The
+    org.moqui.impl.NotificationServices; the rows are decorated by ironstone.commons.CommonsServices.decorate#Notifications. The
     reading pane from 1440 px comes later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Notifications" default-menu-index="9" menu-image="sym_o_notifications" menu-image-type="icon">
@@ -32,7 +32,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="openNotification">
         <parameter name="notificationMessageId" required="true"/>
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CommonsServices.open#Notification').parameters({notificationMessageId: notificationMessageId}).call()
+            const out = ec.service.sync().name('ironstone.commons.CommonsServices.open#Notification').parameters({notificationMessageId: notificationMessageId}).call()
             const answer = {}
             if (!ec.message.hasError()) {
                 if (out.screenUrl) answer.screenUrl = out.screenUrl
@@ -45,11 +45,11 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <!-- the others change the list, which shows again -->
     <transition name="markRead">
-        <service-call name="ironstone.CommonsServices.mark#NotificationsRead" in-map="{notificationMessageId:notificationMessageId}"/>
+        <service-call name="ironstone.commons.CommonsServices.mark#NotificationsRead" in-map="{notificationMessageId:notificationMessageId}"/>
         <default-response url="."/>
     </transition>
     <transition name="markAllRead">
-        <service-call name="ironstone.CommonsServices.mark#InboxRead" in-map="{inboxEnumId:(inboxEnumId || 'NinNotifications')}" out-map="readOut"/>
+        <service-call name="ironstone.commons.CommonsServices.mark#InboxRead" in-map="{inboxEnumId:(inboxEnumId || 'NinNotifications')}" out-map="readOut"/>
         <actions><message type="success">${readOut.viewedCount || 0} marked read</message></actions>
         <default-response url="."/>
     </transition>
@@ -59,7 +59,7 @@ along with this software (see the LICENSE.md file). If not, see
         <default-response url="."/>
     </transition>
     <transition name="approveSelected">
-        <service-call name="ironstone.CommonsServices.approve#Notifications" in-map="{notificationMessageId:notificationMessageId}" out-map="approveOut"/>
+        <service-call name="ironstone.commons.CommonsServices.approve#Notifications" in-map="{notificationMessageId:notificationMessageId}" out-map="approveOut"/>
         <actions><message type="success">${approveOut.approvedCount} approved</message></actions>
         <default-response url="."/>
     </transition>
@@ -79,7 +79,7 @@ along with this software (see the LICENSE.md file). If not, see
             for (const app of (shellData && Array.isArray(shellData.apps) ? shellData.apps : [])) titles[app.name] = String(app.title || app.name)
             const L = (text) => ec.l10n.localize(text)
             const get = (parameters) => ec.service.sync().name('org.moqui.impl.NotificationServices.get#UserNotifications').parameters(parameters).call() || {}
-            const decorate = (list) => Array.from(ec.service.sync().name('ironstone.CommonsServices.decorate#Notifications')
+            const decorate = (list) => Array.from(ec.service.sync().name('ironstone.commons.CommonsServices.decorate#Notifications')
                     .parameters({notificationList: list || [], appTitles: titles}).call()?.rows || [])
             // the date period of the find (the date-period fields), or its from and thru
             let fromDate = null

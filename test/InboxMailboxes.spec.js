@@ -32,7 +32,7 @@ let newMailboxId
 
 spec({
     setupSpec() {
-        sys(() => call("ironstone.MailDemoServices.load#MailDemo", {}))
+        sys(() => call("ironstone.comms.MailDemoServices.load#MailDemo", {}))
         login("john.doe")
     },
     cleanupSpec() { login("john.doe") },

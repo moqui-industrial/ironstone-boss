@@ -17,7 +17,7 @@ along with this software (see the LICENSE.md file). If not, see
     README rendered below; a file as code with line numbers and highlighting (code-view), an image, or a download for a binary,
     a file over 1 MB or one kept in LFS (get#GitBlob), with History (Commits with the path), Raw, Download and Permalink (the
     path at the commit). Raw and Download stream the file at its commit through the raw transition, after the view check
-    (git:// reads are not checked). Service: ironstone.CodeServices get#RepositoryFiles, get#RefOptions. -->
+    (git:// reads are not checked). Service: ironstone.projects.CodeServices get#RepositoryFiles, get#RefOptions. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Files" default-menu-index="1" menu-image="sym_o_folder" menu-image-type="icon">
 
@@ -51,7 +51,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions>
         <script><![CDATA[
             if (!recordFound) return
-            const files = ec.service.sync().name('ironstone.CodeServices.get#RepositoryFiles').parameters({repositoryId: repositoryId, ref: ref || null, path: path || null}).call() || {}
+            const files = ec.service.sync().name('ironstone.projects.CodeServices.get#RepositoryFiles').parameters({repositoryId: repositoryId, ref: ref || null, path: path || null}).call() || {}
             filesFound = !!files.found
             isFile = !!files.isFile
             commitId = files.commitId || ''
@@ -60,7 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
             file = files.file || null
             readme = files.readme || null
             crumbList = Array.from(files.crumbList || [])
-            refOptions = ec.service.sync().name('ironstone.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
+            refOptions = ec.service.sync().name('ironstone.projects.CodeServices.get#RefOptions').parameters({repositoryId: repositoryId}).call()?.optionList || []
             // a commit id named in the URL is a choice of its own
             if (shownRef && !refOptions.some((option) => option.key === shownRef)) refOptions = [{key: shownRef, text: ec.l10n.localize('Commit') + ' ' + String(shownRef).substring(0, 10)}].concat(refOptions)
             refValue = {repositoryId: repositoryId, ref: shownRef, path: path || ''}

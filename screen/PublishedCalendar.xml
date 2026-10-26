@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- PublishedCalendar (design-drawers-commons.md §7 Calendar; impl-drawers-commons.md §8): the page of a calendar published
     by link, for a visitor who is not signed in, at /cal/<token>: the token-route "cal" of MoquiConf.xml renders it in the
-    public shell (no header, drawers or session user) after ironstone.CalendarServices.check#PublishedCalendarToken let the
+    public shell (no header, drawers or session user) after ironstone.commons.CalendarServices.check#PublishedCalendarToken let the
     token through (an unknown one, or a share that names a user, gets the route's "not found" page; an ended one reaches
     the page only to say it has expired). The component is PublishedCalendar.qvue next to this file: the calendar's name,
     a password when the link has one, then the events of the month on screen. The transition below calls
@@ -26,7 +26,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="events" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.get#PublishedCalendar').parameters({token: token || '',
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.get#PublishedCalendar').parameters({token: token || '',
                 password: password || null, start: start || null, end: end || null}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             ec.web.sendJsonResponse({needsPassword: !!out.needsPassword, calendarName: out.calendarName ?? null, color: out.color ?? null,

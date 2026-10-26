@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- PersonDetail's Work items (design-projects.md §9 PersonDetail): the open work items assigned to the person in the projects the
-    viewer sees (ironstone.WorkItemServices.find#WorkItems list open with the assignee), by due date, fifty; the list opens WorkItems on
+    viewer sees (ironstone.projects.WorkItemServices.find#WorkItems list open with the assignee), by due date, fifty; the list opens WorkItems on
     the person. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Work items" default-menu-index="3" menu-image="sym_o_checklist" menu-image-type="icon">
@@ -21,7 +21,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         workItemList = []
         if (!personFound) return
-        const out = ec.service.sync().name('ironstone.WorkItemServices.find#WorkItems').parameters({list: 'open', assigneePartyId: partyId, pageSize: 50,
+        const out = ec.service.sync().name('ironstone.projects.WorkItemServices.find#WorkItems').parameters({list: 'open', assigneePartyId: partyId, pageSize: 50,
             withCounts: false}).call() || {}
         ec.message.clearErrors()
         const rows = Array.from(out.rowList || [])

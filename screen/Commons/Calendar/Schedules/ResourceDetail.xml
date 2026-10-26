@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     (resourceType room, a Facility of type FcTpRoom) or piece of equipment (equipment, an Asset of type AstTpEquipment) as Commons
     shows it, read-only: what and where it is, its booking policy in words, Book (a time, booked at once or waiting for its
     approver), the user's upcoming bookings of it with Cancel, and its week in Rooms and equipment
-    (service/ironstone/ScheduleServices.xml get#ResourceDetail). Its record, approvers and blackout windows are Maintenance's;
+    (service/ironstone/commons/ScheduleServices.xml get#ResourceDetail). Its record, approvers and blackout windows are Maintenance's;
     "Open in Maintenance" shows for a user who has it. Anything else is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Resource" default-menu-include="false">
@@ -27,7 +27,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="schedules"><default-response url=".."/></transition>
     <transition name="book">
         <actions>
-            <service-call name="ironstone.ScheduleServices.book#ResourceSlot" out-map="bookOut" in-map="{resourceType:resourceType, resourceId:resourceId,
+            <service-call name="ironstone.commons.ScheduleServices.book#ResourceSlot" out-map="bookOut" in-map="{resourceType:resourceType, resourceId:resourceId,
                     start:(date ? String(date).substring(0, 10) + ' ' + (from || '09:00') : ''), end:(date ? String(date).substring(0, 10) + ' ' + (to || '10:00') : ''),
                     purpose:purpose, notes:notes}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bookOut.message, bookOut.requiresApproval ? 'warning' : 'success')</script></if>
@@ -37,7 +37,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="cancelBooking">
         <actions>
-            <service-call name="ironstone.ScheduleServices.cancel#MyBooking" out-map="cancelOut" in-map="{workEffortId:workEffortId, resourceType:resourceType, resourceId:resourceId}"/>
+            <service-call name="ironstone.commons.ScheduleServices.cancel#MyBooking" out-map="cancelOut" in-map="{workEffortId:workEffortId, resourceType:resourceType, resourceId:resourceId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(cancelOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="resourceType"/><parameter name="resourceId"/></default-response>
@@ -45,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.ScheduleServices.get#ResourceDetail" in-map="{resourceType:resourceType, resourceId:resourceId}" out-map="detail"/>
+        <service-call name="ironstone.commons.ScheduleServices.get#ResourceDetail" in-map="{resourceType:resourceType, resourceId:resourceId}" out-map="detail"/>
         <set field="recordFound" from="!!detail.found"/>
         <script><![CDATA[
             if (!recordFound) return

@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Projects Home (design-projects.md §3 Home; style-guide §3.1 Landing), for the team and the managers
-    (service/ironstone/ProjectServices.xml get#ProjectsHome): a greeting; a first-run card when the user sees no project (create
+    (service/ironstone/projects/ProjectServices.xml get#ProjectsHome): a greeting; a first-run card when the user sees no project (create
     a project, import work items, connect a repository); the counters, each a link into its list: my open work items, due this
     week, overdue and my hours this week, and for managers the projects at risk (the health, or numbers that warn) and the
     milestones in fourteen days; my next work items (ten, by due date then priority); what changed lately in my projects; my
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="startTimer">
         <actions>
-            <service-call name="ironstone.TimeServices.start#Timer" out-map="timerOut" in-map="{workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.TimeServices.start#Timer" out-map="timerOut" in-map="{workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(timerOut.message, 'success')</script></if>
         </actions>
         <default-response url="."/>
@@ -91,7 +91,7 @@ along with this software (see the LICENSE.md file). If not, see
                 clientFailedText = (clientHome.failedParts || []).length ? L('Some parts could not be read') + ': ' + clientHome.failedParts.join(', ') : ''
             ]]></script>
         </then><else>
-        <service-call name="ironstone.ProjectServices.get#ProjectsHome" out-map="homeOut"/>
+        <service-call name="ironstone.projects.ProjectServices.get#ProjectsHome" out-map="homeOut"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             const home = homeOut.home || {}
@@ -161,7 +161,7 @@ along with this software (see the LICENSE.md file). If not, see
                     if (ec.message.hasError()) throw new Error(ec.message.getErrorsString())
                     const series = Array.from(time.chart?.series || [])
                     if (series.length) {
-                        const chart = ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'HomeHoursByProject', type: 'bar',
+                        const chart = ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'HomeHoursByProject', type: 'bar',
                             labels: Array.from(time.chart.labels || []), series: series.map((one) => ({name: one.name, data: Array.from(one.data || [])})), stacked: true,
                             height: '220px'}).call() || {}
                         hoursChartHtml = chart.html || ''; hoursChartTui = chart.tui || {t: 'text', text: ''}
@@ -179,7 +179,7 @@ along with this software (see the LICENSE.md file). If not, see
                     const currency = unbilled.totals?.currencyUomId
                     const byClient = Array.from(unbilled.totals?.byClient || []).filter((one) => Number(String(one.amount || 0)) > 0)
                     if (byClient.length && currency) {
-                        const chart = ec.service.sync().name('ironstone.ReportServices.get#ChartConfig').parameters({id: 'HomeUnbilledByClient', type: 'bar',
+                        const chart = ec.service.sync().name('ironstone.projects.ReportServices.get#ChartConfig').parameters({id: 'HomeUnbilledByClient', type: 'bar',
                             labels: byClient.map((one) => one.clientName || L('No client')), series: [{name: L('Unbilled') + ' (' + currency + ')',
                             data: byClient.map((one) => Number(String(one.amount || 0)))}], horizontal: true, height: '220px'}).call() || {}
                         unbilledChartHtml = chart.html || ''; unbilledChartTui = chart.tui || {t: 'text', text: ''}

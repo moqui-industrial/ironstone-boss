@@ -1,5 +1,5 @@
 // Projects WorkItems and QuickCreate (screen/Projects/WorkItems/List.xml, screen/Projects/QuickCreate.xml and QuickProject.xml,
-// service/ironstone/WorkItemServices.xml; design-projects.md §5 WorkItems, §3 QuickCreate; impl-projects.md P2) on the
+// service/ironstone/projects/WorkItemServices.xml; design-projects.md §5 WorkItems, §3 QuickCreate; impl-projects.md P2) on the
 // Projects demo (data/BossProjectsDemoData.xml: IRON on the development flow with a tree, ACME, HIRE only john.doe is on):
 // the smart lists and the find, each row decorated with its roll-up; the projects a user sees (Joe Developer not HIRE,
 // impl-projects.md F1); the list in qvt with its views, peek pane and saved finds; the quick-add row; the in-place edits,
@@ -37,7 +37,7 @@ const one = (entityName, fields) => sys(() => ec.entity.find(entityName).conditi
 const all = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields).list()))
 const current = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields)
         .condition(ec.entity.conditionFactory.makeConditionDate("fromDate", "thruDate", null)).list()))
-const rows = (parameters) => sys(() => call("ironstone.WorkItemServices.find#WorkItems", Object.assign({ pageSize: 200 }, parameters || {})))
+const rows = (parameters) => sys(() => call("ironstone.projects.WorkItemServices.find#WorkItems", Object.assign({ pageSize: 200 }, parameters || {})))
 // the demo's items (this component's data files), not those another spec made, here (BOSS_TEST names) or in another
 // component's run before
 const demoItems = new Set()
@@ -115,7 +115,7 @@ feature("the smart lists and the find narrow the work items, each row with its t
 feature("Joe Developer sees the projects he is on, not the Work group project HIRE; Bob only IRON", {
     when() {
         return { joe: as("joe.developer", () => idsOf(rows({ list: "all" }))), bob: as("bob.developer", () => idsOf(rows({ list: "all" }))),
-            joeOptions: as("joe.developer", () => sys(() => call("ironstone.WorkItemServices.get#ProjectOptions", {}).projectList.map((option) => option.key))) }
+            joeOptions: as("joe.developer", () => sys(() => call("ironstone.projects.WorkItemServices.get#ProjectOptions", {}).projectList.map((option) => option.key))) }
     },
     then({ joe, bob, joeOptions }) {
         joe.includes("IRON-3")
@@ -324,7 +324,7 @@ feature("QuickCreate's work item in the project of the screen context; QuickTime
         const item = all("mantle.work.effort.WorkEffort", { workEffortName: "BOSS_TEST Quick create item" })[0] || null
         const project = post("QuickProject/createProject", { workEffortName: "BOSS_TEST Quick project", workEffortId: "bqp", clientPartyId: "ORG_ACME" })
         const byJoe = as("joe.developer", () => sys(() => {
-            try { call("ironstone.WorkItemServices.create#QuickProject", { workEffortName: "BOSS_TEST Joe project", workEffortId: "BQJ" }); return null }
+            try { call("ironstone.projects.WorkItemServices.create#QuickProject", { workEffortName: "BOSS_TEST Joe project", workEffortId: "BQJ" }); return null }
             catch (err) { ec.message.clearErrors(); return String(err.message) }
         }))
         return { forms, created, item, records: item ? all("mantle.work.effort.WorkEffortRecord", { workEffortId: item.workEffortId }) : [],

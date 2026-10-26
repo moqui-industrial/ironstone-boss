@@ -20,7 +20,7 @@ along with this software (see the LICENSE.md file). If not, see
     of a new one, the provider and its label, and in the wizard offerPop with storeKind, the choice of reading the mail over
     IMAP or POP (the provider's POP server; the sign-in then asks for the provider's POP scope too, Microsoft's
     POP.AccessAsUser.All). The click opens the provider's popup (moqui.oauthPopup) over the JSON
-    transitions below: startSignIn (ironstone.MailSettingsServices.start#MailSignIn) and signInStatus
+    transitions below: startSignIn (ironstone.comms.MailSettingsServices.start#MailSignIn) and signInStatus
     (org.moqui.impl.EmailClientServices.get#OAuthStatus by signInId only, which answers only a sign-in of this user's
     session). No token ever reaches the page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -28,7 +28,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="startSignIn">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.MailSettingsServices.start#MailSignIn').parameters({emailAccountId: emailAccountId || null,
+            const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.start#MailSignIn').parameters({emailAccountId: emailAccountId || null,
                 emailAddress: emailAddress || null, displayName: displayName || null, accountKindEnumId: accountKindEnumId || 'EakExternal',
                 oauthProviderEnumId: oauthProviderEnumId || null, storeKind: storeKind === 'pop' ? 'pop' : (storeKind === 'imap' ? 'imap' : null),
                 setup: mode === 'wizard', allowAddressChange: String(allowAddressChange) === 'true'}).call()

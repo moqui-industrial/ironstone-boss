@@ -132,7 +132,7 @@ feature("john.doe approves the week; the time is ready and the invoice dialog of
         sys(() => call("mantle.work.TimesheetServices.approve#Timesheet", { timesheetId: made.sheet }))
         const ready = render("apps/Projects/Billing/Unbilled", { list: "ready", rootWorkEffortId: PROJECT })
         const dialog = render("apps/Projects/Billing/Unbilled/CreateInvoice", { workEffortId: PROJECT })
-        const draft = sys(() => call("ironstone.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }).draft)
+        const draft = sys(() => call("ironstone.projects.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }).draft)
         return { ready, dialog, draft }
     },
     then({ ready, dialog, draft }) {
@@ -215,7 +215,7 @@ feature("joe may not open Billing: Unbilled, the invoice and its print are refus
             unbilled: render("apps/Projects/Billing/Unbilled", {}),
             detail: render("apps/Projects/Billing/InvoiceDetail", { invoiceId: made.invoiceId }),
             draft: sys(() => {
-                try { call("ironstone.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }) } catch (err) { const thrown = String(err.message); ec.message.clearErrors(); return thrown }
+                try { call("ironstone.projects.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }) } catch (err) { const thrown = String(err.message); ec.message.clearErrors(); return thrown }
                 const errors = ec.message.getErrorsString() || ""
                 ec.message.clearErrors()
                 return errors

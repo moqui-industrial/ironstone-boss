@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     Complete; rows drag to rank and between the panes to plan, a selection as one. ProjectDetail mounts this screen as its Backlog
     tab (design-projects.md §4 ProjectBacklog) with the project fixed (its always-actions put it in projectTabId); here the project
     is rootWorkEffortId, else the first the user is on. Every read and change is a JSON transition below over
-    service/ironstone/PlanningServices.xml (the project's access: who sees it reads, its team plans, its managers turn sprints on).
+    service/ironstone/projects/PlanningServices.xml (the project's access: who sees it reads, its team plans, its managers turn sprints on).
     The terminal: BacklogTui beside this file, with Move and the sprint dialogs (impl-projects.md P11); dragging is the browser's. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Backlog" default-menu-index="1" render-modes="vue,qvue,tui" server-static="vue,qvue" menu-image="sym_o_view_list" menu-image-type="icon">
@@ -29,15 +29,15 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="backlog" method="get" read-only="true">
         <actions><script><![CDATA[
             const fixed = ec.context.get('projectTabId') || null
-            const projectOptions = fixed ? [] : Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
+            const projectOptions = fixed ? [] : Array.from(ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
             // in ProjectDetail's tab the project is its workEffortId even when the user may not see it (then "not available")
             let project = fixed || rootWorkEffortId || workEffortId || null
             if (!project) {
-                const mine = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])
+                const mine = Array.from(ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])
                 project = mine[0]?.key || projectOptions[0]?.key || null
             }
             if (!project) { ec.web.sendJsonResponse({projectOptions: projectOptions, noProject: true}); return }
-            const out = ec.service.sync().name('ironstone.PlanningServices.get#Backlog').parameters({rootWorkEffortId: project, assigneePartyId: assigneePartyId || null,
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#Backlog').parameters({rootWorkEffortId: project, assigneePartyId: assigneePartyId || null,
                 purposeEnumId: purposeEnumId || null, labelId: labelId || null, componentId: componentId || null, epicId: epicId || null, text: text || null}).call() || {}
             if (ec.message.hasError()) { ec.message.clearErrors(); ec.web.sendJsonResponse({projectOptions: projectOptions, notAvailable: true, rootWorkEffortId: project}); return }
             ec.web.sendJsonResponse({backlog: out.backlog, projectOptions: projectOptions, projectFixed: !!fixed})
@@ -47,7 +47,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a drag: the items to a sprint (or the backlog) after or before an item there -->
     <transition name="rank">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.rank#BacklogItems').parameters({rootWorkEffortId: ec.context.get('projectTabId') || rootWorkEffortId || workEffortId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.rank#BacklogItems').parameters({rootWorkEffortId: ec.context.get('projectTabId') || rootWorkEffortId || workEffortId || '',
                 workEffortIds: workEffortIds || '', sprintWorkEffortId: sprintWorkEffortId || null, previousWorkEffortId: previousWorkEffortId || null,
                 nextWorkEffortId: nextWorkEffortId || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {doneCount: out.doneCount, messageInfos: [{type: out.failedCount ? 'warning' : 'success', message: out.message}]})
@@ -58,7 +58,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="quickAdd">
         <actions><script><![CDATA[
             const project = ec.context.get('projectTabId') || rootWorkEffortId || workEffortId || ''
-            const out = ec.service.sync().name('ironstone.WorkItemServices.quickAdd#WorkItem').parameters({rootWorkEffortId: project, workEffortName: workEffortName || '',
+            const out = ec.service.sync().name('ironstone.projects.WorkItemServices.quickAdd#WorkItem').parameters({rootWorkEffortId: project, workEffortName: workEffortName || '',
                 purposeEnumId: purposeEnumId || null, sprintWorkEffortId: sprintWorkEffortId || null}).call() || {}
             if (!ec.message.hasError() && nextWorkEffortId) ec.service.sync().name('mantle.work.TaskServices.set#TaskBacklogRank').parameters({workEffortId: out.workEffortId,
                 nextWorkEffortId: nextWorkEffortId}).call()
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- SprintForm, StartSprint, CompleteSprint and Plan in sprints -->
     <transition name="saveSprint">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.save#Sprint').parameters({rootWorkEffortId: ec.context.get('projectTabId') || rootWorkEffortId || workEffortId || null,
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.save#Sprint').parameters({rootWorkEffortId: ec.context.get('projectTabId') || rootWorkEffortId || workEffortId || null,
                 workEffortId: sprintWorkEffortId || null, workEffortName: workEffortName ?? null, description: description ?? null, startDay: startDay || null,
                 endDay: endDay || null, capacity: capacity ?? ''}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {sprintWorkEffortId: out.workEffortId, messageInfos: [{type: 'success', message: out.message}]})
@@ -78,7 +78,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="startSprint">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.start#Sprint').parameters({workEffortId: sprintWorkEffortId || '', description: description ?? null,
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.start#Sprint').parameters({workEffortId: sprintWorkEffortId || '', description: description ?? null,
                 startDay: startDay || null, endDay: endDay || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {started: true, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -86,7 +86,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="completeSprint">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.complete#Sprint').parameters({workEffortId: sprintWorkEffortId || '', carryTo: carryTo || 'next',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.complete#Sprint').parameters({workEffortId: sprintWorkEffortId || '', carryTo: carryTo || 'next',
                 newSprintName: newSprintName || null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {completed: true, carriedToSprintId: out.carriedToSprintId, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -94,7 +94,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="turnOnSprints">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.turnOn#Sprints').parameters({rootWorkEffortId: ec.context.get('projectTabId') || rootWorkEffortId || workEffortId || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.turnOn#Sprints').parameters({rootWorkEffortId: ec.context.get('projectTabId') || rootWorkEffortId || workEffortId || ''}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {on: true, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
         <default-response type="none"/>
@@ -102,7 +102,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- what a sprint's Complete dialog shows: its done and open counts, the sprints its open items may go to -->
     <transition name="sprintSummary" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.get#SprintDetail').parameters({workEffortId: sprintWorkEffortId || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#SprintDetail').parameters({workEffortId: sprintWorkEffortId || ''}).call() || {}
             const detail = out.detail
             ec.web.sendJsonResponse(ec.message.hasError() || !detail ? {} : {summary: {workEffortId: detail.workEffortId, workEffortName: detail.workEffortName,
                 doneCount: detail.doneCount, openCount: detail.openCount, completedText: detail.completedText, remainingText: detail.remainingText,

@@ -1,5 +1,5 @@
 // ProjectDetail and its tabs (screen/Projects/Projects/ProjectDetail.xml and ProjectDetail/, StatusReport.xml;
-// service/ironstone/ProjectServices.xml; design-projects.md §4 ProjectDetail, ProjectOverview, ProjectWorkItems, ProjectTeam,
+// service/ironstone/projects/ProjectServices.xml; design-projects.md §4 ProjectDetail, ProjectOverview, ProjectWorkItems, ProjectTeam,
 // ProjectFiles, ProjectSettings, §14 the status report; impl-projects.md P2) on the Projects demo
 // (data/BossProjectsDemoData.xml): the header (status stages, health, numbers, the primary action by status), the overview's
 // boxes, the Work items tab with the project fixed, a status update setting the health, the team's members, the settings boxes,
@@ -77,10 +77,10 @@ spec({
 
 feature("the header of ACME: its status, health, client, manager and numbers, and in progress the status update is the primary action", {
     when() {
-        const header = sys(() => call("ironstone.ProjectServices.get#ProjectHeader", { workEffortId: "ACME" })).header
-        const planning = sys(() => call("ironstone.ProjectServices.get#ProjectHeader", { workEffortId: "HIRE" })).header
-        const joe = as("joe.developer", () => sys(() => call("ironstone.ProjectServices.get#ProjectHeader", { workEffortId: "HIRE" })))
-        const joeAcme = as("joe.developer", () => sys(() => call("ironstone.ProjectServices.get#ProjectHeader", { workEffortId: "ACME" })))
+        const header = sys(() => call("ironstone.projects.ProjectServices.get#ProjectHeader", { workEffortId: "ACME" })).header
+        const planning = sys(() => call("ironstone.projects.ProjectServices.get#ProjectHeader", { workEffortId: "HIRE" })).header
+        const joe = as("joe.developer", () => sys(() => call("ironstone.projects.ProjectServices.get#ProjectHeader", { workEffortId: "HIRE" })))
+        const joeAcme = as("joe.developer", () => sys(() => call("ironstone.projects.ProjectServices.get#ProjectHeader", { workEffortId: "ACME" })))
         return { header, planning, joe, joeAcme }
     },
     then({ header, planning, joe, joeAcme }) {
@@ -184,7 +184,7 @@ feature("a status update by the manager sets the health, shows on the overview a
         const posted = post("Projects/ProjectDetail/postUpdate", { workEffortId: "IRON", healthEnumId: "WehAtRisk", percentComplete: "25",
             body: "BOSS_TEST The timer needs another week." })
         const health = one("mantle.work.effort.WorkEffort", { workEffortId: "IRON" }).healthEnumId
-        const overview = sys(() => call("ironstone.ProjectServices.get#ProjectOverview", { workEffortId: "IRON" })).overview
+        const overview = sys(() => call("ironstone.projects.ProjectServices.get#ProjectOverview", { workEffortId: "IRON" })).overview
         const notes = sys(() => Array.from(ec.entity.find("moqui.security.user.NotificationMessage").condition("topic", "ProjectStatusUpdate").list()))
                 .filter((row) => { try { return JSON.parse(row.messageJson).workEffortId === "IRON" } catch (e) { return false } })
         // back: on track, as the demo has it
@@ -221,7 +221,7 @@ feature("the primary action moves a project along the Default flow, and a projec
 feature("the Team tab: the members with their roles and the client contacts; a member added and ended by the manager", {
     when() {
         const tab = render("apps/Projects/Projects/ProjectDetail/Team", { workEffortId: "ACME" })
-        const team = sys(() => call("ironstone.ProjectServices.get#ProjectTeam", { workEffortId: "ACME" }))
+        const team = sys(() => call("ironstone.projects.ProjectServices.get#ProjectTeam", { workEffortId: "ACME" }))
         const added = post("Projects/ProjectDetail/Team/addMember", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst" })
         const after = current("mantle.work.effort.WorkEffortParty", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst" }).length
         const ended = post("Projects/ProjectDetail/Team/endMember", { workEffortId: "ACME", partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst" })
@@ -258,7 +258,7 @@ feature("the Settings tab saves the general fields, the modules, the work item s
         const items = post("Projects/ProjectDetail/Settings/saveValues", { workEffortId: "HIRE", box: "workItems", workItemTypes: ["WepTask", "WepDocument"],
             statusFlowId: "WorkEffortDevelopment", estimateUnit: "points", shareNewItems: "Y" })
         const client = post("Projects/ProjectDetail/Settings/saveValues", { workEffortId: "HIRE", box: "clientAccess", clientSignIn: "Y" })
-        const types = sys(() => call("ironstone.ProjectServices.get#WorkItemTypes", { rootWorkEffortId: "HIRE" })).offeredList.map((row) => row.enumId)
+        const types = sys(() => call("ironstone.projects.ProjectServices.get#WorkItemTypes", { rootWorkEffortId: "HIRE" })).offeredList.map((row) => row.enumId)
         const hire = one("mantle.work.effort.WorkEffort", { workEffortId: "HIRE" })
         const saved = { modules: settingOf("HIRE", "WstModules"), types: settingOf("HIRE", "WstWorkItemTypes"), unit: settingOf("HIRE", "WstEstimateUnit"),
             share: settingOf("HIRE", "WstShareNewItems"), sprints: settingOf("HIRE", "WstSeveralSprints"), signIn: settingOf("HIRE", "WstClientSignIn"),
@@ -314,7 +314,7 @@ feature("clone and save as template make projects from ACME; an empty project is
         const copyItems = sys(() => ec.entity.find("mantle.work.effort.WorkEffort").condition("rootWorkEffortId", "BTCLONE").condition("workEffortTypeEnumId", "WetTask").count())
         const template = post("Projects/ProjectDetail/saveAsTemplate", { workEffortId: "ACME", templateWorkEffortId: "BTTPL", templateName: "BOSS_TEST Portal template" })
         const tpl = one("mantle.work.effort.WorkEffort", { workEffortId: "BTTPL" })
-        const blank = sys(() => call("ironstone.ProjectServices.create#NewProject", { workEffortId: "BTEMPTY", workEffortName: "BOSS_TEST Empty" }))
+        const blank = sys(() => call("ironstone.projects.ProjectServices.create#NewProject", { workEffortId: "BTEMPTY", workEffortName: "BOSS_TEST Empty" }))
         const notEmpty = post("Projects/ProjectDetail/Settings/deleteProject", { workEffortId: "BTCLONE" })
         const deleted = post("Projects/ProjectDetail/Settings/deleteProject", { workEffortId: "BTEMPTY" })
         return { cloned, copy, copyItems, template, tpl, blank, notEmpty, deleted, gone: one("mantle.work.effort.WorkEffort", { workEffortId: "BTEMPTY" }) == null,

@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     work in the item's project), and the CI statuses by context. Then "n files changed" and every file's diff (the moqui-diff
     table), up to 25 files, past that a file list opening each. A client contact (impl-projects.md P10b) reads a commit of a
     repository its project shares: the work items shared with it, no Link or Unlink, and no checks (the team's CI). Services:
-    ironstone.CodeServices get#CommitDetail, link#CommitItem,
+    ironstone.projects.CodeServices get#CommitDetail, link#CommitItem,
     unlink#CommitItem (org.moqui.impl.GitServices get#GitCommit, get#GitCommitDiff, get#GitCommitStatuses). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Commit" default-menu-include="false">
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="files"><default-response url="../RepositoryDetail/Files"/></transition>
     <transition name="linkItem">
         <actions>
-            <service-call name="ironstone.CodeServices.link#CommitItem" out-map="linkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.link#CommitItem" out-map="linkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="repositoryId"/><parameter name="commitId"/></default-response>
@@ -39,7 +39,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkItem">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#CommitItem" out-map="linkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#CommitItem" out-map="linkOut" in-map="{repositoryId:repositoryId, commitId:commitId, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="repositoryId"/><parameter name="commitId"/></default-response>
@@ -48,11 +48,11 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            repoAccess = codeHosting ? (ec.service.sync().name('ironstone.CodeServices.get#RepositoryAccess').parameters({repositoryId: repositoryId || ''}).call() || {}) : {}
+            repoAccess = codeHosting ? (ec.service.sync().name('ironstone.projects.CodeServices.get#RepositoryAccess').parameters({repositoryId: repositoryId || ''}).call() || {}) : {}
             recordFound = !!repoAccess.canView
             commitFound = false
             if (!recordFound) return
-            const detail = ec.service.sync().name('ironstone.CodeServices.get#CommitDetail').parameters({repositoryId: repositoryId, commitId: commitId, diffPath: diffPath || null}).call() || {}
+            const detail = ec.service.sync().name('ironstone.projects.CodeServices.get#CommitDetail').parameters({repositoryId: repositoryId, commitId: commitId, diffPath: diffPath || null}).call() || {}
             ec.message.clearErrors()
             commitFound = !!detail.found
             if (!commitFound) return

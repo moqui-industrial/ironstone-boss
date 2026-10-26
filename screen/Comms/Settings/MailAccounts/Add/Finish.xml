@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Add account step 5, finish (design-drawers-commons.md §17 MailAccounts): what was set up, and what Start syncing does.
     It makes the account active and, when it has an incoming server, starts its first sync on a worker
-    (ironstone.MailSettingsServices.finish#AccountSetup), then shows the account's page. A hosted account, or a shared one
+    (ironstone.comms.MailSettingsServices.finish#AccountSetup), then shows the account's page. A hosted account, or a shared one
     the gateway delivers, becomes active with no sync: the review says Hosted or Shared and that the gateway delivers.
     The account's page says the sync is under way when one starts, with the way to the Inbox and how far it is (the
     SyncProgress screen on the emailSyncProgress topic, here too while a sync of the account runs). -->
@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="emailAccountId"/>
 
     <transition name="finishSetup">
-        <service-call name="ironstone.MailSettingsServices.finish#AccountSetup" in-map="{emailAccountId:emailAccountId}" out-map="finishOut"/>
+        <service-call name="ironstone.comms.MailSettingsServices.finish#AccountSetup" in-map="{emailAccountId:emailAccountId}" out-map="finishOut"/>
         <actions><set field="setup" value="done"/></actions>
         <default-response url="../../Account"><parameter name="emailAccountId"/><parameter name="setup"/></default-response>
         <error-response url="."/>
@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
         hasAccount = false
         deliveredHere = false
         if (!emailAccountId) return
-        const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
+        const detail = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
         if (ec.message.hasError() || !detail?.found) { finishError = ec.message.getErrorsString(); ec.message.clearErrors(); return }
         hasAccount = true
         const account = detail.account || {}

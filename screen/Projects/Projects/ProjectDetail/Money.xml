@@ -13,16 +13,16 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- ProjectMoney (design-projects.md §4 ProjectMoney; style-guide §3.3 Detail; impl-projects.md P8b): the project's money, for those who
-    manage money (ironstone.BillingServices.check#Money: TIME_ENTRY_RATE holders and ADMIN); anyone else sees that it is theirs. Always
+    manage money (ironstone.projects.BillingServices.check#Money: TIME_ENTRY_RATE holders and ADMIN); anyone else sees that it is theirs. Always
     there (impl-projects.md F24): without the Money module the project's money is still here. The number cards: value at the client
-    rates, budget used, invoiced, unbilled, milestone shares due. The boxes (service/ironstone/BillingServices.xml get#ProjectMoney over
+    rates, budget used, invoiced, unbilled, milestone shares due. The boxes (service/ironstone/projects/BillingServices.xml get#ProjectMoney over
     mantle.work.ProjectServices.get#ProjectMoneySummary): Budget and actuals (the billing basis and the caps against the hours and their
-    value and cost, Edit for those who manage the project: ironstone.ProjectServices.save#ProjectMoney), Unbilled (the time ready and
+    value and cost, Edit for those who manage the project: ironstone.projects.ProjectServices.save#ProjectMoney), Unbilled (the time ready and
     waiting, the expenses, the milestone shares due; Create invoice: Unbilled's dialog for the project, mounted here), Milestone billing
     (each share of the order lines its milestones release, billed, due or waiting), Invoices (the client invoices), Expenses (the
     expense invoices on the project, read only: capture is People's), Commercial (the order lines it fulfils, linked to OrderDetail; Link
-    an order line, Unlink), Rates (the project's own, ironstone.ProjectServices.get#ProjectRates). Print estimate (Projects/EstimatePrint)
-    and Send estimate for approval (ironstone.BillingServices.send#Estimate: a file of the Estimate milestone, its gate asked of the
+    an order line, Unlink), Rates (the project's own, ironstone.projects.ProjectServices.get#ProjectRates). Print estimate (Projects/EstimatePrint)
+    and Send estimate for approval (ironstone.projects.BillingServices.send#Estimate: a file of the Estimate milestone, its gate asked of the
     client). The project of a transition is the tab's (projectTabId), else workEffortId (impl-projects.md F43). Material estimates and
     the agreement and opportunity behind the project are later (impl-projects.md §7). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -34,7 +34,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <transition name="saveBudget">
         <actions>
-            <service-call name="ironstone.ProjectServices.save#ProjectMoney" out-map="saveOut" in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''),
+            <service-call name="ironstone.projects.ProjectServices.save#ProjectMoney" out-map="saveOut" in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''),
                     billingBasis:billingBasis, totalTimeAllowed:totalTimeAllowed, totalClientCostAllowed:totalClientCostAllowed}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
         </actions>
@@ -43,7 +43,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="linkOrderLine">
         <actions>
-            <service-call name="ironstone.BillingServices.link#OrderLine" out-map="linkOut" in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''),
+            <service-call name="ironstone.projects.BillingServices.link#OrderLine" out-map="linkOut" in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''),
                     orderLine:orderLine, orderId:orderId, orderItemSeqId:orderItemSeqId, remove:(remove == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
@@ -52,7 +52,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="sendEstimate">
         <actions>
-            <service-call name="ironstone.BillingServices.send#Estimate" out-map="sendOut" in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''),
+            <service-call name="ironstone.projects.BillingServices.send#Estimate" out-map="sendOut" in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''),
                     depth:(depth ? Number(depth) : 2), comments:comments}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(sendOut.message, 'success')</script></if>
         </actions>
@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="orderLineSearch" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.BillingServices.search#OrderLines').parameters({workEffortId: ec.context.get('projectTabId') || workEffortId || '', term: term || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.BillingServices.search#OrderLines').parameters({workEffortId: ec.context.get('projectTabId') || workEffortId || '', term: term || ''}).call() || {}
             ec.message.clearErrors()
             ec.web.sendJsonResponse(out.optionList || [])
         ]]></script></actions>
@@ -72,7 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
         <script><![CDATA[
             if (!recordFound) return
             const L = (text) => ec.l10n.localize(text)
-            const out = ec.service.sync().name('ironstone.BillingServices.get#ProjectMoney').parameters({workEffortId: workEffortId}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.BillingServices.get#ProjectMoney').parameters({workEffortId: workEffortId}).call() || {}
             ec.message.clearErrors()
             money = out.money || null
             managesMoney = !!money
@@ -84,7 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
             lineRows = money.lineRows
             rateRows = []
             if (money.canManage) {
-                rateRows = Array.from(ec.service.sync().name('ironstone.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
+                rateRows = Array.from(ec.service.sync().name('ironstone.projects.ProjectServices.get#ProjectRates').parameters({workEffortId: workEffortId}).call()?.rateList || [])
                 ec.message.clearErrors()
             }
             const settings = ec.service.sync().name('mantle.work.ProjectServices.get#ProjectSettings').parameters({workEffortId: workEffortId}).call()?.settings || {}

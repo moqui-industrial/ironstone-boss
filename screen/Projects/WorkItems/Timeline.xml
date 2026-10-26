@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     milestones, releases and sprints as bars) and portfolio (the Projects list's timeline view: projects as bars with their
     milestones and releases). ProjectDetail mounts this screen as the Timeline of its Plan tab (design-projects.md §4
     ProjectTimeline) with the project fixed (its always-actions put it in projectTabId); here the project is rootWorkEffortId, else
-    the first the user is on. Every read and change is a JSON transition below over service/ironstone/PlanningServices.xml
+    the first the user is on. Every read and change is a JSON transition below over service/ironstone/projects/PlanningServices.xml
     (get#Timeline, move#TimelineItem, save# and remove#TimelineDependency): who sees a project sees its timeline, its team moves
     bars and makes dependencies. The terminal: TimelineTui beside this file, with Move dates and the dependency dialogs
     (impl-projects.md P11). It is the default subscreen of the Plan tab, whose level the shell loads in qvt, so it answers qvt and html too (a line that it opens in the browser app), as Comms/Inbox/Mail does. -->
@@ -33,15 +33,15 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             const fixed = ec.context.get('projectTabId') || null
             const theMode = ['items', 'plan', 'portfolio'].includes(mode) ? mode : 'items'
-            const projectOptions = fixed ? [] : Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
+            const projectOptions = fixed ? [] : Array.from(ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || [])
             // in ProjectDetail's tab the project is its workEffortId even when the user may not see it (then "not available")
             let project = fixed || rootWorkEffortId || (ec.context.get('inProjectDetail') ? workEffortId : null) || null
             if (!project && theMode === 'items') {
-                const mine = Array.from(ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])
+                const mine = Array.from(ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || [])
                 project = mine[0]?.key || projectOptions[0]?.key || null
                 if (!project) { ec.web.sendJsonResponse({projectOptions: projectOptions, noProject: true}); return }
             }
-            const out = ec.service.sync().name('ironstone.PlanningServices.get#Timeline').parameters({mode: theMode, rootWorkEffortId: project,
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#Timeline').parameters({mode: theMode, rootWorkEffortId: project,
                 list: list || null, text: text || null, purposeEnumId: purposeEnumId || null, assigneePartyId: assigneePartyId || null, sprintId: sprintId || null,
                 milestoneId: milestoneId || null, releaseId: releaseId || null, labelId: labelId || null, planList: planList || null,
                 projectList: projectList || null}).call() || {}
@@ -54,7 +54,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a drag: a bar moved or resized (a summary bar with its sub-items; auto-schedule moves the dependents) -->
     <transition name="moveItem">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.move#TimelineItem').parameters({workEffortId: itemWorkEffortId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.move#TimelineItem').parameters({workEffortId: itemWorkEffortId || '',
                 startDay: startDay ?? null, dueDay: dueDay ?? null, shiftDays: shiftDays || null, moveSubtree: moveSubtree === 'Y' || moveSubtree === 'true',
                 autoSchedule: autoSchedule === 'Y' || autoSchedule === 'true'}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {movedCount: Array.from(out.movedList || []).length, messageInfos: [{type: 'success', message: out.message}]})
@@ -64,7 +64,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- DependencyForm and a drag from a bar's end: the dependent waits for the other, with a lag -->
     <transition name="saveDependency">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.save#TimelineDependency').parameters({workEffortId: dependentId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.save#TimelineDependency').parameters({workEffortId: dependentId || '',
                 toWorkEffortId: predecessorId || '', lagDays: lagDays ?? null}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {saved: true, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -72,7 +72,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeDependency">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.remove#TimelineDependency').parameters({workEffortId: dependentId || '',
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.remove#TimelineDependency').parameters({workEffortId: dependentId || '',
                 toWorkEffortId: predecessorId || ''}).call() || {}
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {removed: true, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>

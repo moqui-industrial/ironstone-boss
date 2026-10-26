@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Import step 1, ImportSource (design-drawers-commons.md §6): the file (vCard .vcf, or CSV with the Google Contacts, Outlook
     or a generic header), its kind and character set. saveSource keeps it in the import's draft
-    (ironstone.ContactServices.save#ImportSource) and answers the importId the next steps carry. -->
+    (ironstone.commons.ContactServices.save#ImportSource) and answers the importId the next steps carry. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Source" default-menu-index="1" server-static="qvt" menu-image="sym_o_dynamic_feed" menu-image-type="icon">
 
@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="fresh"><description>Y: a new import, leaving the one in the URL</description></parameter>
 
     <transition name="saveSource">
-        <service-call name="ironstone.ContactServices.save#ImportSource" in-map="{importId:importId, contactFile:contactFile, presetId:presetId,
+        <service-call name="ironstone.commons.ContactServices.save#ImportSource" in-map="{importId:importId, contactFile:contactFile, presetId:presetId,
                 characterSet:characterSet}" out-map="sourceOut"/>
         <actions><set field="importId" from="sourceOut?.importId || importId"/></actions>
         <default-response url="."><parameter name="importId"/></default-response>
@@ -31,7 +31,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <if condition="fresh == 'Y'"><set field="importId" from="null"/></if>
-        <service-call name="ironstone.ContactServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <service-call name="ironstone.commons.ContactServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
         <set field="draft" from="draftOut.draft || {}"/>
         <set field="source" from="{importId:(draftOut.found ? importId : null), presetId:(draft.chosenPresetId || ''), characterSet:(draft.characterSet || 'UTF-8')}"/>
         <set field="hasFile" from="!!draftOut.found"/>

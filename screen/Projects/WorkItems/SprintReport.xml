@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The sprint report (design-projects.md §14; style-guide §8 Print documents), SprintDetail's Print: with renderMode=html-print a
     printed page of a sprint: its dates, goal and numbers (committed, added, removed, completed, carried over, remaining, against
     its capacity), the burndown by day against the ideal line, the items completed, the items carried over or still open, the scope
-    changes, and the velocity of the project's last sprints (ironstone.PlanningServices.get#SprintDetail,
+    changes, and the velocity of the project's last sprints (ironstone.projects.PlanningServices.get#SprintDetail,
     mantle.work.ProjectReportServices.get#SprintVelocity), every value escaped. A sibling of SprintDetail, so the page has none of
     its header; in another render mode it links to the printed page. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="workEffortId" required="true"/>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId || ''}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#SprintDetail').parameters({workEffortId: workEffortId || ''}).call() || {}
         ec.message.clearErrors()
         const L = (text) => ec.l10n.localize(text)
         const enc = (text) => String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u0022/g, '&quot;')

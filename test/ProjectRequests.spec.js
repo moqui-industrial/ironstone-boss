@@ -47,7 +47,7 @@ const one = (entityName, fields) => sys(() => ec.entity.find(entityName).conditi
 const all = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields).list()))
 const current = (entityName, fields) => sys(() => Array.from(ec.entity.find(entityName).condition(fields)
         .condition(ec.entity.conditionFactory.makeConditionDate("fromDate", "thruDate", null)).list()))
-const rows = (parameters) => sys(() => call("ironstone.ProjectRequestServices.find#ProjectRequests", Object.assign({ pageSize: 200 }, parameters || {})))
+const rows = (parameters) => sys(() => call("ironstone.projects.ProjectRequestServices.find#ProjectRequests", Object.assign({ pageSize: 200 }, parameters || {})))
 const ids = (out) => (out.rowList || []).map((row) => row.requestId)
 const byName = (name) => all("mantle.request.Request", { requestName: name })[0] || null
 

@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Requests, the list (design-drawers-commons.md §8 Requests; style-guide §3.2 List): the user's own slice of requests
-    (service/ironstone/RequestServices.xml find#RequestRows) in the lists All open, Raised by me, Assigned to me, Watching and
+    (service/ironstone/commons/RequestServices.xml find#RequestRows) in the lists All open, Raised by me, Assigned to me, Watching and
     Closed, a chip row with their counts; RequestFind narrows them (text, type, status, priority, date period); each row has
     the id, the name (the link to RequestDetail), the type, the status as a chip, the priority, the customer, the assignee and
     when it was last updated. New request is a dialog (NewRequestContainer, as quick create's request kind, which links to it
@@ -38,7 +38,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="requestDetail"><default-response url="../RequestDetail"/></transition>
     <transition name="createRequest">
         <actions>
-            <service-call name="ironstone.RequestServices.raise#Request" out-map="raiseOut" in-map="{requestName:(requestName || ''),
+            <service-call name="ironstone.commons.RequestServices.raise#Request" out-map="raiseOut" in-map="{requestName:(requestName || ''),
                     requestTypeEnumId:(requestTypeEnumId || null), priority:(priority || null), customerPartyId:(customerPartyId || null),
                     description:(description || null), responseRequiredDate:(responseRequiredDate || null), draft:(draft == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(raiseOut.message, 'success')</script></if>
@@ -86,7 +86,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (param('requestDate_from')) dateFrom = ec.l10n.parseTimestamp(param('requestDate_from').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS')
                 if (param('requestDate_thru')) dateThru = new Date(Number(String(ec.l10n.parseTimestamp(param('requestDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
-            const out = ec.service.sync().name('ironstone.RequestServices.find#RequestRows').parameters({list: list, text: text || null,
+            const out = ec.service.sync().name('ironstone.commons.RequestServices.find#RequestRows').parameters({list: list, text: text || null,
                 requestTypeEnumId: requestTypeEnumId || null, statusId: statusId || null, priority: priority || null, dateFrom: dateFrom, dateThru: dateThru,
                 orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 25}).call() || {}
             requestRows = Array.from(out.rowList || [])

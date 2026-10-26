@@ -358,9 +358,9 @@ feature("the contact info shows each kind's primary first, as Mantle's get#Party
             }
         })
         // the service as the screen calls it (its explicit personal-contact condition holds with authorization off too), and the screen
-        const rec = sys(() => call("ironstone.ContactServices.get#ContactRecord", { partyId: ID }))
+        const rec = sys(() => call("ironstone.commons.ContactServices.get#ContactRecord", { partyId: ID }))
         const shown = detail(ID)
-        const joe = as("joe.developer", () => ({ rec: sys(() => call("ironstone.ContactServices.get#ContactRecord", { partyId: ID })), shown: detail(ID) }))
+        const joe = as("joe.developer", () => ({ rec: sys(() => call("ironstone.commons.ContactServices.get#ContactRecord", { partyId: ID })), shown: detail(ID) }))
         return { rec, shown, joe }
     },
     then({ rec, shown, joe }) {
@@ -545,7 +545,7 @@ feature("an old BOSS not-a-duplicate setting moves to PartyNotDuplicate on a loa
             <mantle.party.PartySettingType partySettingTypeId="BossNotDuplicates" description="Not duplicates of (IronStone Contacts)"/>
             <mantle.party.PartySetting partyId="ORG_ACME_BA" partySettingTypeId="BossNotDuplicates" settingValue="ORG_ACME_SA,NO_SUCH_PARTY"/>
         </entity-facade-xml>`).load())
-        const out = sys(() => call("ironstone.ContactServices.migrate#NotDuplicateSettings", {}))
+        const out = sys(() => call("ironstone.commons.ContactServices.migrate#NotDuplicateSettings", {}))
         const [low, high] = ["ORG_ACME_BA", "ORG_ACME_SA"].sort()
         return { out, decision: one("mantle.party.PartyNotDuplicate", { partyId: low, otherPartyId: high }),
             setting: one("mantle.party.PartySetting", { partyId: "ORG_ACME_BA", partySettingTypeId: "BossNotDuplicates" }),

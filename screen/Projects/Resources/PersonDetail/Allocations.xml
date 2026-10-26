@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- PersonDetail's Allocations (design-projects.md §9 PersonDetail): the person's allocations on the projects the viewer sees, still
     requested or allocated, then the past and the decided ones (mantle.work.ResourceServices.find#Allocations by partyId through
-    ironstone.ResourceServices find#AllocationRows); Edit opens EditAllocation for one the viewer may change, the list opens
+    ironstone.projects.ResourceServices find#AllocationRows); Edit opens EditAllocation for one the viewer may change, the list opens
     Allocations on the person. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Allocations" default-menu-index="2" menu-image="sym_o_group_work" menu-image-type="icon">
@@ -22,7 +22,7 @@ along with this software (see the LICENSE.md file). If not, see
     <actions><script><![CDATA[
         allocationRows = []
         if (!personFound) return
-        const out = ec.service.sync().name('ironstone.ResourceServices.find#AllocationRows').parameters({list: 'all', partyId: partyId}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.ResourceServices.find#AllocationRows').parameters({list: 'all', partyId: partyId}).call() || {}
         ec.message.clearErrors()
         const rows = Array.from(out.rowList || [])
         const rank = (row) => row.isOpen ? 0 : 1

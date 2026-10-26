@@ -1,4 +1,4 @@
-// Projects (screen/Projects/Projects/List.xml, service/ironstone/ProjectServices.xml find#Projects, bulk#Projects and
+// Projects (screen/Projects/Projects/List.xml, service/ironstone/projects/ProjectServices.xml find#Projects, bulk#Projects and
 // set#ProjectStatus; design-projects.md §4 Projects; impl-projects.md P2) on the Projects demo (data/BossProjectsDemoData.xml):
 // the chips and the find over the projects the user sees, not templates (Joe Developer not HIRE, impl-projects.md F1), each row
 // decorated (client, manager, health, items, hours, next milestone); the sub-projects under their program; the list in qvt with
@@ -33,7 +33,7 @@ function as(username, run) {
 const one = (entityName, fields) => sys(() => ec.entity.find(entityName).condition(fields).one())
 // a status set as it was, past the flow (the framework checks a status change against the flows)
 const setStatus = (workEffortId, statusId) => sys(() => { const row = ec.entity.find("mantle.work.effort.WorkEffort").condition("workEffortId", workEffortId).one(); row.statusId = statusId; row.update() })
-const rows = (parameters) => sys(() => call("ironstone.ProjectServices.find#Projects", Object.assign({ pageSize: 200 }, parameters || {})))
+const rows = (parameters) => sys(() => call("ironstone.projects.ProjectServices.find#Projects", Object.assign({ pageSize: 200 }, parameters || {})))
 // the demo's projects (this component's data files), not those another spec made, here or in another component's run before
 const demoProjects = new Set()
 for (const fileRef of ec.resource.getLocationReference("component://mr-boss/data").getDirectoryEntries())

@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- ProjectDetail's Hours for a client (design-projects.md §4 ProjectTime, client users; impl-projects.md P10b): the team's hours on
     the project's work items shared with the client, by week and work item, with the totals by item, when the project shares its
-    hours with the client (WstShareHours); never who, a rate, an amount, a comment or a timesheet (ironstone.TimeServices
+    hours with the client (WstShareHours); never who, a rate, an amount, a comment or a timesheet (ironstone.projects.TimeServices
     get#ClientHours decides and reads; a project that does not share them says so and reads nothing). The internal Time tab
     (Time/TimeEntries) is refused a client. Mounted as the tab ClientHours ("Hours") by a moqui.screen.SubscreensItem row of
     data/BossSetupData.xml limited to BOSS_PROJECT_CLIENT, which replaces this file's own item, so no internal user opens or lists
@@ -23,7 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
         default-menu-title="Hours" default-menu-index="10" default-menu-include="false">
 
     <actions>
-        <service-call name="ironstone.TimeServices.get#ClientHours" in-map="{workEffortId:(projectTabId || '')}" out-map="hoursOut"/>
+        <service-call name="ironstone.projects.TimeServices.get#ClientHours" in-map="{workEffortId:(projectTabId || '')}" out-map="hoursOut"/>
         <script><![CDATA[
             ec.message.clearErrors()
             clientHours = hoursOut.clientHours || {shared: false, weekRows: [], itemRows: []}

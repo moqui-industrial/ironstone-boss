@@ -1,4 +1,4 @@
-// The Comms Inbox (screen/Comms/Inbox/Mail.xml and Mail.qvue, service/ironstone/InboxServices.xml, impl-drawers-commons.md M5b):
+// The Comms Inbox (screen/Comms/Inbox/Mail.xml and Mail.qvue, service/ironstone/comms/InboxServices.xml, impl-drawers-commons.md M5b):
 // the JSON transitions the client calls under the Comms app root, as john.doe, on the mail demo (data/BossMailDemoData.xml,
 // MailDemoServices.load#MailDemo, loaded again here so this spec sees it as loaded whatever ran before). The rail data; each
 // view over both stores (Unified, flagged, snoozed, scheduled, drafts, sent, archive, spam, outbox, the Internal account,
@@ -33,7 +33,7 @@ const targets = (list) => JSON.stringify(list)
 
 spec({
     setupSpec() {
-        sys(() => call("ironstone.MailDemoServices.load#MailDemo", {}))
+        sys(() => call("ironstone.comms.MailDemoServices.load#MailDemo", {}))
         login("john.doe")
     },
     cleanupSpec() { login("john.doe") },
@@ -314,8 +314,8 @@ feature("a message is linked to a record and taken off it, a task starts from a 
 
 feature("the palette's Messages group finds threads and mailboxes, and MessageDetail shows a message with its source", {
     when() {
-        const rows = sys(() => call("ironstone.InboxServices.search#Messages", { text: "onboarding", limit: 5 })).rows
-        const boxes = sys(() => call("ironstone.InboxServices.search#Messages", { text: "Office", limit: 5 })).rows
+        const rows = sys(() => call("ironstone.comms.InboxServices.search#Messages", { text: "onboarding", limit: 5 })).rows
+        const boxes = sys(() => call("ironstone.comms.InboxServices.search#Messages", { text: "Office", limit: 5 })).rows
         const detail = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { emailMessageId: "BOSS_DEMO_MAIL_ACME1", lastStandalone: "-2" }, null)
         const internal = ec.screen.makeTest().rootScreen(comms).renderMode("qvt").withStaticData().render("Inbox/MessageDetail", { communicationEventId: "BOSS_DEMO_MAIL_IM1", lastStandalone: "-2" }, null)
         ec.message.clearErrors()

@@ -1,5 +1,5 @@
 // The Projects settings pages (screen/Projects/Settings/Index.xml, WorkItemTypes.xml, Workflows.xml, Labels.xml, Templates.xml;
-// service/ironstone/ProjectServices.xml; design-projects.md §12; impl-projects.md P2) on the Projects demo
+// service/ironstone/projects/ProjectServices.xml; design-projects.md §12; impl-projects.md P2) on the Projects demo
 // (data/BossProjectsDemoData.xml, Ziziwork Services' settings): the index; the work item types offered, their order and icons
 // and a type of the organization's own, which QuickCreate then offers; a move of the Development flow added and removed and a
 // status's color set and cleared; labels made, renamed, merged and deleted; templates listed and made. The team may change none.
@@ -28,7 +28,7 @@ function as(username, run) {
     try { return run() } finally { login("john.doe") }
 }
 const one = (entityName, fields) => sys(() => ec.entity.find(entityName).condition(fields).one())
-const types = (rootWorkEffortId) => sys(() => call("ironstone.ProjectServices.get#WorkItemTypes", rootWorkEffortId ? { rootWorkEffortId } : {}))
+const types = (rootWorkEffortId) => sys(() => call("ironstone.projects.ProjectServices.get#WorkItemTypes", rootWorkEffortId ? { rootWorkEffortId } : {}))
 
 // takes out what the spec made (projects with their items and links, or single items), so the specs after it (Commons' task
 // lists, WorkItems) see the demo as it was
@@ -92,7 +92,7 @@ feature("the work item types: stop offering one, move one up, set an icon and ad
         // QuickCreate is server-static (impl-projects.md P11): its qvt template holds every kind's form, so the offered types are
         // read from the server's merge (html)
         const quick = render("apps/Projects/QuickCreate", { kind: "workItem", rootWorkEffortId: "IRON" }, "html")
-        const byJoe = as("joe.developer", () => sys(() => { try { call("ironstone.ProjectServices.store#WorkItemTypes", { offered: ["WepTask"] }); return null }
+        const byJoe = as("joe.developer", () => sys(() => { try { call("ironstone.projects.ProjectServices.store#WorkItemTypes", { offered: ["WepTask"] }); return null }
             catch (e) { ec.message.clearErrors(); return String(e.message) } }))
         // back: the organization's setting as the demo had it (none)
         sys(() => ec.entity.find("mantle.party.PartySetting").condition({ partyId: "ORG_ZIZI_SERVICES", partySettingTypeId: "ProjWorkItemTypes" }).deleteAll())

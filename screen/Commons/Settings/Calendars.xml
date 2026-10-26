@@ -18,7 +18,7 @@ along with this software (see the LICENSE.md file). If not, see
     Stop sharing, Export .ics and Delete (not the default); the subscriptions to calendar feeds (Subscriptions: address, refresh,
     last fetch and its status or error, Fetch now, Unsubscribe) with Subscribe; and Import .ics into a calendar the user may
     change. Everything goes through mantle.work.CalendarServices, which checks the user's permission on each calendar
-    (ironstone.CalendarServices.get#CalendarSettings reads the shares only of the calendars the user manages: IronStone R21).
+    (ironstone.commons.CalendarServices.get#CalendarSettings reads the shares only of the calendars the user manages: IronStone R21).
     CalDavInfo: the CalDAV address of the user's calendars and of each one (org.moqui.impl.DavServices.get#SyncAddresses), for a
     phone or a desktop app logged in with an app password (Settings, Sync). Google and Microsoft 365 accounts come later. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="fetchNow">
         <actions>
-            <service-call name="ironstone.CalendarServices.fetch#SubscriptionNow" in-map="{calendarId:calendarId}" out-map="fetchOut"/>
+            <service-call name="ironstone.commons.CalendarServices.fetch#SubscriptionNow" in-map="{calendarId:calendarId}" out-map="fetchOut"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(fetchOut.message, fetchOut.status == 'ok' ? 'success' : 'warning')</script></if>
         </actions>
         <default-response url="."/>
@@ -90,7 +90,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a calendar as an .ics download -->
     <transition name="exportCalendar" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.CalendarServices.export#CalendarFile').parameters({calendarId: calendarId || ''}).call()
+            const out = ec.service.sync().name('ironstone.commons.CalendarServices.export#CalendarFile').parameters({calendarId: calendarId || ''}).call()
             if (!ec.message.hasError() && out?.location) ec.web.sendResourceResponse(out.location, false)
             else ec.web.sendJsonResponse({})
         ]]></script></actions>
@@ -99,14 +99,14 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the users of the share dialog -->
     <transition name="searchUsers" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.shared.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.userList || []).filter((user) =&gt; user.value != ec.user.userId).map((user) =&gt; ({value: user.value, label: user.label})))</script>
         </actions>
         <default-response type="none"/>
     </transition>
 
     <actions>
-        <service-call name="ironstone.CalendarServices.get#CalendarSettings" out-map="settings"/>
+        <service-call name="ironstone.commons.CalendarServices.get#CalendarSettings" out-map="settings"/>
         <service-call name="org.moqui.impl.DavServices.get#SyncAddresses" out-map="syncAddresses"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)

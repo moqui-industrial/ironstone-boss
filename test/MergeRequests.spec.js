@@ -1,7 +1,7 @@
 // Merge requests and review in IronStone Projects (screen/Projects/Code/MergeRequests.xml, MergeRequestDetail with Overview,
 // Commits and Changes (a .qvue with ChangesTui), RepositoryDetail's Merge requests tab, the Development tab of WorkItemDetail and
-// Home's reviews waiting; service/ironstone/CodeServices.xml; design-projects.md §7, §5, §3; impl-projects.md P3b2) on the code
-// demo (service/ironstone/CodeDemoServices.xml: !1 of iron, IRON-3-expand-collapse into main by joe.developer, john.doe asked to
+// Home's reviews waiting; service/ironstone/projects/CodeServices.xml; design-projects.md §7, §5, §3; impl-projects.md P3b2) on the code
+// demo (service/ironstone/projects/CodeDemoServices.xml: !1 of iron, IRON-3-expand-collapse into main by joe.developer, john.doe asked to
 // review; IRON-7-timer with a failed check): the list by chip and by who may view what, the detail and its tabs, the review
 // threads (a line comment, a reply, resolve and reopen), a review, reviewers added and removed, work items linked and unlinked,
 // the draft and close moves, the Development tab with a branch made for a work item, and Home. The usable-when walk of P3b is
@@ -100,15 +100,15 @@ spec({
 
 feature("MergeRequests: the waiting chip first for john.doe, the chips' counts, the find, and RepositoryDetail's tab with the repository fixed", {
     when() {
-        const john = sys(() => call("ironstone.CodeServices.find#MergeRequests", {}))
+        const john = sys(() => call("ironstone.projects.CodeServices.find#MergeRequests", {}))
         const page = render("apps/Projects/Code/MergeRequests")
         const open = render("apps/Projects/Code/MergeRequests", { list: "open" })
         const found = render("apps/Projects/Code/MergeRequests", { list: "all", text: "collapse" })
         const none = render("apps/Projects/Code/MergeRequests", { list: "all", text: "nothing like this" })
         const tab = render("apps/Projects/Code/RepositoryDetail/MergeRequests", { repositoryId: "iron", list: "all" })
         const acmeTab = render("apps/Projects/Code/RepositoryDetail/MergeRequests", { repositoryId: "acme-portal", list: "all" })
-        const joe = as("joe.developer", () => sys(() => call("ironstone.CodeServices.find#MergeRequests", {})))
-        const bobAcme = as("bob.developer", () => sys(() => call("ironstone.CodeServices.find#MergeRequests", { list: "all", repositoryId: "acme-portal" })))
+        const joe = as("joe.developer", () => sys(() => call("ironstone.projects.CodeServices.find#MergeRequests", {})))
+        const bobAcme = as("bob.developer", () => sys(() => call("ironstone.projects.CodeServices.find#MergeRequests", { list: "all", repositoryId: "acme-portal" })))
         return { john, page, open, found, none, tab, acmeTab, joe, bobAcme }
     },
     then({ john, page, open, found, none, tab, acmeTab, joe, bobAcme }) {
@@ -193,8 +193,8 @@ feature("review threads: john comments on a line of src/tree.js, joe replies, jo
         const reopened = json("Code/MergeRequestDetail/Changes/resolveThread", { mergeRequestId: mrId, communicationEventId: threadId, resolved: "false" }, "post")
         const afterReopen = json("Code/MergeRequestDetail/Changes/changes", { mergeRequestId: mrId }).json?.changes
         const bobComment = as("bob.developer", () => json("Code/MergeRequestDetail/Changes/comment", { mergeRequestId: mrId, body: "bob was here" }, "post"))
-        const timeline = sys(() => call("ironstone.ChatterServices.get#Timeline", { recordEntityName: "moqui.resource.GitMergeRequest", recordId: mrId }))
-        const list = sys(() => call("ironstone.CodeServices.find#MergeRequests", { list: "all", repositoryId: "iron" }))
+        const timeline = sys(() => call("ironstone.shared.ChatterServices.get#Timeline", { recordEntityName: "moqui.resource.GitMergeRequest", recordId: mrId }))
+        const list = sys(() => call("ironstone.projects.CodeServices.find#MergeRequests", { list: "all", repositoryId: "iron" }))
         return { commented, threadId, replied, resolved, afterResolve, reopened, afterReopen, bobComment, timeline, list }
     },
     then({ commented, threadId, replied, resolved, afterResolve, reopened, afterReopen, bobComment, timeline, list }) {
@@ -222,7 +222,7 @@ feature("reviewers and the review: john asks bob, removes him; joe may not appro
         const withoutBob = sys(() => ec.entity.find("moqui.resource.GitMergeRequestReviewer").condition({ mergeRequestId: mrId, userId: "ORG_ZIZI_BD" }).count())
         const ownApproval = as("joe.developer", () => json("Code/MergeRequestDetail/Changes/submitReview", { mergeRequestId: mrId, decision: "approve" }, "post"))
         const changes = json("Code/MergeRequestDetail/Changes/submitReview", { mergeRequestId: mrId, decision: "request_changes", note: "One question on the key" }, "post")
-        const afterChanges = sys(() => call("ironstone.CodeServices.find#MergeRequests", {}))
+        const afterChanges = sys(() => call("ironstone.projects.CodeServices.find#MergeRequests", {}))
         const approved = post("Code/MergeRequestDetail/submitReview", { mergeRequestId: mrId, decision: "approve", note: "Looks good" })
         const overview = render("apps/Projects/Code/MergeRequestDetail/Overview", { mergeRequestId: mrId })
         const joeHeader = as("joe.developer", () => render("apps/Projects/Code/MergeRequestDetail", { mergeRequestId: mrId }, "qvt", "2"))
@@ -288,10 +288,10 @@ feature("WorkItemDetail's Development tab: IRON-3's branch, merge request and co
     when() {
         const iron3 = render("apps/Projects/WorkItems/WorkItemDetail", { workEffortId: "IRON-3", tab: "development" })
         const overview = render("apps/Projects/WorkItems/WorkItemDetail", { workEffortId: "IRON-3" })
-        const dev = sys(() => call("ironstone.CodeServices.get#WorkItemDevelopment", { workEffortId: "IRON-3" }).development)
+        const dev = sys(() => call("ironstone.projects.CodeServices.get#WorkItemDevelopment", { workEffortId: "IRON-3" }).development)
         const made = post("WorkItems/WorkItemDetail/createBranch", { workEffortId: "IRON-10", repositoryId: "iron", branchName: "IRON-10-mr-spec" })
         settle()
-        const iron10 = sys(() => call("ironstone.CodeServices.get#WorkItemDevelopment", { workEffortId: "IRON-10" }).development)
+        const iron10 = sys(() => call("ironstone.projects.CodeServices.get#WorkItemDevelopment", { workEffortId: "IRON-10" }).development)
         const page10 = render("apps/Projects/WorkItems/WorkItemDetail", { workEffortId: "IRON-10", tab: "development" })
         const otherRepo = post("WorkItems/WorkItemDetail/createBranch", { workEffortId: "IRON-10", repositoryId: "acme-portal", branchName: "IRON-10-mr-spec-2" })
         const commons = render("apps/Commons/Tasks/TaskDetail", { workEffortId: "IRON-3", tab: "development" })

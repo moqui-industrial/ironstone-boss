@@ -15,12 +15,12 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- NotificationSettings (design-drawers-commons.md §11; style-guide §3.9 Settings): the notification topics the user can set,
     the framework's that are not private and the notification-topic providers of the apps the user may open (from the shell
     data), by inbox; each an editable row of in app, email and daily digest, saved as the user's NotificationTopicUser
-    (ironstone.CommonsServices.get#NotificationTopicRows, store#TopicSetting). -->
+    (ironstone.commons.CommonsServices.get#NotificationTopicRows, store#TopicSetting). -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Notifications" default-menu-index="3" menu-image="sym_o_notifications" menu-image-type="icon">
 
     <transition name="storeTopic">
-        <service-call name="ironstone.CommonsServices.store#TopicSetting"
+        <service-call name="ironstone.commons.CommonsServices.store#TopicSetting"
                 in-map="{topic:topic, receiveNotifications:receiveNotifications, emailNotifications:emailNotifications, digest:digest}"/>
         <actions><message type="success">Saved</message></actions>
         <default-response url="."/>
@@ -45,7 +45,7 @@ along with this software (see the LICENSE.md file). If not, see
             for (let hour = 0; hour < 24; hour++)
                 digestHourOptions.push({hour: String(hour), label: (hour < 10 ? '0' : '') + hour + ':00'})
         ]]></script>
-        <service-call name="ironstone.CommonsServices.get#NotificationTopicRows" in-map="{providerTopics:providerTopics}" out-map="context"/>
+        <service-call name="ironstone.commons.CommonsServices.get#NotificationTopicRows" in-map="{providerTopics:providerTopics}" out-map="context"/>
     </actions>
 
     <widgets>

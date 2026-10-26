@@ -245,13 +245,14 @@ along with this software (see the LICENSE.md file). If not, see
         <artifacts artifactName="component://mr-boss/screen/(Commons|Comms)(\.xml|/.*)"
                 artifactTypeEnumId="AT_XML_SCREEN" nameIsPattern="Y" inheritAuthz="Y"/>
         <!-- every write of an IronStone app service, by its verb: every verb but the reads (get, find, search, check, clean, decorate,
-            describe, list, lookup, match, parse, suggest), which test/ClientIsolation.spec.js checks against every service file. The
-            client's own writes are ironstone.client.ClientServices (impl-projects.md P10b), a package level below, so not in this
-            pattern: each checks the client's access itself -->
-        <artifacts artifactName="ironstone\.[A-Za-z]+\.(add|apply|approve|archive|attach|book|bulk|cancel|change|clockIn|clockOut|clone|close|comment|complete|convert|copy|create|decide|delete|discard|drop|duplicate|edit|end|export|fetch|file|finish|follow|generate|import|invoice|join|link|load|log|make|mark|merge|migrate|move|open|place|post|prepare|publish|quickAdd|raise|rank|reassign|record|refuse|release|remove|rename|reopen|reply|request|reschedule|resolve|respond|restore|return|run|save|schedule|send|set|setup|share|staff|start|stop|store|submit|sync|test|toggle|trash|triage|turnOn|unfollow|unlink|unsubscribe|update|upload|use)#.*"
+            describe, list, lookup, match, parse, suggest), which test/ClientWrites.spec.js checks against every service file. The
+            pattern names the app packages and any depth under them. A new app directory is not denied until its name is added here.
+            The client's own writes are ironstone.client.ClientServices (impl-projects.md P10b), and client is not in the list, so
+            not in this pattern: each checks the client's access itself -->
+        <artifacts artifactName="ironstone\.(commons|comms|projects|shared)(\.[A-Za-z]+)+\.(add|apply|approve|archive|attach|book|bulk|cancel|change|clockIn|clockOut|clone|close|comment|complete|convert|copy|create|decide|delete|discard|drop|duplicate|edit|end|export|fetch|file|finish|follow|generate|import|invoice|join|link|load|log|make|mark|merge|migrate|move|open|place|post|prepare|publish|quickAdd|raise|rank|reassign|record|refuse|release|remove|rename|reopen|reply|request|reschedule|resolve|respond|restore|return|run|save|schedule|send|set|setup|share|staff|start|stop|store|submit|sync|test|toggle|trash|triage|turnOn|unfollow|unlink|unsubscribe|update|upload|use)#.*"
                 artifactTypeEnumId="AT_SERVICE" nameIsPattern="Y" inheritAuthz="Y"/>
         <!-- and the searches of the edit forms (people, records, work items and plan items to pick), which list beyond the client's part -->
-        <artifacts artifactName="ironstone\.(InboxServices\.search#LinkRecords|ChatterServices\.search#Users|TaskServices\.search#Assignees|ProjectRequestServices\.search#WorkItemOptions|WorkItemServices\.search#ParentOptions|PlanningServices\.search#PlanItemCandidates)"
+        <artifacts artifactName="ironstone\.(comms\.InboxServices\.search#LinkRecords|shared\.ChatterServices\.search#Users|commons\.TaskServices\.search#Assignees|projects\.ProjectRequestServices\.search#WorkItemOptions|projects\.WorkItemServices\.search#ParentOptions|projects\.PlanningServices\.search#PlanItemCandidates)"
                 artifactTypeEnumId="AT_SERVICE" nameIsPattern="Y" inheritAuthz="Y"/>
         <authz artifactAuthzId="BOSS_PROJECTS_INTERNAL_CLIENT" userGroupId="BOSS_PROJECT_CLIENT" authzTypeEnumId="AUTHZT_DENY" authzActionEnumId="AUTHZA_ALL"/>
     </artifactGroups>
@@ -273,7 +274,7 @@ along with this software (see the LICENSE.md file). If not, see
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_CLIENT" userPermissionId="PROJECT_CLIENT" fromDate="0"/>
     <!-- a client's Hours tab of ProjectDetail (impl-projects.md P10b; design-projects.md §4 ProjectTime): for the client group only,
         replacing the file's own item, so no internal user lists or opens it; the project's hours by week and work item when it
-        shares them, without rates (ironstone.TimeServices.get#ClientHours) -->
+        shares them, without rates (ironstone.projects.TimeServices.get#ClientHours) -->
     <moqui.screen.SubscreensItem screenLocation="component://mr-boss/screen/Projects/Projects/ProjectDetail.xml" subscreenName="ClientHours"
             userGroupId="BOSS_PROJECT_CLIENT" subscreenLocation="component://mr-boss/screen/Projects/Projects/ProjectDetail/ClientHours.xml"
             menuTitle="Hours" menuIndex="10" menuInclude="Y"/>
@@ -283,7 +284,7 @@ along with this software (see the LICENSE.md file). If not, see
         withheld from them and the model calls refused), whatever get#RecordLinkInfo says of a record -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_CLIENT" userPermissionId="EXTERNAL_USER" fromDate="0"/>
     <!-- Projects' link of the WorkItemAssigned topic that Mantle seeds and sends (mantle.work.TaskServices.notify#TaskAssigned): the
-        work item in Projects, for the email; the tray opens the record's screen (ironstone.PaletteServices.get#RecordLink) -->
+        work item in Projects, for the email; the tray opens the record's screen (ironstone.commons.PaletteServices.get#RecordLink) -->
     <moqui.security.user.NotificationTopic topic="WorkItemAssigned" linkTemplate="/qapps/Projects/WorkItems/WorkItemDetail?workEffortId=${workEffortId}"/>
     <!-- and of ProjectStatusUpdate (mantle.work.ProjectServices.post#ProjectUpdate): the project's overview -->
     <moqui.security.user.NotificationTopic topic="ProjectStatusUpdate" linkTemplate="/qapps/Projects/Projects/ProjectDetail?workEffortId=${workEffortId}"/>
@@ -350,7 +351,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Projects managers set milestone gates, send estimates and record a client's decision on a gate for the projects they see
         (mantle.work.ProjectServices, impl-projects.md P8b); until client users sign in (P10) the client's approval is recorded so -->
     <moqui.security.UserGroupPermission userGroupId="BOSS_PROJECT_MANAGER" userPermissionId="MILESTONE_APPROVE" fromDate="0"/>
-    <!-- a client invoice by email (ironstone.BillingServices.send#Invoice, impl-projects.md P8a): from the vendor's billing address, the
+    <!-- a client invoice by email (ironstone.projects.BillingServices.send#Invoice, impl-projects.md P8a): from the vendor's billing address, the
         subject, the body and the PDF passed by the service (subject, fromAddress, fromName in bodyParameters) -->
     <moqui.basic.email.EmailTemplate emailTemplateId="BOSS_PROJECT_INVOICE" description="Project Client Invoice" emailServerId="SYSTEM"
             fromAddress="${fromAddress}" fromName="${fromName}" ccAddresses="" bccAddresses="" subject="${subject}" sendPartial="Y"/>
@@ -395,18 +396,18 @@ along with this software (see the LICENSE.md file). If not, see
         An existing database needs this row loaded (the STRT_AVATAR_URL enumeration comes with the framework seed). -->
     <moqui.screen.ScreenThemeResource screenThemeId="DEFAULT_QUASAR" sequenceNum="311" resourceTypeEnumId="STRT_AVATAR_URL"
             resourceValue="/apps/Commons/Settings/Account/userPhoto?userId=${userId}"/>
-    <!-- the do not disturb hours of Comms Settings, Chat (ironstone.ChatServices.apply#DndHours). A success is not kept:
+    <!-- the do not disturb hours of Comms Settings, Chat (ironstone.comms.ChatServices.apply#DndHours). A success is not kept:
         the user's hours are the record. -->
     <moqui.service.job.ServiceJob jobName="apply_ChatDndHours" description="Do not disturb hours of the chat users (IronStone)"
-            serviceName="ironstone.ChatServices.apply#DndHours" cronExpression="0 */5 * * * ?" paused="N"
+            serviceName="ironstone.comms.ChatServices.apply#DndHours" cronExpression="0 */5 * * * ?" paused="N"
             errorHistoryOnly="Y"/>
     <!-- Contacts (design-drawers-commons.md §6, impl M4): contact admins change and delete directory contacts and review the
         duplicates (Commons/Contacts/Duplicates), with Mantle's CONTACT_ADMIN permission (which the ADMIN group has too). A pair
         a contact admin marks "not a duplicate" is Mantle's PartyNotDuplicate; the PartySetting BossNotDuplicates that held such
-        pairs before is moved to it on a load (ironstone.ContactServices.migrate#NotDuplicateSettings, nothing to do once done). -->
+        pairs before is moved to it on a load (ironstone.commons.ContactServices.migrate#NotDuplicateSettings, nothing to do once done). -->
     <moqui.security.UserGroup userGroupId="BOSS_CONTACT_ADMIN" description="Contact admins (IronStone): edit and delete directory contacts, review duplicates"/>
     <moqui.security.UserGroupPermission userGroupId="BOSS_CONTACT_ADMIN" userPermissionId="CONTACT_ADMIN" fromDate="0"/>
-    <ironstone.ContactServices.migrate-NotDuplicateSettings/>
+    <ironstone.commons.ContactServices.migrate-NotDuplicateSettings/>
 
     <!-- Files (design-drawers-commons.md §9 Records, impl-drawers-commons.md M8, R25): the Records drive, a view over the record
         attachment folders Mantle's save#*ContentFile services write under the mantle.content.root preference (the default

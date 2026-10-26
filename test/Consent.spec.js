@@ -1,4 +1,4 @@
-// Comms Consent (screen/Comms/Consent/List.xml and Contact.xml, template/ConsentRecord.xml, service/ironstone/ConsentServices.xml;
+// Comms Consent (screen/Comms/Consent/List.xml and Contact.xml, template/ConsentRecord.xml, service/ironstone/comms/ConsentServices.xml;
 // design-drawers-commons.md §16 Consent; impl-drawers-commons.md M11) and the Consent tab of the contact record
 // (template/ContactRecord.xml, §6 ContactDetail), on the consent demo (data/BossConsentDemoData.xml): the registry with its
 // rows, chips and filters, the export of every match and of one contact's history for a data request, recording a consent with
@@ -187,8 +187,8 @@ feature("anyone but a contact admin: the screens say so, and the transitions and
             const csv = post(comms, "Consent/List/exportCsv", {})
             const history = post(comms, "Consent/Contact/consentHistoryExport", { partyId: ALEX })
             // the services themselves, with authorization off so their own check is what refuses
-            const find = sys(() => errorOf("ironstone.ConsentServices.find#Consents", {}))
-            const state = sys(() => call("ironstone.ConsentServices.get#ContactConsent", { partyId: ALEX, includeHistory: true }))
+            const find = sys(() => errorOf("ironstone.comms.ConsentServices.find#Consents", {}))
+            const state = sys(() => call("ironstone.comms.ConsentServices.get#ContactConsent", { partyId: ALEX, includeHistory: true }))
             return { before, after: consents(ALEX).length, shown, page, recorded, csv, history, find, state,
                 news: statusOf(LIST_NEWS, ALEX) }
         })

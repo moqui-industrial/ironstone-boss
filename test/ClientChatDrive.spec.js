@@ -324,9 +324,9 @@ feature("a client gets no records drive among its drives (the WebDAV and SFTP ho
 feature("RecordFiles' drive download and versions refuse a client", {
     when() {
         return as(SHELDON, () => {
-            const file = service("ironstone.RecordFilesServices.get#RecordDriveFile", { recordEntityName: "mantle.work.effort.WorkEffort",
+            const file = service("ironstone.shared.RecordFilesServices.get#RecordDriveFile", { recordEntityName: "mantle.work.effort.WorkEffort",
                 recordId: "ACME-1", drivePath: DRIVE_FILE })
-            const versions = service("ironstone.RecordFilesServices.get#RecordFileVersions", { recordEntityName: "mantle.work.effort.WorkEffort",
+            const versions = service("ironstone.shared.RecordFilesServices.get#RecordFileVersions", { recordEntityName: "mantle.work.effort.WorkEffort",
                 recordId: "ACME-1", drivePath: DRIVE_FILE })
             const download = hit("Projects/RecordFiles/driveDownload", { recordEntity: "mantle.work.effort.WorkEffort", recordId: "ACME-1", drivePath: DRIVE_FILE })
             return { location: file.location ?? null, fileErrors: file._errors, versions: (versions.versionList || []).length,

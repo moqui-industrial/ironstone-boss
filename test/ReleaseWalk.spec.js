@@ -220,8 +220,8 @@ feature("joe releases 1.0: a tag v1.0 at main, the unfinished item out of any re
         settle()
         const detail = as("joe.developer", () => render("apps/Projects/Projects/ReleaseDetail", { workEffortId: "RLW-REL-1" }))
         const roadmap = as("joe.developer", () => render("apps/Projects/Projects/Roadmap", { list: "completed", kind: "release" }))
-        const link = sys(() => call("ironstone.PaletteServices.get#RecordLink", { recordEntityName: "mantle.work.effort.WorkEffort", id: "RLW-REL-1" }))
-        const msLink = sys(() => call("ironstone.PaletteServices.get#RecordLink", { recordEntityName: "mantle.work.effort.WorkEffort", id: "RLW-MS-1" }))
+        const link = sys(() => call("ironstone.commons.PaletteServices.get#RecordLink", { recordEntityName: "mantle.work.effort.WorkEffort", id: "RLW-REL-1" }))
+        const msLink = sys(() => call("ironstone.commons.PaletteServices.get#RecordLink", { recordEntityName: "mantle.work.effort.WorkEffort", id: "RLW-MS-1" }))
         return { released, detail, roadmap, link, msLink, release: we("RLW-REL-1"), open: releaseOf("RLW-3"),
             refs: sys(() => Array.from(ec.entity.find("mantle.work.effort.WorkEffortGitRef").condition({ workEffortId: "RLW-REL-1", repositoryId: REPO }).list()).map((row) => row.refName)) }
     },

@@ -446,7 +446,7 @@ Built Oct 19 (M5e and the settings screens):
   status through `set#TaskStatus`, a calendar by due day through the in-place due edit, quick add on an empty day).
 
 Built Oct 19:
-- **Commit:** BOSS fd517b5. `ironstone.TaskServices`, `RequestServices` and `StatusServices`, with 170 BOSS features.
+- **Commit:** BOSS fd517b5. `ironstone.commons.TaskServices`, `RequestServices` and `StatusServices`, with 170 BOSS features.
 - **What the build added or settled:**
   - Tasks and Requests hold only their subscreens. The default subscreen `List` is the list, as in Contacts.
   - The stage chips with the next status as the primary action are `template/StatusBar.xml`. It is a BOSS stand-in
@@ -484,7 +484,7 @@ Built Oct 19 (BOSS screens):
 - **What the build added or settled:**
   - The grid, drag, resize and overlap layout are built in `Calendar.qvue`; FullCalendar is not vendored.
   - Calendar colors are user data, so events use them inline (an exception to style-guide §4.8).
-  - Changing or cancelling one occurrence, this and following, or all is in `ironstone.CalendarServices` until Mantle
+  - Changing or cancelling one occurrence, this and following, or all is in `ironstone.commons.CalendarServices` until Mantle
     has services for it. Delete cancels an event (`WeCancelled`).
   - Saving the working hours in Preferences writes a weekly `WetAvailable` work effort, so `get#FreeBusy` and Find a
     time keep to them.
@@ -589,7 +589,7 @@ Built Oct 19:
 - **BOSS:** `screen/Unsubscribe.xml` and `.qvue` at `/u/<token>` (this list, all marketing email, the lists one by one, a
   reason, Resubscribe, the confirmation link, the expired page) with the one-click POST at `/u/<token>/oneClick`;
   `Comms/Consent` (List and Contact) and `template/ConsentRecord.xml`, which the contact record's Consent tab includes;
-  `ironstone.ConsentServices` (contact admins only); `data/BossConsentDemoData.xml`.
+  `ironstone.comms.ConsentServices` (contact admins only); `data/BossConsentDemoData.xml`.
 - **What the build settled:**
   - The one-click URL is a transition below the page: a POST to `/u/<token>` itself renders the public shell.
   - EditConsent is a page (Comms/Consent/Contact) rather than a dialog: with the history it is longer than a dialog may be.

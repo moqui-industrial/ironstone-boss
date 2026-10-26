@@ -23,19 +23,19 @@ along with this software (see the LICENSE.md file). If not, see
 
     <!-- a new note (Notes' createNote calls the same service), then Notes on it -->
     <transition name="createNote">
-        <service-call name="ironstone.KnowledgeServices.create#Note" in-map="{title:(title || null), pageText:(pageText || null)}" out-map="createOut"/>
+        <service-call name="ironstone.commons.KnowledgeServices.create#Note" in-map="{title:(title || null), pageText:(pageText || null)}" out-map="createOut"/>
         <default-response url="//Commons/Notes"><parameter name="wikiPageId" from="createOut.wikiPageId"/></default-response>
     </transition>
 
     <actions><script><![CDATA[
         const L = (text) => ec.l10n.localize(text)
-        const out = ec.service.sync().name('ironstone.KnowledgeServices.get#NotesList').call()
+        const out = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#NotesList').call()
         noteList = ec.message.hasError() ? [] : Array.from(out.noteList || []).map((note) => ({noteId: note.wikiPageId,
             title: (note.pinned ? '* ' : '') + (note.title || L('Untitled')), whenText: note.whenText || '', snippet: note.snippet || '',
             tagsText: Array.from(note.tags || []).join(', ')}))
         note = null
         if (wikiPageId && !ec.message.hasError()) {
-            const view = ec.service.sync().name('ironstone.KnowledgeServices.get#PageView').parameter('wikiPageId', wikiPageId).call()
+            const view = ec.service.sync().name('ironstone.commons.KnowledgeServices.get#PageView').parameter('wikiPageId', wikiPageId).call()
             if (!ec.message.hasError() && !view.page?.isMyNotes) ec.message.addError(L('Note not found'))
             if (!ec.message.hasError()) note = view.page
         }

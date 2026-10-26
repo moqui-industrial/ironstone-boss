@@ -21,8 +21,8 @@ along with this software (see the LICENSE.md file). If not, see
     its items, Tag (Create tag at a ref, Link an existing tag, Remove), Release notes (the markdown kept, or a draft from the
     items and merged merge requests; Save, Generate draft, Publish to the docs space, a CHANGELOG.md commit, the followers);
     Chatter as the right column from 1440 px. Merge requests and tags are of the repositories the user may view (F23). Services:
-    ironstone.PlanningServices get#PlanItemDetail, get#ReleaseCode, get#ReleaseNotesInfo, save#PlanItem, set#PlanItemItems,
-    create#ReleaseTag, save#ReleaseNotes, release#ReleaseBoss; ironstone.CodeServices link# and unlink#RefWorkEffort. A release
+    ironstone.projects.PlanningServices get#PlanItemDetail, get#ReleaseCode, get#ReleaseNotesInfo, save#PlanItem, set#PlanItemItems,
+    create#ReleaseTag, save#ReleaseNotes, release#ReleaseBoss; ironstone.projects.CodeServices link# and unlink#RefWorkEffort. A release
     of a project the user does not see is "not available". -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Release" default-menu-include="false">
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="roadmap"><default-response url="../Roadmap"/></transition>
     <transition name="savePlanItem">
         <actions>
-            <service-call name="ironstone.PlanningServices.save#PlanItem" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
+            <service-call name="ironstone.projects.PlanningServices.save#PlanItem" out-map="saveOut" in-map="{workEffortId:workEffortId, workEffortName:workEffortName,
                     description:(description ?? ''), startDay:(startDay ?? ''), dueDay:(dueDay ?? '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(saveOut.message, 'success')</script></if>
         </actions>
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="changeStatus">
         <actions>
-            <service-call name="ironstone.PlanningServices.update#PlanItemField" out-map="statusOut" in-map="{workEffortId:workEffortId, field:'status', value:statusId}"/>
+            <service-call name="ironstone.projects.PlanningServices.update#PlanItemField" out-map="statusOut" in-map="{workEffortId:workEffortId, field:'status', value:statusId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(statusOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="releaseRelease">
         <actions>
-            <service-call name="ironstone.PlanningServices.release#ReleaseBoss" out-map="releaseOut" in-map="{workEffortId:workEffortId,
+            <service-call name="ironstone.projects.PlanningServices.release#ReleaseBoss" out-map="releaseOut" in-map="{workEffortId:workEffortId,
                     moveUnfinishedTo:(moveUnfinishedTo || 'none'), createTag:(createTag == 'Y'), repositoryId:repositoryId, tagName:tagName, revision:revision,
                     publish:(publishDocs == 'Y'), toChangelog:(toChangelog == 'Y'), notify:(notify == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(releaseOut.message, 'success')</script></if>
@@ -60,7 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="addItems">
         <actions>
-            <service-call name="ironstone.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortIds}"/>
+            <service-call name="ironstone.projects.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortIds}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(itemsOut.message, itemsOut.failedCount ? 'warning' : 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -68,7 +68,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="removeItem">
         <actions>
-            <service-call name="ironstone.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortId, remove:true}"/>
+            <service-call name="ironstone.projects.PlanningServices.set#PlanItemItems" out-map="itemsOut" in-map="{workEffortId:workEffortId, workEffortIds:itemWorkEffortId, remove:true}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(itemsOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -76,7 +76,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="searchItems" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.PlanningServices.search#PlanItemCandidates').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
+            const out = ec.service.sync().name('ironstone.projects.PlanningServices.search#PlanItemCandidates').parameters({workEffortId: workEffortId || '', term: term || ''}).call() || {}
             ec.message.clearErrors()
             ec.web.sendJsonResponse(out.optionList || [])
         ]]></script></actions>
@@ -84,7 +84,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="createTag">
         <actions>
-            <service-call name="ironstone.PlanningServices.create#ReleaseTag" out-map="tagOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
+            <service-call name="ironstone.projects.PlanningServices.create#ReleaseTag" out-map="tagOut" in-map="{workEffortId:workEffortId, repositoryId:repositoryId,
                     tagName:tagName, revision:revision}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(tagOut.message, 'success')</script></if>
         </actions>
@@ -95,7 +95,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="linkTag">
         <actions>
             <script>const tagText = String(tagKey || ''); const tagBar = tagText.indexOf('|'); const tagParts = tagBar &gt; 0 ? [tagText.substring(0, tagBar), tagText.substring(tagBar + 1)] : [tagText, '']</script>
-            <service-call name="ironstone.CodeServices.link#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:tagParts[0], refName:(tagParts[1] || ''), workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.link#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:tagParts[0], refName:(tagParts[1] || ''), workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -103,7 +103,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="unlinkTag">
         <actions>
-            <service-call name="ironstone.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
+            <service-call name="ironstone.projects.CodeServices.unlink#RefWorkEffort" out-map="linkOut" in-map="{repositoryId:repositoryId, refName:refName, workEffortId:workEffortId}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(linkOut.message, 'success')</script></if>
         </actions>
         <default-response url="."><parameter name="workEffortId"/></default-response>
@@ -112,7 +112,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the notes: Save (the text), Generate draft (generate Y) and Publish (publish Y with where) -->
     <transition name="saveNotes">
         <actions>
-            <service-call name="ironstone.PlanningServices.save#ReleaseNotes" out-map="notesOut" in-map="{workEffortId:workEffortId, notesText:notesText,
+            <service-call name="ironstone.projects.PlanningServices.save#ReleaseNotes" out-map="notesOut" in-map="{workEffortId:workEffortId, notesText:notesText,
                     generate:(generate == 'Y'), publish:(publish == 'Y'), toDocs:(toDocs == 'Y'), toChangelog:(toChangelog == 'Y'), repositoryId:repositoryId,
                     notify:(notify == 'Y')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(notesOut.message, notesOut.messageType || 'success')</script></if>
@@ -122,7 +122,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions><script><![CDATA[
-        const out = ec.service.sync().name('ironstone.PlanningServices.get#PlanItemDetail').parameters({workEffortId: workEffortId || '', kind: 'release'}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.PlanningServices.get#PlanItemDetail').parameters({workEffortId: workEffortId || '', kind: 'release'}).call() || {}
         ec.message.clearErrors()
         recordFound = !!out.detail
         if (!recordFound) return
@@ -131,10 +131,10 @@ along with this software (see the LICENSE.md file). If not, see
         release = out.detail
         canUpdate = !!release.canUpdate
         isOpen = !!release.isOpen
-        code = ec.service.sync().name('ironstone.PlanningServices.get#ReleaseCode').parameters({workEffortId: workEffortId}).call()?.code || {hosting: false, mergeRequestList: [],
+        code = ec.service.sync().name('ironstone.projects.PlanningServices.get#ReleaseCode').parameters({workEffortId: workEffortId}).call()?.code || {hosting: false, mergeRequestList: [],
             tagList: [], repositoryOptions: [], tagOptions: [], failedParts: []}
         ec.message.clearErrors()
-        notes = ec.service.sync().name('ironstone.PlanningServices.get#ReleaseNotesInfo').parameters({workEffortId: workEffortId}).call()?.notes || {notesText: '', draft: true}
+        notes = ec.service.sync().name('ironstone.projects.PlanningServices.get#ReleaseNotesInfo').parameters({workEffortId: workEffortId}).call()?.notes || {notesText: '', draft: true}
         ec.message.clearErrors()
         itemRows = release.rowList
         itemRowsCount = itemRows.length

@@ -1,4 +1,4 @@
-// Comms Chat (screen/Comms/Chat.xml and Chat.qvue, service/ironstone/ChatServices.xml over org.moqui.impl.ChatServices;
+// Comms Chat (screen/Comms/Chat.xml and Chat.qvue, service/ironstone/comms/ChatServices.xml over org.moqui.impl.ChatServices;
 // impl-drawers-commons.md M10, design-drawers-commons.md §13): the JSON transitions the screen calls under the Comms app root,
 // as john.doe, on the chat demo (data/BossChatDemoData.xml, ChatDemoServices.load#ChatDemo, loaded again here). The rail with
 // its records, unread and mention counts; a room with its members and first page; the timeline pages (before, after,
@@ -50,7 +50,7 @@ spec({
     setupSpec() {
         login("john.doe")
         // the demo again, so this spec sees its rooms as loaded whatever ran before
-        sys(() => call("ironstone.ChatDemoServices.load#ChatDemo", {}))
+        sys(() => call("ironstone.comms.ChatDemoServices.load#ChatDemo", {}))
         ec.user.setPreference("CHAT_LINK_PREVIEWS", "N")
     },
     cleanupSpec() {
@@ -444,8 +444,8 @@ feature("the mention list is a room's members, and anyone in a public room; sear
             search: get("search", { searchText: "floor plan" }).json,
             inRoom: get("search", { searchText: "coffee", chatRoomId: ROOM.general }).json,
             // as the shell calls a palette source: for the user, without a service authorization of its own
-            palette: sys(() => call("ironstone.ChatServices.search#PaletteRooms", { text: "Gen", limit: 5 })),
-            latest: sys(() => call("ironstone.ChatServices.search#PaletteRooms", { text: "#", limit: 5 })),
+            palette: sys(() => call("ironstone.comms.ChatServices.search#PaletteRooms", { text: "Gen", limit: 5 })),
+            latest: sys(() => call("ironstone.comms.ChatServices.search#PaletteRooms", { text: "#", limit: 5 })),
         }
     },
     then(v) {

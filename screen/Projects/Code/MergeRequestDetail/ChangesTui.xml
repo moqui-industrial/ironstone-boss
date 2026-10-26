@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- The terminal twin of MergeRequestChanges (style-guide §4.8): Changes.xml's tui text is a dynamic container of this screen. The
     files the merge request changes with their insertions and deletions (each opens its diff: path), the diff of one file (the first
     when none is named) as its hunks' numbered lines, old and new, the line's text as data and never html, and the review threads
-    by file and line with their comments, from the same service as Changes.qvue (ironstone.CodeServices.get#MergeRequestChanges, the
+    by file and line with their comments, from the same service as Changes.qvue (ironstone.projects.CodeServices.get#MergeRequestChanges, the
     repository's view right). The terminal's changes (impl-projects.md P11), over the services of Changes.qvue's transitions, while
     the merge request is open: Comment on a line of the file shown (comment#MergeRequest), a reply to a thread, and Resolve or
     Reopen a thread; the review itself is MergeRequestDetail's Review dialog. A client contact (impl-projects.md P10b) reads the diff
@@ -33,14 +33,14 @@ along with this software (see the LICENSE.md file). If not, see
             const number = lineNumber ? Number(lineNumber) : null
             let lineText = null
             if (!parentCommEventId && path && number) {
-                const changes = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call()?.changes
+                const changes = ec.service.sync().name('ironstone.projects.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call()?.changes
                 const file = Array.from(changes?.fileList || []).find((one) => one.path === path)
                 for (const hunk of Array.from(file?.hunkList || [])) for (const line of Array.from(hunk.lineList || []))
                     if ((side === 'old' ? line.oldNo : line.newNo) === number) lineText = line.text
                 if (lineText == null) ec.message.addError(ec.resource.expand('Line ${number} is not in the diff of ${path}', '', {number, path}))
             }
             if (!ec.message.hasError()) {
-                ec.service.sync().name('ironstone.CodeServices.comment#MergeRequest').parameters({mergeRequestId: mergeRequestId || '', body: body || '',
+                ec.service.sync().name('ironstone.projects.CodeServices.comment#MergeRequest').parameters({mergeRequestId: mergeRequestId || '', body: body || '',
                     path: parentCommEventId ? null : (path || null), oldLine: !parentCommEventId && side === 'old' ? number : null,
                     newLine: !parentCommEventId && side === 'new' ? number : null, lineText: lineText, parentCommEventId: parentCommEventId || null}).call()
                 if (!ec.message.hasError()) ec.message.addMessage(ec.l10n.localize('Comment added'), 'success')
@@ -67,7 +67,7 @@ along with this software (see the LICENSE.md file). If not, see
         fileList = []; threadList = []; diffRows = []; changesFound = false
         if (!recordFound) return
         const L = (text) => ec.l10n.localize(text)
-        const out = ec.service.sync().name('ironstone.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}
+        const out = ec.service.sync().name('ironstone.projects.CodeServices.get#MergeRequestChanges').parameters({mergeRequestId: mergeRequestId || ''}).call() || {}
         ec.message.clearErrors()
         changesFound = !!out.found
         if (!changesFound) return

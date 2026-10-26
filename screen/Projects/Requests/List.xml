@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Requests (design-projects.md §6 Requests; style-guide §3.2 List, §3.6 Board): triage and track the requests of the projects
-    the user sees and those with no project of the types the organization triages (service/ironstone/ProjectRequestServices.xml
+    the user sees and those with no project of the types the organization triages (service/ironstone/projects/ProjectRequestServices.xml
     find#ProjectRequests). A chip row of lists with their counts (New: submitted and unassigned, the managers' default; Assigned to
     me, the team's; To review; Accepted; In progress; Mine; Closed; All); the find in the list's dialog (text or an id, project,
     no project, type, status, priority band, assignee, channel, raised period); New request, a dialog (project, type, customer,
@@ -54,7 +54,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions>
             <script><![CDATA[
                 const fixed = ec.context.get('projectTabId') || null
-                const out = ec.service.sync().name('ironstone.ProjectRequestServices.create#ProjectRequest').parameters({
+                const out = ec.service.sync().name('ironstone.projects.ProjectRequestServices.create#ProjectRequest').parameters({
                     rootWorkEffortId: fixed || newProjectId || (ec.context.get('inProjectDetail') ? workEffortId : null) || null,
                     requestName: requestName || '', requestTypeEnumId: requestTypeEnumId || null, customerPartyId: customerPartyId || null,
                     description: description || null, priority: priority || null, responseRequiredDate: responseRequiredDate || null,
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the bulk changes: selectedIds (a comma list), the change and its value -->
     <transition name="bulkAction">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.bulk#Requests" out-map="bulkOut" in-map="{action:bulk, requestIds:(selectedIds || ''), value:(value || null)}"/>
+            <service-call name="ironstone.projects.ProjectRequestServices.bulk#Requests" out-map="bulkOut" in-map="{action:bulk, requestIds:(selectedIds || ''), value:(value || null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
             <script><![CDATA[
                 let kept = {}
@@ -104,7 +104,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a card moved to another column of the board: a triage move to its status -->
     <transition name="moveCard">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.ProjectRequestServices.triage#Request').parameters({requestId: requestId, action: 'status',
+            const out = ec.service.sync().name('ironstone.projects.ProjectRequestServices.triage#Request').parameters({requestId: requestId, action: 'status',
                 value: ec.web.parameters.statusId ?? ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -113,7 +113,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the Intake box: the public form's link rotated or turned off, for one who manages the project -->
     <transition name="changeForm">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.change#IntakeForm" out-map="formOut"
+            <service-call name="ironstone.projects.ProjectRequestServices.change#IntakeForm" out-map="formOut"
                     in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || ''), change:change}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(formOut.message, 'success')</script></if>
         </actions>
@@ -122,14 +122,14 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="assigneeSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.commons.TaskServices.search#Assignees" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
     </transition>
     <transition name="workItemSearch" read-only="true">
         <actions>
-            <service-call name="ironstone.ProjectRequestServices.search#WorkItemOptions" in-map="{term:term, rootWorkEffortId:(ec.context.get('projectTabId') || null)}" out-map="found"/>
+            <service-call name="ironstone.projects.ProjectRequestServices.search#WorkItemOptions" in-map="{term:term, rootWorkEffortId:(ec.context.get('projectTabId') || null)}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -185,7 +185,7 @@ along with this software (see the LICENSE.md file). If not, see
                 if (ctx('requestDate_thru')) dateThru = new Date(Number(String(ec.l10n.parseTimestamp(ctx('requestDate_thru').substring(0, 10) + ' 00:00:00.000', 'yyyy-MM-dd HH:mm:ss.SSS'))) + 86400000)
             }
             const noLimit = ec.web.parameters.pageNoLimit === 'true'
-            const out = ec.service.sync().name('ironstone.ProjectRequestServices.find#ProjectRequests').parameters({list: list, text: text || null,
+            const out = ec.service.sync().name('ironstone.projects.ProjectRequestServices.find#ProjectRequests').parameters({list: list, text: text || null,
                 rootWorkEffortId: fixedProjectId || rootWorkEffortId || null, noProject: noProject === 'Y', requestTypeEnumId: requestTypeEnumId || null, statusId: statusId || null,
                 priorityBand: priorityBand || null, assigneePartyId: assigneePartyId || null, channel: channel || null, dateFrom: dateFrom, dateThru: dateThru,
                 orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 25, pageNoLimit: noLimit}).call() || {}
@@ -209,8 +209,8 @@ along with this software (see the LICENSE.md file). If not, see
             listChips = lists.map(([key, label, icon]) => ({key: key, label: L(label) + ' · ' + (counts[key] || 0), icon: icon, on: key === list,
                 params: Object.assign({}, find, {list: key})}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
-            projectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').call()?.projectList || []
-            addProjectOptions = ec.service.sync().name('ironstone.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
+            projectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').call()?.projectList || []
+            addProjectOptions = ec.service.sync().name('ironstone.projects.WorkItemServices.get#ProjectOptions').parameters({memberOnly: true}).call()?.projectList || []
             // a client raises a request in its own projects: those it sees (get#ProjectOptions answers a client its client projects)
             if (clientView) addProjectOptions = projectOptions
             const projectShown = fixedProjectId || rootWorkEffortId
@@ -234,7 +234,7 @@ along with this software (see the LICENSE.md file). If not, see
             if (projectFixed) {
                 ec.message.pushErrors()
                 try {
-                    const got = ec.service.sync().name('ironstone.ProjectRequestServices.get#ProjectIntake').parameters({workEffortId: fixedProjectId}).call()?.intake || null
+                    const got = ec.service.sync().name('ironstone.projects.ProjectRequestServices.get#ProjectIntake').parameters({workEffortId: fixedProjectId}).call()?.intake || null
                     if (got?.canManage) intake = got
                 } finally { ec.message.clearErrors(); ec.message.popErrors() }
             }

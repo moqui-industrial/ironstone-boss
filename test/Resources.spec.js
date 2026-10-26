@@ -175,7 +175,7 @@ feature("ACME's Team tab lists its allocations with the placeholder; Home shows 
         const team = render("apps/Projects/Projects/ProjectDetail/Team", { workEffortId: "ACME" })
         const home = render("apps/Projects/Home", {})
         const counts = sys(() => call("mantle.work.ProjectServices.get#ProjectHomeCounts", { managers: true }).counts)
-        const started = sys(() => call("ironstone.ProjectServices.create#NewProject", { workEffortName: "Resource draft", workEffortId: "RDR",
+        const started = sys(() => call("ironstone.projects.ProjectServices.create#NewProject", { workEffortName: "Resource draft", workEffortId: "RDR",
             estimatedStartDate: "2027-05-03 09:00:00", estimatedCompletionDate: "2027-05-28 17:00:00" }))
         made.draft = started.projectId
         const added = post("Projects/NewProject/Team/addMember", { workEffortId: made.draft, partyId: "ORG_ZIZI_BD", roleTypeId: "QualityAnalyst",

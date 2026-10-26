@@ -13,10 +13,10 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- Add account step 3, the test (design-drawers-commons.md §17 AccountTest): signing in to the outgoing and the incoming
-    server now (ironstone.MailSettingsServices.test#MailAccount over org.moqui.impl.EmailClientServices.test#EmailAccount),
+    server now (ironstone.comms.MailSettingsServices.test#MailAccount over org.moqui.impl.EmailClientServices.test#EmailAccount),
     each step with what the server said and, when it failed, what it most likely means and what to try, with the provider's
     help; on success how the server's folders map to Inbox, Sent, Drafts, Spam, Trash and Archive, and Send a test message
-    (ironstone.MailSettingsServices.send#AccountTestMessage: to the account's own address, back in the Inbox with the first
+    (ironstone.comms.MailSettingsServices.send#AccountTestMessage: to the account's own address, back in the Inbox with the first
     sync once the wizard ends, as its message says). The test runs each time the
     step shows (Test again reloads it). An account with no incoming server (hosted, or shared and delivered here) is not
     signed in to: the step says the gateway delivers, and Next goes on. Otherwise Next goes on when the test passed, or with
@@ -36,7 +36,7 @@ along with this software (see the LICENSE.md file). If not, see
         <error-response url="."/>
     </transition>
     <transition name="sendTestMessage">
-        <service-call name="ironstone.MailSettingsServices.send#AccountTestMessage" in-map="{emailAccountId:emailAccountId}" out-map="testMessageOut"/>
+        <service-call name="ironstone.comms.MailSettingsServices.send#AccountTestMessage" in-map="{emailAccountId:emailAccountId}" out-map="testMessageOut"/>
         <actions><script>if (!ec.message.hasError() &amp;&amp; testMessageOut?.resultText) ec.message.addMessage(testMessageOut.resultText, testMessageOut.sent ? 'success' : 'danger')</script></actions>
         <default-response url="."><parameter name="emailAccountId"/></default-response>
         <error-response url="."/>
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
         stepRows = []
         folderRows = []
         if (!emailAccountId) return
-        const detail = ec.service.sync().name('ironstone.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
+        const detail = ec.service.sync().name('ironstone.comms.MailSettingsServices.get#MailAccountDetail').parameter('emailAccountId', emailAccountId).call()
         if (ec.message.hasError() || !detail?.found) { testError = ec.message.hasError() ? ec.message.getErrorsString() : L('Connect the account first'); ec.message.clearErrors(); return }
         if (!detail.server?.storeHost && (detail.account?.accountKindEnumId === 'EakHosted' || detail.account?.isShared === true)) {
             // nothing to sign in to: the gateway delivers (hosted, or shared with no incoming server)
@@ -61,7 +61,7 @@ along with this software (see the LICENSE.md file). If not, see
             confirm = {emailAccountId: emailAccountId, testPassed: 'Y', continueAnyway: ''}
             return
         }
-        const out = ec.service.sync().name('ironstone.MailSettingsServices.test#MailAccount').parameter('emailAccountId', emailAccountId).call()
+        const out = ec.service.sync().name('ironstone.comms.MailSettingsServices.test#MailAccount').parameter('emailAccountId', emailAccountId).call()
         if (ec.message.hasError()) { testError = ec.message.getErrorsString(); ec.message.clearErrors(); return }
         hasAccount = true
         testRan = true

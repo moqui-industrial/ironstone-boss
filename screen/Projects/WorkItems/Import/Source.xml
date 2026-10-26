@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- Import step 1, ImportSource (design-projects.md §5 WorkItemImport): the CSV file, its kind (found from the headers, or Jira,
     Redmine, GitHub issues or other CSV), its character set and the project the work items go into (one the user works in).
-    saveSource keeps it in the import's draft (ironstone.WorkItemImportServices.save#ImportSource) and answers the importId the
+    saveSource keeps it in the import's draft (ironstone.projects.WorkItemImportServices.save#ImportSource) and answers the importId the
     next steps carry. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Source" default-menu-index="1" server-static="qvt" menu-image="sym_o_dynamic_feed" menu-image-type="icon">
@@ -24,7 +24,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="rootWorkEffortId"/>
 
     <transition name="saveSource">
-        <service-call name="ironstone.WorkItemImportServices.save#ImportSource" in-map="{importId:importId, workItemFile:workItemFile, presetId:presetId,
+        <service-call name="ironstone.projects.WorkItemImportServices.save#ImportSource" in-map="{importId:importId, workItemFile:workItemFile, presetId:presetId,
                 characterSet:characterSet, rootWorkEffortId:rootWorkEffortId}" out-map="sourceOut"/>
         <actions><set field="importId" from="sourceOut?.importId || importId"/></actions>
         <default-response url="."><parameter name="importId"/></default-response>
@@ -33,8 +33,8 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <if condition="fresh == 'Y'"><set field="importId" from="null"/></if>
-        <service-call name="ironstone.WorkItemImportServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
-        <service-call name="ironstone.WorkItemImportServices.get#ImportProjectOptions" out-map="projectsOut"/>
+        <service-call name="ironstone.projects.WorkItemImportServices.get#ImportDraft" in-map="{importId:importId}" out-map="draftOut"/>
+        <service-call name="ironstone.projects.WorkItemImportServices.get#ImportProjectOptions" out-map="projectsOut"/>
         <script><![CDATA[
             draft = draftOut.draft || {}
             hasFile = !!draftOut.found

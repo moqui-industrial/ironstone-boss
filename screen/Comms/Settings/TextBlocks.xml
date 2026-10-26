@@ -15,7 +15,7 @@ along with this software (see the LICENSE.md file). If not, see
 <!-- Text blocks (design-drawers-commons.md §17 TextBlocks): the canned text the composer offers (its Text blocks button, and a
     / and the shortcut at the start of a word): the user's own and those shared with a user group they are in, with a search
     over the name, the shortcut and the text. New and Edit are dialogs with the body in m-rich-text and the group to share
-    with (empty: just me); only its owner changes or deletes a block. ironstone.MailSettingsServices get and store#TextBlock
+    with (empty: just me); only its owner changes or deletes a block. ironstone.comms.MailSettingsServices get and store#TextBlock
     (the body cleaned as safe HTML) over the framework's text block services, which check the owner and the group. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Text blocks" default-menu-index="5" menu-image="sym_o_text_snippet" menu-image-type="icon">
@@ -23,7 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="searchText"/>
 
     <transition name="storeTextBlock">
-        <service-call name="ironstone.MailSettingsServices.store#TextBlock" in-map="{emailTextBlockId:emailTextBlockId, title:title, shortcut:shortcut,
+        <service-call name="ironstone.comms.MailSettingsServices.store#TextBlock" in-map="{emailTextBlockId:emailTextBlockId, title:title, shortcut:shortcut,
                 bodyHtml:bodyHtml, userGroupId:userGroupId}"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">Text block saved</message></if></actions>
         <default-response url="."/>
@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
 
     <actions>
-        <service-call name="ironstone.MailSettingsServices.get#TextBlockSettings" in-map="{searchText:searchText}" out-map="blocksOut"/>
+        <service-call name="ironstone.comms.MailSettingsServices.get#TextBlockSettings" in-map="{searchText:searchText}" out-map="blocksOut"/>
         <script><![CDATA[
             textBlocks = Array.from(blocksOut?.textBlockList || [])
             groupOptions = Array.from(blocksOut?.groupOptions || [])

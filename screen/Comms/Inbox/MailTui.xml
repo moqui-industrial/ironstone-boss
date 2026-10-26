@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- The terminal twin of the Inbox (style-guide §4.8): Mail.tui.json is a dynamic container of this screen with Mail's view
     parameters (view, account, folder, label, mailbox, q, unreadOnly, cursor). The thread list of that view through the same
-    ironstone.InboxServices.find#InboxRows the Mail.qvue client calls, each thread opening its newest message in MessageDetail,
+    ironstone.comms.InboxServices.find#InboxRows the Mail.qvue client calls, each thread opening its newest message in MessageDetail,
     with Mark read or unread and Archive through set#ThreadState, which checks the user's accounts and messages (R21). The
     view and search form opens Mail with its fields; an action goes back to Mail with the view it was on. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
     <transition name="state">
         <actions><script><![CDATA[
             if (!['read', 'unread', 'archive'].includes(action)) ec.message.addError(ec.l10n.localize('Unknown action') + ': ' + (action || ''))
-            else ec.service.sync().name('ironstone.InboxServices.set#ThreadState').parameters({targetList: [{store: store || '', threadId: threadId || ''}],
+            else ec.service.sync().name('ironstone.comms.InboxServices.set#ThreadState').parameters({targetList: [{store: store || '', threadId: threadId || ''}],
                 action: action}).call()
         ]]></script></actions>
         <default-response url="../Mail"><parameter name="view"/><parameter name="account"/><parameter name="folder"/><parameter name="label"/>
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
 
     <actions>
         <script><![CDATA[
-            const out = ec.service.sync().name('ironstone.InboxServices.find#InboxRows').parameters({view: view || null, emailAccountId: account || null,
+            const out = ec.service.sync().name('ironstone.comms.InboxServices.find#InboxRows').parameters({view: view || null, emailAccountId: account || null,
                 emailFolderId: folder || null, emailLabelId: label || null, contactListId: mailbox || null, searchText: q || null,
                 unreadOnly: String(unreadOnly) === 'true', cursor: cursor || null, pageSize: 50}).call()
             // the view's parameters, carried by each action and the next page

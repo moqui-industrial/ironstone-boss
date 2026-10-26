@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     BOSS app root mounts this file hidden as its RecordFiles subscreen (the theme value STRT_RECORD_FILES_SCREEN), and the
     record-files element loads it there as its own request, <app>/RecordFiles.qvue?recordEntity=&recordId=&appRoot=, so the
     app's authorization and entity filters apply (IronStone R5). The component is RecordFiles.qvue next to this file. The files
-    are the record's *Content rows, through service/ironstone/RecordFilesServices.xml: list, upload (dispatched to the record
+    are the record's *Content rows, through service/ironstone/shared/RecordFilesServices.xml: list, upload (dispatched to the record
     type's Mantle create#XContent and save#XContentFile), preview and download, remove; and (Files and drives, M8) the record's
     folder in the records drive through FileServices: each file's versions (download, restore, a new version), the folder's
     other files, files added from Files (the picker of template/FilePickerTransitions.xml) and Open in Files. -->
@@ -30,10 +30,10 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the record's files and the upload's type options; {visible: false} for a record the user may not see -->
     <transition name="filesData" method="get" read-only="true">
         <actions><script><![CDATA[
-            const recordOut = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity || '',
+            const recordOut = ec.service.sync().name('ironstone.shared.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', forFiles: true}).call()
             if (!recordOut.visible) { ec.web.sendJsonResponse({visible: false}); return }
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.get#RecordFiles').parameters({recordEntityName: recordEntity,
                 recordId: recordId}).call()
             // a client contact (impl-projects.md P10b): the request's files to download, and its upload while the request is open
             // (ironstone.client.ClientServices); no removing, no versions, nothing of the records drive
@@ -63,7 +63,7 @@ along with this software (see the LICENSE.md file). If not, see
             if (forClient && recordEntity !== 'mantle.request.Request') { ec.message.addError(ec.l10n.localize('You may not add files here')); ec.web.sendJsonResponse({}); return }
             const out = forClient ? ec.service.sync().name('ironstone.client.ClientServices.upload#ClientRequestFile').parameters({requestId: recordId,
                     contentFile: contentFile || null, description: description || null}).call()
-                : ec.service.sync().name('ironstone.RecordFilesServices.upload#RecordFile').parameters({recordEntityName: recordEntity,
+                : ec.service.sync().name('ironstone.shared.RecordFilesServices.upload#RecordFile').parameters({recordEntityName: recordEntity,
                 recordId: recordId, contentFile: contentFile || null, contentTypeEnumId: contentTypeEnumId || null, description: description || null}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const infos = [{type: 'success', message: out.message}]
@@ -74,7 +74,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="remove">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.remove#RecordFile').parameters({recordEntityName: recordEntity,
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.remove#RecordFile').parameters({recordEntityName: recordEntity,
                 recordId: recordId, contentKey: contentKey}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -83,7 +83,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ========== the record's folder in the records drive (M8) ========== -->
     <transition name="versions" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFileVersions').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.get#RecordFileVersions').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', drivePath: drivePath || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionList: out.versionList, canChange: out.canChange})
         ]]></script></actions>
@@ -93,7 +93,7 @@ along with this software (see the LICENSE.md file). If not, see
         the file's name -->
     <transition name="driveDownload" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordDriveFile').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.get#RecordDriveFile').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', drivePath: drivePath || '', versionName: versionName || null}).call()
             if (ec.message.hasError() || !out.location) ec.web.sendJsonResponse({})
             else ec.web.sendResourceResponse(out.location, String(inline) === 'true' && out.inlineAllowed, out.fileName)
@@ -102,7 +102,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="uploadVersion">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.upload#RecordFileVersion').parameters({recordEntityName: recordEntity,
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.upload#RecordFileVersion').parameters({recordEntityName: recordEntity,
                 recordId: recordId, drivePath: drivePath || '', contentFile: contentFile || null, versionNote: versionNote || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {versionName: out.versionName, messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -110,7 +110,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="restoreVersion">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.restore#RecordFileVersion').parameters({recordEntityName: recordEntity,
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.restore#RecordFileVersion').parameters({recordEntityName: recordEntity,
                 recordId: recordId, drivePath: drivePath || '', versionName: versionName || ''}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {messageInfos: [{type: 'success', message: out.message}]})
         ]]></script></actions>
@@ -121,7 +121,7 @@ along with this software (see the LICENSE.md file). If not, see
         <actions><script><![CDATA[
             let items = []
             try { items = JSON.parse(itemsJson || '[]') } catch (err) { items = [] }
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.add#RecordFilesFromDrive').parameters({recordEntityName: recordEntity,
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.add#RecordFilesFromDrive').parameters({recordEntityName: recordEntity,
                 recordId: recordId, itemList: items, contentTypeEnumId: contentTypeEnumId || null, description: description || null}).call()
             if (ec.message.hasError()) { ec.web.sendJsonResponse({}); return }
             const infos = [{type: 'success', message: out.message}]
@@ -137,7 +137,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- a file, inline for an image or a PDF when asked, else as a download -->
     <transition name="download" method="get" read-only="true">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.RecordFilesServices.get#RecordFile').parameters({recordEntityName: recordEntity || '',
+            const out = ec.service.sync().name('ironstone.shared.RecordFilesServices.get#RecordFile').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || '', contentKey: contentKey || ''}).call()
             if (!ec.message.hasError() && !out.contentLocation) ec.message.addError(ec.l10n.localize('This file has no content'))
             if (ec.message.hasError()) ec.web.sendJsonResponse({})

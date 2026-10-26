@@ -21,13 +21,13 @@ along with this software (see the LICENSE.md file). If not, see
         default-menu-title="Drives" default-menu-index="1" server-static="qvt" menu-image="sym_o_hard_drive" menu-image-type="icon">
 
     <transition name="createDrive">
-        <service-call name="ironstone.DriveServices.create#SharedDrive" in-map="{driveName:driveName, description:description, storage:(storage || 'folder'),
+        <service-call name="ironstone.commons.DriveServices.create#SharedDrive" in-map="{driveName:driveName, description:description, storage:(storage || 'folder'),
                 quotaMb:(quotaMb || null), memberUserIds:(memberUserIds || null), memberPermissionEnumId:(memberPermissionEnumId || 'RdpEdit')}" out-map="createOut"/>
         <actions><if condition="!ec.message.hasError()"><message type="success">${createOut.message}</message></if></actions>
         <default-response url="."/>
     </transition>
     <transition name="createMirror">
-        <service-call name="ironstone.DriveServices.create#SharedDrive" in-map="{driveName:driveName, description:description, storage:'mirror',
+        <service-call name="ironstone.commons.DriveServices.create#SharedDrive" in-map="{driveName:driveName, description:description, storage:'mirror',
                 remoteUrl:remoteUrl, branch:(branch || null), username:(username || null), accessToken:(accessToken || null),
                 fetchIntervalMinutes:(fetchIntervalMinutes ? Number(fetchIntervalMinutes) : null), memberUserIds:(memberUserIds || null),
                 memberPermissionEnumId:'RdpView'}" out-map="createOut"/>
@@ -37,14 +37,14 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the users of the members drop-down -->
     <transition name="searchUsers" read-only="true">
         <actions>
-            <service-call name="ironstone.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.shared.ChatterServices.search#Users" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(Array.from(found.userList || []).filter((user) =&gt; user.value !== ec.user.userId).map((user) =&gt; ({value: user.value, label: user.label})))</script>
         </actions>
         <default-response type="none"/>
     </transition>
 
     <actions>
-        <service-call name="ironstone.DriveServices.get#DrivesData" out-map="drivesOut"/>
+        <service-call name="ironstone.commons.DriveServices.get#DrivesData" out-map="drivesOut"/>
         <script><![CDATA[
             const L = (text) => ec.l10n.localize(text)
             isAdmin = drivesOut.isAdmin === true

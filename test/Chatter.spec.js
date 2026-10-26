@@ -1,4 +1,4 @@
-// Chatter (screen/Shared/Chatter.xml and Chatter.qvue, service/ironstone/ChatterServices.xml, impl-drawers-commons.md M3): the
+// Chatter (screen/Shared/Chatter.xml and Chatter.qvue, service/ironstone/shared/ChatterServices.xml, impl-drawers-commons.md M3): the
 // JSON transitions the panel calls under the Commons app root, as john.doe. The demo request's timeline (data/BossDemoData.xml,
 // DemoServices.load#ChatterDemo) has its notes, the email with its quoted text, the message, the call done, the status change
 // and the files; the panel data has its planned call, followers, files and parties. Log note with a mention notifies the user
@@ -52,7 +52,7 @@ spec({
     setupSpec() {
         login("john.doe")
         // the demo again, so this spec sees its records as loaded whatever ran before
-        sys(() => call("ironstone.DemoServices.load#ChatterDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#ChatterDemo", {}))
     },
 })
 

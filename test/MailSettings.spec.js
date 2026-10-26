@@ -1,5 +1,5 @@
 // The Comms mail settings besides the accounts (screen/Comms/Settings: Index, Identities, Rules with Rules.qvue, OutOfOffice,
-// TextBlocks; the Mail box of Commons Preferences; service/ironstone/MailSettingsServices.xml; design-drawers-commons.md §17, §11
+// TextBlocks; the Mail box of Commons Preferences; service/ironstone/comms/MailSettingsServices.xml; design-drawers-commons.md §17, §11
 // MailDefaults): on the demo of data/BossMailDemoData.xml (load#MailSettingsDemo: the shared Support account whose sign-in failed,
 // john.doe's rules, automatic reply and text blocks) and on an account of this spec's own (127.0.0.1 port 1, nothing listens) with
 // an imported message, so the rules run on mail no other spec reads; its automatic reply to contacts goes (MailCapture) to
@@ -50,13 +50,13 @@ spec({
     stepwise: true,
 
     setupSpec() {
-        sys(() => { call("ironstone.MailDemoServices.load#MailDemo", {}); call("ironstone.MailDemoServices.load#MailSettingsDemo", {}) })
+        sys(() => { call("ironstone.comms.MailDemoServices.load#MailDemo", {}); call("ironstone.comms.MailDemoServices.load#MailSettingsDemo", {}) })
         login("john.doe")
     },
     cleanupSpec() {
         login("john.doe")
         if (ownId) sys(() => call("org.moqui.impl.EmailClientServices.delete#EmailAccount", { emailAccountId: ownId, deleteLocalCopies: true }))
-        sys(() => call("ironstone.MailDemoServices.load#MailSettingsDemo", {}))
+        sys(() => call("ironstone.comms.MailDemoServices.load#MailSettingsDemo", {}))
         for (const key of ["MAIL_READING_PANE", "MAIL_MARK_READ_SECONDS", "MAIL_UNDO_SECONDS", "MAIL_ARCHIVE_NEXT", "MAIL_REMOTE_IMAGES",
                 "MAIL_CONVERSATION", "MAIL_DEFAULT_ACCOUNT", "MAIL_SIGNATURE_PLACEMENT", "MAIL_SWIPE_LEFT", "MAIL_SWIPE_RIGHT"]) ec.user.setPreference(key, null)
     },
@@ -92,7 +92,7 @@ function seedInboxMessage(subject, fromName, fromAddress, messageId, messageDate
 
 feature("an account of this spec's own, for the rules to run on", {
     when() {
-        const made = sys(() => call("ironstone.MailSettingsServices.save#AccountConnection", { emailAddress: "rules@acme.example", accountKindEnumId: "EakExternal",
+        const made = sys(() => call("ironstone.comms.MailSettingsServices.save#AccountConnection", { emailAddress: "rules@acme.example", accountKindEnumId: "EakExternal",
             storeHost: "127.0.0.1", storePort: "1", smtpHost: "127.0.0.1", smtpPort: "1", smtpSecurity: "none", mailPassword: "x" }))
         ownId = made.emailAccountId
         ownInbox = one("moqui.basic.email.EmailFolder", { emailAccountId: ownId, folderKindEnumId: "EfkInbox" }).emailFolderId

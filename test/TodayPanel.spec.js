@@ -1,5 +1,5 @@
 // TodayPanel (screen/Commons/Panel/Today.xml, impl-drawers-commons.md M2): john.doe's demo Today
-// (service/ironstone/DemoServices.xml load#CommonsDemo, loaded again here with the clock at 08:00 today) in its groups, the
+// (service/ironstone/commons/DemoServices.xml load#CommonsDemo, loaded again here with the clock at 08:00 today) in its groups, the
 // Requests today source of the Commons shell providers, and the quick actions: Mark done, Snooze, Reschedule and the quick-add
 // line, each answering JSON messages and changing the panel. A task the user is not on cannot be changed.
 // Run: ./moq test mr-boss --spec TodayPanel
@@ -27,7 +27,7 @@ function sys(run) {
     const wasDisabled = ec.artifactExecution.disableAuthz()
     try { return run() } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
 }
-const view = () => sys(() => call("ironstone.CommonsServices.get#TodayView", { sourceServiceNames: [requestsSource] }))
+const view = () => sys(() => call("ironstone.commons.CommonsServices.get#TodayView", { sourceServiceNames: [requestsSource] }))
 const one = (entityName, fields) => sys(() => ec.entity.find(entityName).condition(fields).one())
 const titlesOf = (found, key) => ((found.groups || []).find((group) => group.key === key) || { items: [] }).items.map((item) => item.title)
 const allIds = (found) => (found.groups || []).flatMap((group) => (group.items || []).map((item) => item.workEffortId || item.requestId))
@@ -40,7 +40,7 @@ spec({
         const pinned = Number(String(ec.l10n.parseTimestamp(todayText + " 08:00:00.000", "yyyy-MM-dd HH:mm:ss.SSS")))
         ec.user.setEffectiveTime(pinned)
         tomorrowText = ec.l10n.format(String(pinned + 24 * 3600000), "yyyy-MM-dd")
-        sys(() => call("ironstone.DemoServices.load#CommonsDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#CommonsDemo", {}))
     },
 })
 
@@ -196,14 +196,14 @@ feature("the demo loaded again on a later day keeps one Assignee row per party, 
         const assignees = () => sys(() => Array.from(ec.entity.find("mantle.work.effort.WorkEffortParty").condition("workEffortId", "BOSS_DEMO_TODAY_DUE")
                 .condition("roleTypeId", "Assignee").list())).map((row) => row.partyId).sort()
         ec.user.setEffectiveTime(pinned + 3 * 86400000)
-        sys(() => call("ironstone.DemoServices.load#CommonsDemo", {}))
+        sys(() => call("ironstone.commons.DemoServices.load#CommonsDemo", {}))
         const later = assignees()
         // as a data load runs it: no user, the server's time zone
         logout()
         ec.user.setTimeZone("UTC")
         let loaded = null
         try {
-            sys(() => call("ironstone.DemoServices.load#CommonsDemo", {}))
+            sys(() => call("ironstone.commons.DemoServices.load#CommonsDemo", {}))
             loaded = assignees()
         } finally {
             ec.user.setTimeZone(null)

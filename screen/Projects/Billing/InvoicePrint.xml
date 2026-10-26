@@ -13,7 +13,7 @@ along with this software (see the LICENSE.md file). If not, see
 <http://creativecommons.org/publicdomain/zero/1.0/>.
 -->
 <!-- The client invoice with its time detail (design-projects.md §14; style-guide §8 Print documents; impl-projects.md P8a),
-    InvoiceDetail's Print and PDF: with renderMode=html-print the printed invoice (ironstone.BillingServices.get#InvoicePrint: the
+    InvoiceDetail's Print and PDF: with renderMode=html-print the printed invoice (ironstone.projects.BillingServices.get#InvoicePrint: the
     vendor, the client, the dates and terms, the lines and the total, and the time behind each line when the project keeps time detail
     on its invoices), every value escaped; under /fop the same as a PDF, and the attachment of the email Send makes. A sibling of
     InvoiceDetail, so the page has none of the detail's header; in another render mode it links to the printed page. -->
@@ -23,7 +23,7 @@ along with this software (see the LICENSE.md file). If not, see
     <parameter name="invoiceId" required="true"/>
 
     <actions>
-        <service-call name="ironstone.BillingServices.get#InvoicePrint" in-map="{invoiceId:invoiceId}" out-map="printOut"/>
+        <service-call name="ironstone.projects.BillingServices.get#InvoicePrint" in-map="{invoiceId:invoiceId}" out-map="printOut"/>
         <script><![CDATA[
             ec.message.clearErrors()
             printHtml = printOut.printHtml || ''

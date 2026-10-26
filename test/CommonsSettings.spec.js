@@ -64,7 +64,7 @@ feature("NotificationSettings saves the daily digest of a topic for john.doe", {
     when() {
         const saved = post("Settings/Notifications/storeTopic", { topic: "WorkEffortReminder", receiveNotifications: "Y", digest: "Y" })
         const row = one("moqui.security.user.NotificationTopicUser", { topic: "WorkEffortReminder", userId: "EX_JOHN_DOE" })
-        const rows = sys(() => call("ironstone.CommonsServices.get#NotificationTopicRows", { providerTopics: ["WorkEffortReminder"] }))
+        const rows = sys(() => call("ironstone.commons.CommonsServices.get#NotificationTopicRows", { providerTopics: ["WorkEffortReminder"] }))
         return { saved, row, shown: rows.notificationsRows.find((topic) => topic.topic === "WorkEffortReminder") }
     },
     then({ saved, row, shown }) {
@@ -195,7 +195,7 @@ feature("Account photo: john.doe's own face image, whatever party the request na
         const noPhoto = get("Settings/Account/myPhoto")
         const noByUser = get("Settings/Account/userPhoto", { userId: "EX_JOHN_DOE" })
         const pageAfter = render("Settings/Account")
-        sys(() => call("ironstone.ChatterServices.delete#Entry", Object.assign({ communicationEventId: noteId, recordEntityName: request.recordEntity }, request)))
+        sys(() => call("ironstone.shared.ChatterServices.delete#Entry", Object.assign({ communicationEventId: noteId, recordEntityName: request.recordEntity }, request)))
         return { joeBefore, first, firstRows, second, secondRows, disguised, page, photo, byUser, noUser, otherUser, entry, avatar, joeRemove, afterJoe, removed, noPhoto, noByUser, pageAfter,
             joeAfter: faces("ORG_ZIZI_JD").length, johnAfter: faces("EX_JOHN_DOE").length }
     },

@@ -16,7 +16,7 @@ along with this software (see the LICENSE.md file). If not, see
     Commons + menu kinds (the theme's STRT_QUICK_CREATE), one form by kind: task, activity (only on a record), event, note,
     contact and request, six fields or fewer, with the record of the screen context (recordEntity, recordId and recordTitle,
     which the shell adds) as a chip, "remove" loading the form again without it, and "More options" to the full screen.
-    Each form's transition creates the record through ironstone.QuickCreateServices and answers JSON messages, so the shell's
+    Each form's transition creates the record through ironstone.commons.QuickCreateServices and answers JSON messages, so the shell's
     dialog closes (an m-form in it that answers without errors hides it) and the page under it stays. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Quick create" default-menu-include="false" server-static="qvt">
@@ -30,7 +30,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- each kind's create: the service in the script, so its errors are answered too (a 500 the form shows) -->
     <transition name="createTask">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Task').parameters({workEffortName: workEffortName,
+            const out = ec.service.sync().name('ironstone.commons.QuickCreateServices.create#Task').parameters({workEffortName: workEffortName,
                 estimatedCompletionDate: estimatedCompletionDate || null, assignToPartyId: assignToPartyId || null, priority: priority || null,
                 description: description || null, recordEntity: recordEntity || null, recordId: recordId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
@@ -40,7 +40,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="createActivity">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Activity').parameters({activityType: activityType,
+            const out = ec.service.sync().name('ironstone.commons.QuickCreateServices.create#Activity').parameters({activityType: activityType,
                 workEffortName: workEffortName, dueDate: dueDate || null, endDate: endDate || null, assignToPartyId: assignToPartyId || null,
                 recordEntity: recordEntity || null, recordId: recordId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
@@ -50,7 +50,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="createEvent">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Event').parameters({workEffortName: workEffortName,
+            const out = ec.service.sync().name('ironstone.commons.QuickCreateServices.create#Event').parameters({workEffortName: workEffortName,
                 estimatedStartDate: estimatedStartDate || null, estimatedCompletionDate: estimatedCompletionDate || null, allDay: allDay || null,
                 calendarId: calendarId || null, attendeePartyIds: attendeePartyIds || null, recordEntity: recordEntity || null, recordId: recordId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {workEffortId: out.workEffortId, url: out.url,
@@ -60,7 +60,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="createNote">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Note').parameters({title: title || null, noteText: noteText,
+            const out = ec.service.sync().name('ironstone.commons.QuickCreateServices.create#Note').parameters({title: title || null, noteText: noteText,
                 recordEntity: recordEntity || null, recordId: recordId || null, recordTitle: recordTitle || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {communicationEventId: out.communicationEventId, wikiPageId: out.wikiPageId,
                 url: out.url, messageInfos: [{type: 'success', message: out.message, link: out.url}]})
@@ -69,7 +69,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="createContact">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Contact').parameters({partyTypeEnumId: partyTypeEnumId || null,
+            const out = ec.service.sync().name('ironstone.commons.QuickCreateServices.create#Contact').parameters({partyTypeEnumId: partyTypeEnumId || null,
                 contactName: contactName, emailAddress: emailAddress || null, phone: phone || null,
                 organizationPartyId: partyTypeEnumId === 'PtyOrganization' ? null : (organizationPartyId || null), contactBookId: contactBookId || null}).call()
             // from Contacts' New contact (openAfter=Y) the new contact opens in the Contacts split
@@ -81,7 +81,7 @@ along with this software (see the LICENSE.md file). If not, see
     </transition>
     <transition name="createRequest">
         <actions><script><![CDATA[
-            const out = ec.service.sync().name('ironstone.QuickCreateServices.create#Request').parameters({requestName: requestName,
+            const out = ec.service.sync().name('ironstone.commons.QuickCreateServices.create#Request').parameters({requestName: requestName,
                 requestTypeEnumId: requestTypeEnumId || null, priority: priority || null, customerPartyId: customerPartyId || null,
                 description: description || null, recordEntity: recordEntity || null, recordId: recordId || null}).call()
             ec.web.sendJsonResponse(ec.message.hasError() ? {} : {requestId: out.requestId, url: out.url,

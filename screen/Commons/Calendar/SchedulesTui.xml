@@ -33,7 +33,7 @@ along with this software (see the LICENSE.md file). If not, see
         const dayAfter = (count) => new Date(Date.UTC(year, month - 1, day + count)).toISOString().substring(0, 10)
         previousDay = dayAfter(-1)
         nextDay = dayAfter(1)
-        const out = ec.service.sync().name('ironstone.ScheduleServices.get#Resources').parameter('resourceType', type || 'all').call()
+        const out = ec.service.sync().name('ironstone.commons.ScheduleServices.get#Resources').parameter('resourceType', type || 'all').call()
         const resources = ec.message.hasError() ? [] : Array.from(out.resourceList || [])
         resourceList = resources.map((resource) => ({name: resource.name, resourceType: resource.resourceType, resourceId: resource.resourceId,
             typeLabel: resource.typeLabel || '', site: resource.site || '', capacityText: resource.capacity != null ? String(num(resource.capacity)) : '',
@@ -42,7 +42,7 @@ along with this software (see the LICENSE.md file). If not, see
         if (resources.length && !ec.message.hasError()) {
             const names = {}
             for (const resource of resources) names[resource.key] = resource.name
-            const booked = ec.service.sync().name('ironstone.ScheduleServices.get#ResourceBookings').parameters({start: bookingDay, end: bookingDay,
+            const booked = ec.service.sync().name('ironstone.commons.ScheduleServices.get#ResourceBookings').parameters({start: bookingDay, end: bookingDay,
                 keys: resources.map((resource) => resource.key).join(',')}).call()
             if (!ec.message.hasError()) bookingList = Array.from(booked.bookingList || []).map((booking) => {
                 const start = String(booking.start || ''), end = String(booking.end || '')

@@ -14,7 +14,7 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- TimeEntries (design-projects.md §8 TimeEntries; style-guide §3.2 List; impl-projects.md P6b): every time entry the user may see
     (mantle.work.TimeServices.find#TimeEntries: their own, and the time of the projects they manage and of the people they
-    manage; all for ADMIN) through service/ironstone/TimeServices.xml find#TimeEntryRows. The chips: This week (the default),
+    manage; all for ADMIN) through service/ironstone/projects/TimeServices.xml find#TimeEntryRows. The chips: This week (the default),
     Last week, This month, Unbilled (billable and on no client invoice), Not on a work item, All; the find in the list's dialog
     (person, work item, work type, billable, client and worker invoiced, the week's status, text in the comment, the date
     period). Each row: the day, from and to, the person, the work item and project, hours, break, work type, billable, the client
@@ -56,7 +56,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the bulk changes: selectedIds (a comma list), the change and its value; keep is the list's state -->
     <transition name="bulkAction">
         <actions>
-            <service-call name="ironstone.TimeServices.bulk#TimeEntries" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), value:(value ?? null)}"/>
+            <service-call name="ironstone.projects.TimeServices.bulk#TimeEntries" out-map="bulkOut" in-map="{action:bulk, selectedIds:(selectedIds || ''), value:(value ?? null)}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(bulkOut.message, bulkOut.failedCount ? 'warning' : 'success')</script></if>
             <script><![CDATA[
                 let kept = {}
@@ -75,7 +75,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- ProjectTime's Update rates, for a manager of the project who manages money -->
     <transition name="updateRates">
         <actions>
-            <service-call name="ironstone.TimeServices.update#ProjectRates" out-map="ratesOut"
+            <service-call name="ironstone.projects.TimeServices.update#ProjectRates" out-map="ratesOut"
                     in-map="{workEffortId:(ec.context.get('projectTabId') || workEffortId || '')}"/>
             <if condition="!ec.message.hasError()"><script>ec.message.addMessage(ratesOut.message, 'success')</script></if>
         </actions>
@@ -85,7 +85,7 @@ along with this software (see the LICENSE.md file). If not, see
     <!-- the work items the user logs time on (EditEntry, the move and the find) -->
     <transition name="itemOptions" read-only="true">
         <actions>
-            <service-call name="ironstone.TimeServices.search#TimeItems" in-map="{term:term}" out-map="found"/>
+            <service-call name="ironstone.projects.TimeServices.search#TimeItems" in-map="{term:term}" out-map="found"/>
             <script>ec.web.sendJsonResponse(found.optionList || [])</script>
         </actions>
         <default-response type="none"/>
@@ -113,7 +113,7 @@ along with this software (see the LICENSE.md file). If not, see
             const findParameters = {list: list, partyId: partyId || null, itemId: itemId || null, workTypeEnumId: workTypeEnumId || null, billable: billable || null,
                 clientInvoiced: clientInvoiced || null, workerInvoiced: workerInvoiced || null, sheetStatus: sheetStatus || null, text: text || null,
                 dateFrom: dateFrom, dateThru: dateThru}
-            const out = ec.service.sync().name('ironstone.TimeServices.find#TimeEntryRows').parameters(Object.assign({}, findParameters, {rootWorkEffortId: fixedProjectId,
+            const out = ec.service.sync().name('ironstone.projects.TimeServices.find#TimeEntryRows').parameters(Object.assign({}, findParameters, {rootWorkEffortId: fixedProjectId,
                 orderByField: orderByField || null, pageIndex: Number(pageIndex || 0) || 0, pageSize: 50, pageNoLimit: ec.web?.parameters?.pageNoLimit === 'true'})).call() || {}
             ec.message.clearErrors()
             list = out.list || list
@@ -144,7 +144,7 @@ along with this software (see the LICENSE.md file). If not, see
                 params: Object.assign({}, find, {list: key}, projectFixed ? {workEffortId: fixedProjectId} : {})}))
             listLabel = L(lists.find((entry) => entry[0] === list)[1])
             clearParams = Object.assign({list: list}, projectFixed ? {workEffortId: fixedProjectId} : {})
-            personOptions = ec.service.sync().name('ironstone.TimeServices.get#TimePeople').parameters({partyId: partyId || null}).call()?.personOptions || []
+            personOptions = ec.service.sync().name('ironstone.projects.TimeServices.get#TimePeople').parameters({partyId: partyId || null}).call()?.personOptions || []
             workTypeOptions = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.get#WorkTypes').call()?.typeList || [])
                     .map((type) => ({key: type.enumId, text: type.label}))
             offeredTypeOptions = Array.from(ec.service.sync().name('mantle.work.TimesheetServices.get#WorkTypes').call()?.offeredList || [])
@@ -160,7 +160,7 @@ along with this software (see the LICENSE.md file). If not, see
             if (projectFixed) {
                 ec.message.pushErrors()
                 try {
-                    projectTime = ec.service.sync().name('ironstone.TimeServices.get#ProjectTime').parameters({workEffortId: fixedProjectId,
+                    projectTime = ec.service.sync().name('ironstone.projects.TimeServices.get#ProjectTime').parameters({workEffortId: fixedProjectId,
                         findParameters: findParameters}).call()?.projectTime || null
                 } finally { ec.message.clearErrors(); ec.message.popErrors() }
             }

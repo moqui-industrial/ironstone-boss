@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+This software is in the public domain under CC0 1.0 Universal plus a
+Grant of Patent License.
+
+To the extent possible under law, the author(s) have dedicated all
+copyright and related and neighboring rights to this software to the
+public domain worldwide. This software is distributed without any
+warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication
+along with this software (see the LICENSE.md file). If not, see
+<http://creativecommons.org/publicdomain/zero/1.0/>.
+-->
+<!-- The calendar demo of IronStone Commons M7 (data/BossCalendarDemoData.xml calls load#CalendarDemo as the element
+    ironstone.commons.CalendarDemoServices.load-CalendarDemo): john.doe's calendars, events, invitations and bookings dated from the day
+    the data is loaded, in john.doe's time zone (US/Central) whatever the server's is, so the week of the load has content.
+    Only the BOSS_DEMO_* records are written; loading again moves their dates to the new day. -->
+<services xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/service-definition-3.xsd">
+
+    <service verb="load" noun="CalendarDemo" authenticate="anonymous-all" allow-remote="false">
+        <description>Stores, for D the day of the load in john.doe's time zone:
+            - calendars: john.doe's default "John Doe" and "Family" (personal), the shared "Team" calendar of Ziziwork Services
+              (john.doe manages it, Joe Developer edits it), Joe Developer's own calendar shared with john.doe (view) and Bob
+              Developer's shared free/busy only, and john.doe's subscription "Holidays (demo feed)" whose last fetch failed;
+            - BOSS_DEMO_EV_SYNC, "Team sync", weekly on D's weekday 10:00-10:30 from three weeks before, john.doe's, Joe (accepted)
+              and Bob (maybe) invited, in the Maple room, a reminder 10 minutes before; its instance a week after D moved to the
+              next day at 15:00 (BOSS_DEMO_EV_SYNC_MOVED) and the one two weeks after cancelled (BOSS_DEMO_EV_SYNC_OFF);
+            - BOSS_DEMO_EV_VENDOR, Bob's "Vendor demo" on D+1 15:00, which john.doe declined;
+            - BOSS_DEMO_EV_PLANNING, Joe's "Release planning" on D+2 13:00 in the Maple room, john.doe invited and not answered;
+            - BOSS_DEMO_EV_CLOSED, "Office closed for training", all day D+3 and D+4 in the Team calendar;
+            - BOSS_DEMO_EV_BIRTHDAY, "Mary's birthday", all day yearly on D+5's day in Family;
+            - BOSS_DEMO_EV_DENTIST, Joe's "Dentist" on D+1 08:00 in his calendar; BOSS_DEMO_EV_INTERVIEW, Bob's "Candidate
+              interview" on D+2 11:00 (shown to john.doe as busy), with the Maple room booked;
+            - BOSS_DEMO_EV_WORKSHOP, john.doe's "Client workshop" on D+2 09:00-11:00, the Board room requested (Bob approves
+              its bookings) and the projector booked;
+            - rooms BOSS_DEMO_ROOM_MAPLE (bookable, 8 seats, no approval) and BOSS_DEMO_ROOM_BOARD (bookable, 16 seats, Bob
+              approves) in the Main office, equipment BOSS_DEMO_PROJECTOR (bookable, no approval) and BOSS_DEMO_VC_KIT
+              (bookable, Bob approves).</description>
+        <out-parameters><parameter name="workEffortIdList" type="List"/></out-parameters>
+        <actions><script><![CDATA[
+            workEffortIdList = []
+            const john = 'EX_JOHN_DOE', joe = 'ORG_ZIZI_JD', bob = 'ORG_ZIZI_BD', org = 'ORG_ZIZI_SERVICES'
+            if (ec.entity.find('mantle.party.Party').condition('partyId', john).disableAuthz().one() == null) {
+                ec.logger.warn('The calendar demo needs the party EX_JOHN_DOE (mr-mantle demo data); nothing loaded')
+                return
+            }
+            // john.doe's time zone for every date here, whatever the server's is (a data load has no user)
+            const account = ec.entity.find('moqui.security.UserAccount').condition('userId', 'EX_JOHN_DOE').disableAuthz().one()
+            const zone = account?.timeZone || 'US/Central'
+            const signedIn = !!ec.user.userId
+            const previousZone = ec.user.timeZone
+            if (!signedIn && zone !== previousZone) ec.user.setTimeZone(zone)
+            const wasDisabled = ec.artifactExecution.disableAuthz()
+            try {
+                const pattern = 'yyyy-MM-dd HH:mm:ss.SSS'
+                const nowMs = Number(String(ec.user.nowTimestamp))
+                const today = ec.l10n.format(String(nowMs), 'yyyy-MM-dd')
+                const addDays = (text, days) => { const [y, m, d] = text.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + days)).toISOString().substring(0, 10) }
+                const day = (offset) => addDays(today, offset)
+                const at = (offset, time) => new Date(Number(String(ec.l10n.parseTimestamp(day(offset) + ' ' + time + ':00.000', pattern))))
+                // written as values, not through store#: a reload puts back states a status flow would not allow (an answer, a booking)
+                const store = (entityName, fields) => {
+                    const value = ec.entity.makeValue(entityName)
+                    for (const [field, fieldValue] of Object.entries(fields)) value.set(field, fieldValue)
+                    value.createOrUpdate()
+                }
+                const since = at(-30, '00:00')
+                const codes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+                const weekday = (text) => { const [y, m, d] = text.split('-').map(Number); return codes[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] }
+
+                // ===== rooms and equipment =====
+                store('mantle.facility.Facility', {facilityId: 'BOSS_DEMO_SITE', facilityTypeEnumId: 'FcTpOffice', facilityName: 'Main office', ownerPartyId: org})
+                store('mantle.facility.Facility', {facilityId: 'BOSS_DEMO_ROOM_MAPLE', facilityTypeEnumId: 'FcTpRoom', facilityName: 'Maple meeting room',
+                    parentFacilityId: 'BOSS_DEMO_SITE', ownerPartyId: org, description: 'Eight seats, a screen and a whiteboard, by the kitchen.', closedDate: null,
+                    bookable: 'Y', capacity: 8})
+                store('mantle.facility.Facility', {facilityId: 'BOSS_DEMO_ROOM_BOARD', facilityTypeEnumId: 'FcTpRoom', facilityName: 'Board room',
+                    parentFacilityId: 'BOSS_DEMO_SITE', ownerPartyId: org, description: 'Sixteen seats and the video wall; Bob approves its bookings.', closedDate: null,
+                    bookable: 'Y', capacity: 16})
+                store('mantle.facility.FacilityParty', {facilityId: 'BOSS_DEMO_ROOM_BOARD', partyId: bob, roleTypeId: 'BookingApprover', fromDate: since})
+                store('mantle.product.asset.Asset', {assetId: 'BOSS_DEMO_PROJECTOR', assetTypeEnumId: 'AstTpEquipment', classEnumId: 'AsClsComputerHard',
+                    assetName: 'Portable projector', ownerPartyId: org, facilityId: 'BOSS_DEMO_SITE', serialNumber: 'PJ-2041',
+                    comments: 'With an HDMI and a USB-C cable, in the supply room.', bookable: 'Y', capacity: 1})
+                store('mantle.product.asset.Asset', {assetId: 'BOSS_DEMO_VC_KIT', assetTypeEnumId: 'AstTpEquipment', classEnumId: 'AsClsComputerHard',
+                    assetName: 'Video conference kit', ownerPartyId: org, facilityId: 'BOSS_DEMO_SITE', serialNumber: 'VC-0007',
+                    comments: 'Camera, speaker and microphone; Bob approves its bookings.', bookable: 'Y', capacity: 1})
+                store('mantle.product.asset.AssetPartyAssignment', {assetId: 'BOSS_DEMO_VC_KIT', partyId: bob, roleTypeId: 'BookingApprover', fromDate: since})
+
+                // ===== calendars =====
+                for (const other of ec.entity.find('mantle.work.calendar.Calendar').condition('ownerPartyId', john).condition('calendarKindEnumId', 'CalkPersonal')
+                        .condition('isDefault', 'Y').disableAuthz().list()) if (other.calendarId !== 'BOSS_DEMO_CAL_JD') { other.set('isDefault', 'N'); other.update() }
+                store('mantle.work.calendar.Calendar', {calendarId: 'BOSS_DEMO_CAL_JD', calendarName: 'John Doe', ownerPartyId: john, calendarKindEnumId: 'CalkPersonal',
+                    color: '#1e88e5', isDefault: 'Y', createdDate: since})
+                store('mantle.work.calendar.Calendar', {calendarId: 'BOSS_DEMO_CAL_FAMILY', calendarName: 'Family', ownerPartyId: john, calendarKindEnumId: 'CalkPersonal',
+                    color: '#43a047', isDefault: 'N', createdDate: since, description: 'Birthdays, school and the family events.'})
+                store('mantle.work.calendar.Calendar', {calendarId: 'BOSS_DEMO_CAL_TEAM', calendarName: 'Team', ownerPartyId: org, calendarKindEnumId: 'CalkShared',
+                    color: '#8e24aa', isDefault: 'N', createdDate: since, description: 'Office closures, all-hands and team events.'})
+                store('mantle.work.calendar.CalendarShare', {calendarShareId: 'BOSS_DEMO_SHR_TEAM_JD', calendarId: 'BOSS_DEMO_CAL_TEAM', userId: 'EX_JOHN_DOE',
+                    permissionEnumId: 'CalpManage', fromDate: since, thruDate: null})
+                store('mantle.work.calendar.CalendarShare', {calendarShareId: 'BOSS_DEMO_SHR_TEAM_JOE', calendarId: 'BOSS_DEMO_CAL_TEAM', userId: 'ORG_ZIZI_JD',
+                    permissionEnumId: 'CalpEdit', fromDate: since, thruDate: null})
+                for (const other of ec.entity.find('mantle.work.calendar.Calendar').condition('ownerPartyId', joe).condition('calendarKindEnumId', 'CalkPersonal')
+                        .condition('isDefault', 'Y').disableAuthz().list()) if (other.calendarId !== 'BOSS_DEMO_CAL_JOE') { other.set('isDefault', 'N'); other.update() }
+                store('mantle.work.calendar.Calendar', {calendarId: 'BOSS_DEMO_CAL_JOE', calendarName: 'Joe Developer', ownerPartyId: joe, calendarKindEnumId: 'CalkPersonal',
+                    color: '#fb8c00', isDefault: 'Y', createdDate: since})
+                store('mantle.work.calendar.CalendarShare', {calendarShareId: 'BOSS_DEMO_SHR_JOE_JD', calendarId: 'BOSS_DEMO_CAL_JOE', userId: 'EX_JOHN_DOE',
+                    permissionEnumId: 'CalpView', fromDate: since, thruDate: null})
+                store('mantle.work.calendar.Calendar', {calendarId: 'BOSS_DEMO_CAL_BOB', calendarName: 'Bob Developer', ownerPartyId: bob, calendarKindEnumId: 'CalkPersonal',
+                    color: '#6d4c41', isDefault: 'Y', createdDate: since})
+                store('mantle.work.calendar.CalendarShare', {calendarShareId: 'BOSS_DEMO_SHR_BOB_JD', calendarId: 'BOSS_DEMO_CAL_BOB', userId: 'EX_JOHN_DOE',
+                    permissionEnumId: 'CalpFreeBusy', fromDate: since, thruDate: null})
+                // a subscription whose last fetch failed (a few minutes ago, so the fetch job leaves it for a day)
+                store('mantle.work.calendar.Calendar', {calendarId: 'BOSS_DEMO_CAL_FEED', calendarName: 'Holidays (demo feed)', ownerPartyId: john,
+                    calendarKindEnumId: 'CalkSubscription', color: '#757575', isDefault: 'N', createdDate: since})
+                store('mantle.work.calendar.CalendarSubscription', {calendarId: 'BOSS_DEMO_CAL_FEED', url: 'https://holidays.example.invalid/us.ics',
+                    providerEnumId: 'CspIcsUrl', refreshMinutes: 1440, lastFetchDate: new Date(nowMs - 600000), lastFetchStatus: 'error',
+                    lastFetchError: 'The feed answered 404 Not Found'})
+
+                // ===== events =====
+                const event = (id, fields, calendarIds) => {
+                    store('mantle.work.effort.WorkEffort', Object.assign({workEffortId: id, workEffortTypeEnumId: 'WetEvent', purposeEnumId: 'WepMeeting',
+                        statusId: 'WeApproved', resolutionEnumId: 'WerUnresolved', priority: 5, timeUomId: 'TF_hr', estimatedStartDate: null,
+                        estimatedCompletionDate: null, allDayStart: null, allDayEnd: null, location: null, description: null, infoUrl: null}, fields))
+                    for (const calendarId of calendarIds || []) store('mantle.work.calendar.CalendarWorkEffort', {calendarId: calendarId, workEffortId: id, addedDate: since})
+                    workEffortIdList.push(id)
+                }
+                const party = (id, partyId, statusId, extra) => store('mantle.work.effort.WorkEffortParty', Object.assign({workEffortId: id, partyId: partyId,
+                    roleTypeId: 'Assignee', fromDate: since, thruDate: null, statusId: statusId, mustRsvp: 'Y', expectationEnumId: 'WepeInvRequired'}, extra || {}))
+                const timed = (offset, from, thru) => ({estimatedStartDate: at(offset, from), estimatedCompletionDate: at(offset, thru)})
+
+                // the weekly team sync, from three weeks before D on D's weekday, with a moved and a cancelled instance
+                event('BOSS_DEMO_EV_SYNC', Object.assign({ownerPartyId: john, workEffortName: 'Team sync', location: 'Maple meeting room',
+                    description: 'What each of us is on this week, and what is blocked.', infoUrl: 'https://meet.example.com/team-sync',
+                    estimatedWorkDuration: 0.5}, timed(-21, '10:00', '10:30')), ['BOSS_DEMO_CAL_JD'])
+                store('mantle.work.effort.WorkEffortRecurrence', {workEffortId: 'BOSS_DEMO_EV_SYNC', rrule: 'FREQ=WEEKLY;BYDAY=' + weekday(today), exdates: null,
+                    rdates: null, timeZone: zone})
+                party('BOSS_DEMO_EV_SYNC', john, 'WeptAssigned', {mustRsvp: 'N'})
+                party('BOSS_DEMO_EV_SYNC', joe, 'WeptAssigned', {invitationSentDate: since})
+                party('BOSS_DEMO_EV_SYNC', bob, 'WeptTentative', {invitationSentDate: since, expectationEnumId: 'WepeInvRequested', comments: 'Every other week'})
+                store('mantle.work.effort.WorkEffortFacility', {workEffortId: 'BOSS_DEMO_EV_SYNC', facilityId: 'BOSS_DEMO_ROOM_MAPLE', statusId: 'WefAssigned'})
+                store('mantle.work.effort.WorkEffortReminder', {workEffortId: 'BOSS_DEMO_EV_SYNC', partyId: john, reminderSeqId: '01', offsetMinutes: 10,
+                    methodEnumId: 'WermNotification', sentDate: null, snoozedThruDate: null})
+                for (const assoc of ec.entity.find('mantle.work.effort.WorkEffortAssoc').condition('workEffortId', 'BOSS_DEMO_EV_SYNC')
+                        .condition('workEffortAssocTypeEnumId', 'WeatRecurrenceInstance').disableAuthz().list()) assoc.delete()
+                event('BOSS_DEMO_EV_SYNC_MOVED', Object.assign({ownerPartyId: john, workEffortName: 'Team sync', location: 'Maple meeting room',
+                    description: 'Moved a day for the client visit.', estimatedWorkDuration: 0.5}, timed(8, '15:00', '15:30')), ['BOSS_DEMO_CAL_JD'])
+                party('BOSS_DEMO_EV_SYNC_MOVED', john, 'WeptAssigned', {mustRsvp: 'N'})
+                party('BOSS_DEMO_EV_SYNC_MOVED', joe, 'WeptAssigned', {invitationSentDate: since})
+                party('BOSS_DEMO_EV_SYNC_MOVED', bob, 'WeptOffered', {invitationSentDate: since, expectationEnumId: 'WepeInvRequested'})
+                store('mantle.work.effort.WorkEffortAssoc', {workEffortId: 'BOSS_DEMO_EV_SYNC', toWorkEffortId: 'BOSS_DEMO_EV_SYNC_MOVED',
+                    workEffortAssocTypeEnumId: 'WeatRecurrenceInstance', fromDate: at(7, '10:00')})
+                event('BOSS_DEMO_EV_SYNC_OFF', Object.assign({ownerPartyId: john, workEffortName: 'Team sync', statusId: 'WeCancelled', estimatedWorkDuration: 0.5},
+                    timed(14, '10:00', '10:30')), [])
+                party('BOSS_DEMO_EV_SYNC_OFF', john, 'WeptAssigned', {mustRsvp: 'N'})
+                store('mantle.work.effort.WorkEffortAssoc', {workEffortId: 'BOSS_DEMO_EV_SYNC', toWorkEffortId: 'BOSS_DEMO_EV_SYNC_OFF',
+                    workEffortAssocTypeEnumId: 'WeatRecurrenceInstance', fromDate: at(14, '10:00')})
+
+                // Bob's vendor demo, declined
+                event('BOSS_DEMO_EV_VENDOR', Object.assign({ownerPartyId: bob, workEffortName: 'Vendor demo: shared printers', location: 'Board room',
+                    description: 'The printer vendor shows the new models.'}, timed(1, '15:00', '16:00')), ['BOSS_DEMO_CAL_BOB'])
+                party('BOSS_DEMO_EV_VENDOR', bob, 'WeptAssigned', {mustRsvp: 'N'})
+                party('BOSS_DEMO_EV_VENDOR', john, 'WeptDeclined', {invitationSentDate: since, comments: 'Out at a client that afternoon'})
+
+                // Joe's release planning, john invited and not answered
+                event('BOSS_DEMO_EV_PLANNING', Object.assign({ownerPartyId: joe, workEffortName: 'Release planning', location: 'Maple meeting room',
+                    description: 'What goes in the November release, and who tests what.'}, timed(2, '13:00', '14:00')), ['BOSS_DEMO_CAL_JOE'])
+                party('BOSS_DEMO_EV_PLANNING', joe, 'WeptAssigned', {mustRsvp: 'N'})
+                party('BOSS_DEMO_EV_PLANNING', john, 'WeptOffered', {invitationSentDate: at(-1, '16:00')})
+                store('mantle.work.effort.WorkEffortFacility', {workEffortId: 'BOSS_DEMO_EV_PLANNING', facilityId: 'BOSS_DEMO_ROOM_MAPLE', statusId: 'WefAssigned'})
+
+                // the office closed two days, in the Team calendar
+                event('BOSS_DEMO_EV_CLOSED', {ownerPartyId: org, purposeEnumId: null, workEffortName: 'Office closed for training', allDayStart: day(3), allDayEnd: day(4),
+                    visibilityEnumId: 'WevAllUsers', description: 'Everyone is at the first aid and safety training.'}, ['BOSS_DEMO_CAL_TEAM'])
+
+                // Mary's birthday every year on D+5's day, in Family
+                const birthday = day(5)
+                const firstBirthday = (Number(birthday.substring(0, 4)) - 3) + birthday.substring(4)
+                event('BOSS_DEMO_EV_BIRTHDAY', {ownerPartyId: john, purposeEnumId: null, workEffortName: 'Mary\'s birthday', allDayStart: birthday.endsWith('02-29') ? birthday : firstBirthday,
+                    statusId: 'WeApproved'}, ['BOSS_DEMO_CAL_FAMILY'])
+                store('mantle.work.effort.WorkEffortRecurrence', {workEffortId: 'BOSS_DEMO_EV_BIRTHDAY', rrule: 'FREQ=YEARLY', exdates: null, rdates: null, timeZone: zone})
+                party('BOSS_DEMO_EV_BIRTHDAY', john, 'WeptAssigned', {mustRsvp: 'N'})
+
+                // Joe's and Bob's own events in their calendars
+                event('BOSS_DEMO_EV_DENTIST', Object.assign({ownerPartyId: joe, purposeEnumId: null, workEffortName: 'Dentist'}, timed(1, '08:00', '09:00')), ['BOSS_DEMO_CAL_JOE'])
+                party('BOSS_DEMO_EV_DENTIST', joe, 'WeptAssigned', {mustRsvp: 'N'})
+                event('BOSS_DEMO_EV_INTERVIEW', Object.assign({ownerPartyId: bob, workEffortName: 'Candidate interview', location: 'Maple meeting room'},
+                    timed(2, '11:00', '12:00')), ['BOSS_DEMO_CAL_BOB'])
+                party('BOSS_DEMO_EV_INTERVIEW', bob, 'WeptAssigned', {mustRsvp: 'N'})
+                store('mantle.work.effort.WorkEffortFacility', {workEffortId: 'BOSS_DEMO_EV_INTERVIEW', facilityId: 'BOSS_DEMO_ROOM_MAPLE', statusId: 'WefAssigned'})
+
+                // john's client workshop: the Board room waits for Bob's approval, the projector is booked
+                event('BOSS_DEMO_EV_WORKSHOP', Object.assign({ownerPartyId: john, workEffortName: 'Client workshop: Acme rollout', location: 'Board room',
+                    description: 'Walk Acme through the rollout plan and the training dates.', sourceReferenceId: 'BossBooking'}, timed(2, '09:00', '11:00')), ['BOSS_DEMO_CAL_JD'])
+                party('BOSS_DEMO_EV_WORKSHOP', john, 'WeptAssigned', {mustRsvp: 'N'})
+                store('mantle.work.effort.WorkEffortFacility', {workEffortId: 'BOSS_DEMO_EV_WORKSHOP', facilityId: 'BOSS_DEMO_ROOM_BOARD', statusId: 'WefRequested',
+                    comments: 'For the Acme visit'})
+                store('mantle.work.effort.WorkEffortAssetAssign', {workEffortId: 'BOSS_DEMO_EV_WORKSHOP', assetId: 'BOSS_DEMO_PROJECTOR', fromDate: since,
+                    thruDate: null, statusId: 'WeaaAssigned'})
+
+                // the invitations sent are the latest: their digest is the event's now (mantle.work.EventServices.get#InvitationDigest)
+                for (const id of ['BOSS_DEMO_EV_SYNC', 'BOSS_DEMO_EV_SYNC_MOVED', 'BOSS_DEMO_EV_VENDOR', 'BOSS_DEMO_EV_PLANNING']) {
+                    const digest = ec.service.sync().name('mantle.work.EventServices.get#InvitationDigest').parameters({workEffortId: id}).disableAuthz().call()?.digest
+                    for (const row of ec.entity.find('mantle.work.effort.WorkEffortParty').condition('workEffortId', id).disableAuthz().list())
+                        if (row.invitationSentDate != null) { row.set('invitationDigest', digest); row.update() }
+                }
+                // the feed's one event, as a fetch before the failing one stored it
+                ec.service.sync().name('mantle.work.CalendarServices.store#CalendarFeedEvents').parameters({calendarId: 'BOSS_DEMO_CAL_FEED', replaceAll: false,
+                    eventList: [{uid: 'boss-demo-holiday@holidays.example.invalid', summary: 'Founders Day (holiday)', allDay: true, startDate: day(10),
+                        endDate: day(11), status: 'CONFIRMED'}]}).disableAuthz().call()
+                ec.message.clearErrors()
+            } finally {
+                if (!wasDisabled) ec.artifactExecution.enableAuthz()
+                if (!signedIn && zone !== previousZone) ec.user.setTimeZone(previousZone || null)
+            }
+        ]]></script></actions>
+    </service>
+</services>

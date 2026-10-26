@@ -2,7 +2,7 @@
 // kinds to Projects/QuickCreate, and the project kind to the managers' Projects/QuickProject, which the team is not offered
 // (impl-projects.md F8, P2), the palette actions and types, the go-to keys of the projects scope); its menu by group
 // (data/BossSetupData.xml: the managers' screens WorkItems/Import, Billing and Settings absent for the team); and the record
-// links of ironstone.PaletteServices.get#RecordLink: a project, and a task or request of a project, open in Projects for a
+// links of ironstone.commons.PaletteServices.get#RecordLink: a project, and a task or request of a project, open in Projects for a
 // user who may open it, else a task or request in Commons and a project nowhere, while a personal task stays in Commons.
 // Authorization stays on, as for a shell request.
 // Run: ./moq test mr-boss --spec ProjectsShell
@@ -32,7 +32,7 @@ function as(username, run, withAuthz) {
         login("john.doe")
     }
 }
-const link = (parameters) => ec.service.sync().name("ironstone.PaletteServices.get#RecordLink").parameters(parameters).call() || {}
+const link = (parameters) => ec.service.sync().name("ironstone.commons.PaletteServices.get#RecordLink").parameters(parameters).call() || {}
 
 spec({
     setupSpec() {

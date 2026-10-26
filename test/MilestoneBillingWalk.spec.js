@@ -93,7 +93,7 @@ spec({
 
 feature("john.doe links the client's order line on the Money tab; the tab shows the budget, the line and no milestone shares yet", {
     when() {
-        const search = sys(() => call("ironstone.BillingServices.search#OrderLines", { workEffortId: PROJECT, term: "" }))
+        const search = sys(() => call("ironstone.projects.BillingServices.search#OrderLines", { workEffortId: PROJECT, term: "" }))
         const linked = post("Projects/ProjectDetail/Money/linkOrderLine", { workEffortId: PROJECT, orderLine: made.orderId + ":" + made.lineSeq })
         const money = render("apps/Projects/Projects/ProjectDetail/Money", { workEffortId: PROJECT })
         return { search, linked, money, link: one("mantle.order.OrderItemWorkEffort", { orderId: made.orderId, orderItemSeqId: made.lineSeq, workEffortId: PROJECT }) }
@@ -224,7 +224,7 @@ feature("joe's approved week and Design's share become one client invoice: the d
         }))
         sys(() => call("mantle.work.TimesheetServices.approve#Timesheet", { timesheetId: made.sheet }))
         const dialog = render("apps/Projects/Billing/Unbilled/CreateInvoice", { workEffortId: PROJECT })
-        const draft = sys(() => call("ironstone.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }).draft)
+        const draft = sys(() => call("ironstone.projects.BillingServices.get#InvoiceDraft", { workEffortId: PROJECT }).draft)
         const created = post("Billing/Unbilled/CreateInvoice/createInvoice", { workEffortId: PROJECT, timeEntryIds: draft.selectedIds, milestoneIds: draft.selectedMilestoneIds,
             entryGrouping: "entry", settlementTermId: "Net30", invoiceDate: "2027-07-16" })
         made.invoiceId = sys(() => Array.from(ec.entity.find("mantle.work.effort.WorkEffortInvoice").condition("workEffortId", PROJECT).list())[0]?.invoiceId)

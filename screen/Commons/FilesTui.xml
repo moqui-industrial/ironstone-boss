@@ -35,7 +35,7 @@ along with this software (see the LICENSE.md file). If not, see
             return (size / 1073741824).toFixed(1) + ' GB'
         }
         const when = (millis) => millis == null || Number.isNaN(num(millis)) ? '' : ec.l10n.format(new Date(num(millis)), 'yyyy-MM-dd HH:mm')
-        const rail = ec.service.sync().name('ironstone.DriveServices.get#FilesData').call()
+        const rail = ec.service.sync().name('ironstone.commons.DriveServices.get#FilesData').call()
         driveId = drive || rail.personalDriveId || null
         folderPath = path || ''
         driveList = Array.from(rail.driveList || []).map((item) => ({driveId: item.driveId, shownName: item.driveName || item.driveId,
@@ -46,7 +46,7 @@ along with this software (see the LICENSE.md file). If not, see
         folderTitle = ''
         hiddenCount = 0
         if (driveId && !ec.message.hasError()) {
-            const out = ec.service.sync().name('ironstone.DriveServices.list#FolderView').parameters({driveId: driveId, path: folderPath}).call()
+            const out = ec.service.sync().name('ironstone.commons.DriveServices.list#FolderView').parameters({driveId: driveId, path: folderPath}).call()
             if (!ec.message.hasError()) {
                 folderTitle = out.record?.title || out.folder?.name || ''
                 hiddenCount = out.hiddenCount || 0

@@ -46,7 +46,7 @@ function findScreenFiles(appList, matches) {
 // what a screen shows of the demo records (data/BossDemoData.xml), by app and path, with the id parameters of a screen
 // that opens on one
 const demoRecords = {
-    // M2: Today, notifications, quick create, Home and the settings (the demo of service/ironstone/DemoServices.xml), on text
+    // M2: Today, notifications, quick create, Home and the settings (the demo of service/ironstone/commons/DemoServices.xml), on text
     // that does not depend on the time of day the data was loaded
     "Commons/Home": { text: "Get started" },
     "Commons/Panel/Today": { text: "1 approval waiting" },
@@ -178,7 +178,7 @@ const demoRecords = {
     "Projects/Requests/List": { parameters: { list: "all" }, text: "Bring over the tickets of the old tracker" },
     "Projects/Requests/RequestDetail": { parameters: { requestId: "BOSS_DEMO_PREQ_ACME1" }, text: "RequestStatusBar" },
     "Projects/Settings/Intake": { text: "support+iron@ziziwork.example" },
-    // Projects P3b1: the code screens on the code demo (service/ironstone/CodeDemoServices.xml), a RepositoryDetail tab by its
+    // Projects P3b1: the code screens on the code demo (service/ironstone/projects/CodeDemoServices.xml), a RepositoryDetail tab by its
     // header (the shell loads the tab after it); without git hosting in the build (codeText given) each says so instead
     "Projects/Code": { codeText: "acme-portal" },
     "Projects/Code/Repositories": { parameters: { list: "all" }, codeText: "IronStone Projects, the app" },
@@ -290,7 +290,7 @@ spec({
         // the code screens show the demo's repositories with git hosting in the build, else that it is not
         const wasDisabled = ec.artifactExecution.disableAuthz()
         let codeHosting
-        try { codeHosting = !!call("ironstone.CodeServices.get#CodeHosting", {}).available } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
+        try { codeHosting = !!call("ironstone.projects.CodeServices.get#CodeHosting", {}).available } finally { if (!wasDisabled) ec.artifactExecution.enableAuthz() }
         for (const demo of Object.values(demoRecords)) if (demo.codeText) demo.text = codeHosting ? demo.codeText : "Code hosting is not in this build"
         // without git hosting such a tab answers nothing (its MergeRequestDetail says hosting is not in this build): no error is enough
         for (const demo of Object.values(demoRecords)) if (demo.codeOnlyQvue && !codeHosting) demo.noComponent = true

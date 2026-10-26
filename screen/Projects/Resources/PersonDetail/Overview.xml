@@ -14,14 +14,14 @@ along with this software (see the LICENSE.md file). If not, see
 -->
 <!-- PersonDetail's Overview (design-projects.md §9 PersonDetail): the directory card (email, phone, organizations), the position and the
     line managers, the skills (PartySkill) with their ratings, the working hours (their own, or the timesheet policy's week) and the
-    next four weeks' load (capacity, allocated, assigned, the load chip), from ironstone.ResourceServices.get#PersonOverview. -->
+    next four weeks' load (capacity, allocated, assigned, the load chip), from ironstone.projects.ResourceServices.get#PersonOverview. -->
 <screen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://moqui.org/xsd/xml-screen-3.xsd"
         default-menu-title="Overview" default-menu-index="1" menu-image="sym_o_dashboard" menu-image-type="icon">
 
     <actions><script><![CDATA[
         overview = null
         if (!personFound) return
-        overview = ec.service.sync().name('ironstone.ResourceServices.get#PersonOverview').parameters({partyId: partyId, weeks: 4}).call()?.overview || null
+        overview = ec.service.sync().name('ironstone.projects.ResourceServices.get#PersonOverview').parameters({partyId: partyId, weeks: 4}).call()?.overview || null
         ec.message.clearErrors()
         if (!overview) return
         skillList = Array.from(overview.skillList || [])

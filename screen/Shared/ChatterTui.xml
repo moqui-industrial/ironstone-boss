@@ -32,9 +32,9 @@ along with this software (see the LICENSE.md file). If not, see
             const text = String(body || '').trim()
             if (!text) { ec.message.addError(ec.l10n.localize('Write the note first')); return }
             const html = text.split(/\n{2,}/).map((part) => '<p>' + escape(part).replace(/\n/g, '<br>') + '</p>').join('')
-            const record = ec.service.sync().name('ironstone.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity || '',
+            const record = ec.service.sync().name('ironstone.shared.ChatterServices.get#RecordInfo').parameters({recordEntityName: recordEntity || '',
                 recordId: recordId || ''}).call()
-            const out = ec.service.sync().name('ironstone.ChatterServices.log#Note').parameters({recordEntityName: recordEntity, recordId: recordId,
+            const out = ec.service.sync().name('ironstone.shared.ChatterServices.log#Note').parameters({recordEntityName: recordEntity, recordId: recordId,
                 body: html, recordUrl: record?.url || null}).call()
             if (!ec.message.hasError() && out?.message) ec.message.addMessage(out.message, 'success')
         ]]></script></actions>
@@ -71,13 +71,13 @@ along with this software (see the LICENSE.md file). If not, see
         entryList = []
         hasMore = false
         if (asked) {
-            const data = ec.service.sync().name('ironstone.ChatterServices.get#ChatterData').parameters({recordEntityName: recordEntity, recordId: recordId}).call()
+            const data = ec.service.sync().name('ironstone.shared.ChatterServices.get#ChatterData').parameters({recordEntityName: recordEntity, recordId: recordId}).call()
             visible = !ec.message.hasError() && data.visible === true
             if (visible) {
                 recordTitle = [data.record?.typeLabel, data.record?.title].filter((part) => part).join(': ')
                 canMessage = data.canMessage === true
                 forClient = data.forClient === true
-                const out = ec.service.sync().name('ironstone.ChatterServices.get#Timeline').parameters({recordEntityName: recordEntity,
+                const out = ec.service.sync().name('ironstone.shared.ChatterServices.get#Timeline').parameters({recordEntityName: recordEntity,
                     recordId: recordId, kinds: 'all'}).call()
                 if (!ec.message.hasError()) {
                     hasMore = out.hasMore === true

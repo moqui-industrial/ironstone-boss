@@ -1,7 +1,7 @@
 // The suite shell's IronStone part (impl-drawers-commons.md M1): as john.doe the shellData transition of webroot.xml lists
 // Commons and Comms with their shell-providers (screen/Commons.xml, screen/Comms.xml) and the theme values that
 // data/BossSetupData.xml seeds on DEFAULT_QUASAR; shellSearch runs the Commons palette sources
-// (service/ironstone/PaletteServices.xml): a demo task under Records, john.doe's own party under People (the group the
+// (service/ironstone/commons/PaletteServices.xml): a demo task under Records, john.doe's own party under People (the group the
 // client asks for with @John), and the id lookup of a demo request. Authorization stays on, as for a shell request.
 // Run: ./moq test mr-boss --spec Shell
 const webroot = "component://webroot/screen/webroot.xml"
